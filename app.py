@@ -113,8 +113,8 @@ st.markdown("---")
 # ==============================================================================
 # MAIN NAVIGATION: Tabs
 # ==============================================================================
-tab_global, tab_profile, tab_explorer, tab_methodology = st.tabs([
-    "Global Summary", "Country Profile", "Data Explorer", "Methodology"
+tab_global, tab_profile, tab_explorer = st.tabs([
+    "Global Summary", "Country Profile", "Data Explorer"
 ])
 
 # ==============================================================================
@@ -354,58 +354,7 @@ with tab_explorer:
 # ==============================================================================
 # TAB: Methodology
 # ==============================================================================
-with tab_methodology:
-    st.markdown("## Methodology")
-    
-    st.markdown("""
-### Business Understanding
+# with tab_methodology:
+#     pass # Methodology tab removed temporarily
+# Methodology content removed
 
-The Banking System Stability Copilot provides an early warning system for systemic banking crises. 
-It synthesizes macroeconomic and banking sector data to produce a dynamic Risk Score (1-10 scale).
-
----
-
-### Data Sources
-
-| Dataset | Source | Coverage | Key Indicators |
-|---------|--------|----------|----------------|
-| WEO | IMF World Economic Outlook | 190+ countries, 2000-2025 | GDP per capita, Inflation, Government Debt |
-| FSIC | IMF Financial Soundness | 150+ countries, 2010-2024 | NPL Ratio, Capital Adequacy, ROE |
-| WGI | World Bank Governance | 210 countries, 1996-2023 | Rule of Law, Regulatory Quality |
-
----
-
-### Model Architecture
-
-**Two-Pillar PCA Framework:**
-
-1. **Economic Pillar (50%)**: GDP Growth, Inflation, Government Debt, External Balance
-2. **Industry Pillar (50%)**: NPL Ratio, Capital Adequacy, ROE, Liquidity Ratios
-
-The pillars are combined using a weighted average, then ranked against all countries to produce a 1-10 risk score.
-
----
-
-### Data Imputation
-
-Countries with missing data are imputed using K-Nearest Neighbors (K=5) based on structural similarity.
-A confidence floor is applied: countries with <50% data coverage are capped at Moderate Risk.
-
----
-
-### Validation
-
-| Country | Score | Status |
-|---------|-------|--------|
-| Switzerland | 1.8 | Correctly flagged as Very Low Risk |
-| Venezuela | 9.2 | Correctly flagged as Very High Risk |
-| Lebanon (2019) | 8.5 | Pre-crisis warning captured |
-
----
-
-### Limitations
-
-1. **Temporal Lag**: Data may be 6-12 months old
-2. **Imputation Bias**: Heavy reliance on peer imputation for some countries
-3. **No Market Data**: CDS spreads and equity flows not included
-    """)
