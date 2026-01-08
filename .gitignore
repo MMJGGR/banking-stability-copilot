@@ -8,16 +8,7 @@ venv/
 env/
 .venv/
 .env
-
-# Data files (too large for GitHub)
-*.csv
-*.parquet
-*.pkl
-
-# Cache directories
-cache/
-.cache/
-.streamlit/
+.conda/
 
 # IDE
 .vscode/
@@ -36,3 +27,8 @@ Thumbs.db
 
 # Gemini workspace (not needed for deployment)
 .gemini/
+
+# Streamlit
+.streamlit/
+
+# Note: CSV, parquet, pkl files are tracked by Git LFS
