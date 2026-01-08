@@ -284,20 +284,42 @@ class FSIBSISLoader:
                 raise FileNotFoundError("No FSIBSIS CSV file found")
         
         logger.info(f"Loading FSIBSIS from: {path}")
-        self.data = pd.read_csv(path, low_memory=False)
         
-        # Filter to Deposit Takers (banks)
-        self.bank_data = self.data[self.data['SECTOR'] == 'Deposit takers'].copy()
+        # MEMORY OPTIMIZATION:
+        # 1. Read only essential columns first to identify structure
+        # 2. Filter rows during read if possible (not possible with read_csv filtering rows directly easily without chunks)
+        # 3. Read in chunks and filter to reduce peak memory
         
-        # Identify year columns (annual data preferred)
-        self.year_cols = sorted([c for c in self.data.columns 
-                                 if len(c) == 4 and c.startswith('20')])
+        chunks = []
+        chunk_size = 50000
+        
+        # Columns we definitely need: COUNTRY, SECTOR, INDICATOR, and Year columns
+        # We'll detect year columns from the first chunk
+        first_chunk = pd.read_csv(path, nrows=5)
+        all_cols = first_chunk.columns.tolist()
+        year_cols = [c for c in all_cols if len(str(c)) == 4 and str(c).startswith('20')]
+        
+        cols_to_use = ['COUNTRY', 'SECTOR', 'INDICATOR'] + year_cols
+        
+        # Load in chunks to filter immediately
+        for chunk in pd.read_csv(path, usecols=cols_to_use, chunksize=chunk_size, low_memory=False):
+            # Filter to Deposit Takers immediately
+            bank_chunk = chunk[chunk['SECTOR'] == 'Deposit takers']
+            if len(bank_chunk) > 0:
+                chunks.append(bank_chunk)
+        
+        if chunks:
+            self.bank_data = pd.concat(chunks, ignore_index=True)
+        else:
+            self.bank_data = pd.DataFrame(columns=cols_to_use)
+            
+        self.year_cols = sorted(year_cols)
         
         # Add ISO country codes
         self.bank_data['country_code'] = self.bank_data['COUNTRY'].map(COUNTRY_NAME_TO_ISO)
         
         logger.info(f"Loaded {len(self.bank_data)} rows for {self.bank_data['country_code'].nunique()} countries")
-        logger.info(f"Year columns: {self.year_cols[0]} to {self.year_cols[-1]}")
+        logger.info(f"Year columns: {self.year_cols[0] if self.year_cols else 'None'} to {self.year_cols[-1] if self.year_cols else 'None'}")
         
         return self.bank_data
     
