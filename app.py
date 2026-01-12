@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import time
+import os
 
 from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
 from train_model import BankingRiskModel
@@ -16,41 +17,7 @@ from src.dashboard.components import (
 )
 from src.dashboard.global_view import render_global_summary
 from src.utils import find_peers
-try:
-    from streamlit_mermaid import st_mermaid
-    HAS_STREAMLIT_MERMAID = True
-except ImportError:
-    HAS_STREAMLIT_MERMAID = False
-    import streamlit.components.v1 as components
 
-def render_mermaid(code: str, height: int = 500) -> None:
-    """Render a mermaid diagram using streamlit-mermaid package.
-    
-    Falls back to components.html if package not available (local dev).
-    """
-    if HAS_STREAMLIT_MERMAID:
-        # Use the proper Streamlit component (works on Cloud)
-        st_mermaid(code, height=height)
-    else:
-        # Fallback for local development if package not installed
-        import streamlit.components.v1 as components
-        components.html(
-            f'''
-            <div class="mermaid" style="width: 100%; height: 100%;">
-            {code}
-            </div>
-            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-            <script>
-                mermaid.initialize({{
-                    startOnLoad: true,
-                    securityLevel: 'loose',
-                    theme: 'default',
-                }});
-            </script>
-            ''',
-            height=height,
-            scrolling=True,
-        )
 
 def extract_mermaid_code(markdown_text: str) -> str:
     """Extract mermaid code block from markdown."""
@@ -455,20 +422,20 @@ with tab_methodology:
     with open('README.md', 'r', encoding='utf-8') as f:
         readme_content = f.read()
     
-    # Extract and render mermaid diagram separately
-    mermaid_code = extract_mermaid_code(readme_content)
-    
-    # Split content around the diagram
+    # Render content, but skip the mermaid block if it exists
     parts = readme_content.split('```mermaid')
     
     # Render first part (text before diagram)
     render_markdown_with_images(parts[0])
     
-    # Render diagram
-    if mermaid_code:
-        st.markdown("### Process Architecture")
-        render_mermaid(mermaid_code, height=600)
-    
+    # Render static Architecture Diagram
+    st.markdown("### Process Architecture")
+    arch_img_path = "cache/eda/architecture_diagram.png"
+    if os.path.exists(arch_img_path):
+         st.image(arch_img_path, caption="Banking System Stability Model Architecture", use_column_width=True)
+    else:
+         st.warning("Architecture diagram not found.")
+
     # Render rest (if any, skipping the code block itself)
     if len(parts) > 1:
         # Find end of code block

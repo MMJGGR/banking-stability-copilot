@@ -98,14 +98,29 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
         st.metric("Countries Analyzed", f"{countries_covered}", delta=f"{high_risk_count} High Risk", delta_color="inverse")
         
     with kpi3:
-        # Find highest risk region
+        # Find highest risk region (GDP-weighted to match the bar chart)
         if 'Region' in df.columns:
-            region_risk = df.groupby('Region')['risk_score'].mean().sort_values(ascending=False)
-            highest_region = region_risk.index[0] if len(region_risk) > 0 else "N/A"
-            highest_score = region_risk.iloc[0] if len(region_risk) > 0 else 0
+            region_risk = {}
+            for reg in df['Region'].unique():
+                reg_df = df[df['Region'] == reg]
+                if len(reg_df) == 0:
+                    continue
+                tot_gdp = reg_df['nominal_gdp'].sum()
+                if tot_gdp > 0:
+                    w_score = (reg_df['risk_score'] * reg_df['nominal_gdp']).sum() / tot_gdp
+                else:
+                    w_score = reg_df['risk_score'].mean()
+                region_risk[reg] = w_score
+            
+            if region_risk:
+                sorted_regions = sorted(region_risk.items(), key=lambda x: x[1], reverse=True)
+                highest_region, highest_score = sorted_regions[0]
+            else:
+                highest_region, highest_score = "N/A", 0
             st.metric("Highest Risk Region", highest_region, delta=f"Avg: {highest_score:.1f}")
         else:
             st.metric("Highest Risk Region", "N/A")
+
         
     with kpi4:
         low_risk_count = len(df[df['risk_score'] < 4.0])
