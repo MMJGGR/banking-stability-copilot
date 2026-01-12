@@ -304,9 +304,17 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     try:
         from src.config import CACHE_DIR
         imputed_path = os.path.join(CACHE_DIR, 'imputed_features.parquet')
+        
+        # Merge year columns back from features_filtered (they were excluded from imputation)
+        year_cols = [c for c in features_filtered.columns if c.endswith('_year')]
+        imputed_with_years = features_imputed.copy()
+        for col in year_cols:
+            if col in features_filtered.columns:
+                imputed_with_years[col] = features_filtered[col]
+        
         # Reset index to make country_code a column
-        features_imputed.reset_index().to_parquet(imputed_path, index=False)
-        print(f"  Saved imputed features to: {imputed_path}")
+        imputed_with_years.reset_index().to_parquet(imputed_path, index=False)
+        print(f"  Saved imputed features to: {imputed_path} (with {len(year_cols)} year columns)")
     except Exception as e:
         print(f"  WARNING: Could not save imputed features: {e}")
     

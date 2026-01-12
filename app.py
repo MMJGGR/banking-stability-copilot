@@ -46,6 +46,58 @@ def extract_mermaid_code(markdown_text: str) -> str:
         return match.group(1)
     return None
 
+def render_markdown_with_images(markdown_text: str):
+    """
+    Render markdown text, identifying and displaying local images separately.
+    Standard st.markdown cannot render local file paths provided in ![alt](path).
+    """
+    import re
+    import os
+    
+    # Get the directory where app.py is located (project root)
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Pattern to find images: ![alt text](path)
+    # capturing groups: 1=alt, 2=path
+    pattern = r'!\[(.*?)\]\((.*?)\)'
+    
+    # Split text by images
+    parts = re.split(pattern, markdown_text)
+    
+    # re.split returns [text, alt, path, text, alt, path, ...]
+    # We iterate and render
+    
+    i = 0
+    while i < len(parts):
+        text_segment = parts[i]
+        if text_segment.strip():
+            st.markdown(text_segment)
+        
+        # If there are more parts, next are alt and path
+        if i + 2 < len(parts):
+            alt_text = parts[i+1]
+            image_path = parts[i+2]
+            
+            # Resolve relative paths from app directory
+            if not os.path.isabs(image_path):
+                image_path = os.path.join(app_dir, image_path)
+            
+            # Check if file exists to prevent errors
+            if os.path.exists(image_path):
+                try:
+                    # Read image as bytes for reliable Streamlit rendering
+                    with open(image_path, 'rb') as img_file:
+                        st.image(img_file.read(), caption=alt_text)
+                except Exception as e:
+                    st.warning(f"Could not load image: {image_path} - {e}")
+            else:
+                # Image not found - show placeholder message
+                st.info(f"📷 *{alt_text}* (Image will appear after model training)")
+                
+            i += 3 # skip (text, alt, path)
+        else:
+            i += 1
+
 
 # Page Config
 st.set_page_config(
@@ -64,6 +116,7 @@ st.markdown(STYLES, unsafe_allow_html=True)
 @st.cache_resource
 def load_all_data():
     """Load model and all datasets."""
+    # timestamp: force_reload_2026_01_12_v2
     try:
         model = BankingRiskModel.load()
         scores_df = model.get_all_scores()
@@ -395,7 +448,7 @@ with tab_methodology:
     parts = readme_content.split('```mermaid')
     
     # Render first part (text before diagram)
-    st.markdown(parts[0])
+    render_markdown_with_images(parts[0])
     
     # Render diagram
     if mermaid_code:
@@ -406,5 +459,5 @@ with tab_methodology:
     if len(parts) > 1:
         # Find end of code block
         after_diagram = parts[1].split('```', 1)[-1]
-        st.markdown(after_diagram)
+        render_markdown_with_images(after_diagram)
 

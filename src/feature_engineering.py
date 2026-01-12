@@ -828,7 +828,9 @@ class CrisisFeatureEngineer:
         """
         print(f"\n  --- Correlation Analysis (threshold={threshold}) ---")
         
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        # Exclude year columns from correlation analysis (they're metadata, not features)
+        numeric_cols = [c for c in df.select_dtypes(include=[np.number]).columns.tolist() 
+                        if not c.endswith('_year')]
         if len(numeric_cols) < 2:
             return df
         
