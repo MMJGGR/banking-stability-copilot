@@ -74,7 +74,7 @@ class CrisisLabels:
         'BGR': [(2014, 2014)],                    # Bulgaria - KTB
         
         # Latin America
-        'ARG': [(1989, 1991), (1995, 1995), (2001, 2003)],  # Argentina - multiple
+        'ARG': [(1989, 1991), (1995, 1995), (2001, 2003), (2018, 2019)],  # Argentina - incl. 2018 peso crisis
         'BRA': [(1990, 1994), (1999, 1999)],      # Brazil
         'MEX': [(1994, 1996)],                    # Mexico - Tequila crisis
         'VEN': [(1994, 1995), (2009, 2010)],      # Venezuela
@@ -94,7 +94,7 @@ class CrisisLabels:
         'CHN': [(1998, 1998)],                    # China (minor, state banks)
         'PAK': [(2008, 2008)],                    # Pakistan
         'BGD': [(1987, 1987)],                    # Bangladesh
-        'LKA': [(1989, 1991)],                    # Sri Lanka
+        'LKA': [(1989, 1991), (2022, 2023)],      # Sri Lanka + 2022 sovereign default (IMF program)
         'VNM': [(1997, 1997)],                    # Vietnam
         'MNG': [(2008, 2009)],                    # Mongolia
         
@@ -118,7 +118,7 @@ class CrisisLabels:
         'ARE': [(2008, 2009)],                    # UAE - Dubai World
         'KWT': [(1982, 1985)],                    # Kuwait - Souk Al-Manakh
         'JOR': [(1989, 1991)],                    # Jordan
-        'LBN': [(1990, 1990)],                    # Lebanon (civil war)
+        'LBN': [(1990, 1990), (2019, 2024)],      # Lebanon - 2019 banking collapse (World Bank: worst in 150 years)
     }
     
     def __init__(self):

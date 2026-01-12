@@ -1,0 +1,224 @@
+{
+  "data_coverage": {
+    "FSIC": {
+      "records": 859227,
+      "countries": 155
+    },
+    "WEO": {
+      "records": 354240,
+      "countries": 208
+    },
+    "MFS": {
+      "records": 1326510,
+      "countries": 178
+    },
+    "feature_coverage": [
+      {
+        "feature": "loan_concentration",
+        "coverage": 30.638297872340424
+      },
+      {
+        "feature": "large_exposure_ratio",
+        "coverage": 32.340425531914896
+      },
+      {
+        "feature": "sovereign_exposure_fsibsis",
+        "coverage": 33.191489361702125
+      },
+      {
+        "feature": "interbank_funding_ratio",
+        "coverage": 42.5531914893617
+      },
+      {
+        "feature": "securities_to_assets",
+        "coverage": 45.1063829787234
+      },
+      {
+        "feature": "income_diversification",
+        "coverage": 45.95744680851064
+      },
+      {
+        "feature": "deposit_funding_ratio",
+        "coverage": 46.808510638297875
+      },
+      {
+        "feature": "specific_provisions_ratio",
+        "coverage": 46.808510638297875
+      },
+      {
+        "feature": "net_interest_margin",
+        "coverage": 46.808510638297875
+      },
+      {
+        "feature": "unemployment",
+        "coverage": 51.48936170212765
+      },
+      {
+        "feature": "real_estate_loans",
+        "coverage": 56.17021276595745
+      },
+      {
+        "feature": "fx_loan_exposure",
+        "coverage": 60.0
+      },
+      {
+        "feature": "customer_deposits_loans",
+        "coverage": 64.68085106382979
+      },
+      {
+        "feature": "npl_provisions",
+        "coverage": 65.1063829787234
+      },
+      {
+        "feature": "roe",
+        "coverage": 65.1063829787234
+      },
+      {
+        "feature": "liquid_assets_st_liab",
+        "coverage": 65.53191489361701
+      },
+      {
+        "feature": "roa",
+        "coverage": 65.53191489361701
+      },
+      {
+        "feature": "capital_adequacy",
+        "coverage": 65.53191489361701
+      },
+      {
+        "feature": "capital_quality",
+        "coverage": 65.53191489361701
+      },
+      {
+        "feature": "liquid_assets_total",
+        "coverage": 65.53191489361701
+      },
+      {
+        "feature": "npl_ratio",
+        "coverage": 65.95744680851064
+      },
+      {
+        "feature": "credit_to_gdp_gap",
+        "coverage": 66.38297872340425
+      },
+      {
+        "feature": "sovereign_liability_to_reserves",
+        "coverage": 75.31914893617021
+      },
+      {
+        "feature": "bank_liability_to_nfa",
+        "coverage": 75.31914893617021
+      },
+      {
+        "feature": "sovereign_exposure_ratio",
+        "coverage": 76.59574468085107
+      },
+      {
+        "feature": "gdp_per_capita",
+        "coverage": 83.82978723404256
+      },
+      {
+        "feature": "govt_debt_gdp",
+        "coverage": 86.80851063829788
+      },
+      {
+        "feature": "current_account_gdp",
+        "coverage": 87.65957446808511
+      },
+      {
+        "feature": "fiscal_balance_gdp",
+        "coverage": 88.08510638297872
+      },
+      {
+        "feature": "nominal_gdp",
+        "coverage": 88.51063829787233
+      },
+      {
+        "feature": "inflation",
+        "coverage": 88.51063829787233
+      },
+      {
+        "feature": "gdp_growth",
+        "coverage": 88.51063829787233
+      },
+      {
+        "feature": "voice_accountability",
+        "coverage": 91.91489361702128
+      },
+      {
+        "feature": "political_stability",
+        "coverage": 91.91489361702128
+      }
+    ],
+    "low_coverage_count": 9
+  },
+  "model_performance": {
+    "pca": {
+      "economic": "N/A",
+      "industry": "N/A"
+    },
+    "top_features": [
+      [
+        "gdp_per_capita",
+        1.0
+      ],
+      [
+        "nominal_gdp",
+        0.4529540538787842
+      ],
+      [
+        "voice_accountability",
+        0.35738298296928406
+      ],
+      [
+        "political_stability",
+        0.2102750539779663
+      ],
+      [
+        "securities_to_assets",
+        0.19743679463863373
+      ],
+      [
+        "sovereign_exposure_ratio",
+        0.189860001206398
+      ],
+      [
+        "sovereign_liability_to_reserves",
+        0.1491536796092987
+      ],
+      [
+        "credit_to_gdp_gap",
+        0.13856510818004608
+      ],
+      [
+        "capital_adequacy",
+        0.10990645736455917
+      ],
+      [
+        "roe",
+        0.09392963349819183
+      ]
+    ],
+    "score_stats": {
+      "min": 1.0950867921113967,
+      "max": 9.88406816482544,
+      "mean": 5.276596985986492,
+      "std": 1.9840280120293479
+    }
+  },
+  "crisis_labels": {
+    "n_countries": 71,
+    "n_events": 84,
+    "missing_events": [
+      "Sri Lanka 2022 default",
+      "Argentina 2018-19 crisis",
+      "Lebanon 2019 banking crisis"
+    ],
+    "sample_assessment": "warning"
+  },
+  "country_validation": {
+    "high_risk": [
+      {
+        "country": "VEN",
+        "score": 7.031347461342812,
+        "validated": 

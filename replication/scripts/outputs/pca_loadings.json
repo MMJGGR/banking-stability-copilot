@@ -1,0 +1,32 @@
+{
+  "economic_weight": 0.5,
+  "industry_weight": 0.5,
+  "note": "PCA reduces features to principal components. First PC captures most variance.",
+  "economic_loadings": {
+    "gdp_growth": -0.04232359316939259,
+    "gdp_per_capita": 0.549541772207034,
+    "inflation": -0.08662077626573528,
+    "current_account_gdp": 0.087296518820336,
+    "govt_debt_gdp": 0.008452022677208015,
+    "fiscal_balance_gdp": 0.02007216186400408,
+    "unemployment": -0.08115631525170866,
+    "nominal_gdp": 0.17695801912462017,
+    "credit_to_gdp_gap": 0.22355523174126776,
+    "voice_accountability": 0.581734660314792,
+    "political_stability": 0.5043032222029933
+  },
+  "industry_loadings": {
+    "capital_adequacy": 0.09479421560213755,
+    "npl_ratio": -0.4802603376561083,
+    "roe": -0.09251458121325665,
+    "roa": -0.13962646248254718,
+    "liquid_assets_st_liab": -0.2524747855987435,
+    "liquid_assets_total": -0.15553016129114466,
+    "customer_deposits_loans": -0.3221353681007449,
+    "fx_loan_exposure": 0.04768950103152541,
+    "npl_provisions": -0.04005868849443434,
+    "loan_concentration": 0.1662091237556685,
+    "real_estate_loans": 0.5168564329060376,
+    "sovereign_exposure_ratio": -0.49189449284990805
+  }
+}

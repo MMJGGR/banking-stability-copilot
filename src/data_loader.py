@@ -608,6 +608,7 @@ class FSIBSISLoader:
             'specific_provisions': ['Specific provisions, Assets', 'Provisions (net): Loan loss provisions'],
             'large_exposures': ['Value of large exposures'],
             'residential_re_loans': ['Residential real estate loans'],
+            'npl': ['Nonperforming loans'],  # For NPL coverage ratio
         }
         currency_suffixes = ['Domestic currency', 'Euro', 'US dollar']
         base_list = base_patterns.get(indicator_key, [])
@@ -657,10 +658,10 @@ class FSIBSISLoader:
                     features['securities_to_assets'] = (values['debt_securities'] / values['total_assets'] * 100)
                     features['securities_to_assets_year'] = years.get('debt_securities')
             
-            # Specific Provisions Ratio
-            if values.get('specific_provisions') and values.get('gross_loans'):
-                if values['gross_loans'] > 0:
-                    features['specific_provisions_ratio'] = (values['specific_provisions'] / values['gross_loans'] * 100)
+            # NPL Coverage Ratio (Provisions / NPL) - standard banking metric
+            if values.get('specific_provisions') and values.get('npl'):
+                if values['npl'] > 0:
+                    features['specific_provisions_ratio'] = (values['specific_provisions'] / values['npl'] * 100)
                     features['specific_provisions_ratio_year'] = years.get('specific_provisions')
             
             # Large Exposure Ratio

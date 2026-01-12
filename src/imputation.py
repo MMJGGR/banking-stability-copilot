@@ -98,6 +98,9 @@ class GapImputer:
         """
         KNN imputation using similar countries.
         
+        Uses the FULL feature set to find similar countries, then imputes
+        missing values from k nearest neighbors based on non-missing features.
+        
         Args:
             df: DataFrame with countries as rows and indicators as columns
             
@@ -122,25 +125,23 @@ class GapImputer:
         
         df_subset = df[valid_cols].copy()
         
-        # Scale data
+        # KNN imputation - let sklearn handle the NaN values directly
+        # KNNImputer finds neighbors based on non-missing features, 
+        # then imputes from neighbors' actual values
         try:
-            scaled_data = self.scaler.fit_transform(df_subset.fillna(df_subset.mean()))
-        except Exception:
-            return df, confidence
-        
-        # KNN imputation
-        try:
-            imputer = KNNImputer(n_neighbors=min(self.n_neighbors, len(df) - 1))
-            imputed_scaled = imputer.fit_transform(scaled_data)
+            # Don't pre-fill with mean! Let KNNImputer handle NaN properly
+            imputer = KNNImputer(
+                n_neighbors=min(self.n_neighbors, len(df) - 1),
+                weights='distance'  # Weight by inverse distance for better accuracy
+            )
+            imputed_data = imputer.fit_transform(df_subset)
             
-            # Inverse transform
-            imputed_data = self.scaler.inverse_transform(imputed_scaled)
             result = pd.DataFrame(imputed_data, index=df_subset.index, columns=df_subset.columns)
             
             # Update confidence for imputed values
-            confidence.loc[result.index, result.columns] = confidence.loc[result.index, result.columns].where(
-                ~missing_mask.loc[result.index, result.columns], 0.7
-            )
+            for col in result.columns:
+                was_missing = missing_mask.loc[result.index, col] if col in missing_mask.columns else pd.Series(False, index=result.index)
+                confidence.loc[result.index, col] = confidence.loc[result.index, col].where(~was_missing, 0.7)
             
             # Merge back with original columns
             full_result = df.copy()
@@ -149,8 +150,9 @@ class GapImputer:
             return full_result, confidence
             
         except Exception as e:
-            # Fallback to mean imputation
-            result = df.fillna(df.mean())
+            # Fallback to median imputation (not mean - more robust to outliers)
+            print(f"    KNN imputation failed ({e}), falling back to median")
+            result = df.fillna(df.median())
             confidence[missing_mask] = 0.3
             return result, confidence
     

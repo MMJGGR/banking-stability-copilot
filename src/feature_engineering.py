@@ -55,6 +55,26 @@ class CrisisFeatureEngineer:
     # Reserve currency countries - FX exposure is minimal for these
     RESERVE_CURRENCY_COUNTRIES = ['USA', 'GBR', 'JPN', 'CHE', 'EMU', 'DEU', 'FRA', 'ITA', 'ESP', 'NLD', 'BEL', 'AUT']
     
+    # Aggregate/regional codes to EXCLUDE from model (not real countries)
+    # These pollute feature-space similarity and imputation
+    AGGREGATE_CODES = [
+        'G00',  # World
+        'G11',  # Advanced Economies
+        'G16',  # Euro Area (EA)
+        'G20',  # Emerging Market and Developing Economies
+        'G30',  # Unknown aggregate
+        'G40',  # Middle East and Central Asia
+        'G50',  # Emerging and Developing Asia
+        'G51',  # ASEAN-5
+        'G60',  # Sub-Saharan Africa (SSA)
+        'G75',  # Unknown aggregate
+        'G90',  # Emerging and Developing Europe
+        'G99',  # European Union (EU)
+        'GX1',  # Other Advanced Economies
+        'ANT',  # Netherlands Antilles (dissolved)
+        'EMU',  # European Monetary Union (use individual countries)
+    ]
+    
     # Feature categories aligned with S&P BICRA two-pillar structure
     ECONOMIC_PILLAR_FEATURES = {
         # WEO-derived macro features
@@ -800,6 +820,42 @@ class CrisisFeatureEngineer:
                 cols_to_keep.append(c)
                 
         merged = merged[cols_to_keep]
+        
+        # EXCLUDE AGGREGATE/REGIONAL CODES (not real countries)
+        # These pollute feature-space similarity calculations and imputation
+        pre_filter_count = len(merged)
+        merged = merged[~merged['country_code'].isin(self.AGGREGATE_CODES)]
+        excluded_count = pre_filter_count - len(merged)
+        if excluded_count > 0:
+            print(f"  Excluded {excluded_count} aggregate codes (ASEAN-5, EA, SSA, etc.)")
+        
+        # SANITY BOUNDS for ratio/percentage features
+        # Prevents implausible imputed values (e.g., 62012% deposit funding ratio)
+        ratio_bounds = {
+            'deposit_funding_ratio': (0, 200),      # Deposits can't exceed 200% of liabilities
+            'net_interest_margin': (-5, 30),        # NIM typically 1-10%, outliers up to 30%
+            'interbank_funding_ratio': (0, 100),    # Can't exceed 100% of funding
+            'specific_provisions_ratio': (0, 500),  # NPL coverage up to 500%
+            'large_exposure_ratio': (0, 500),       # Large exposures up to 500% of capital
+            'income_diversification': (0, 100),     # Percentage
+            'securities_to_assets': (0, 100),       # Percentage
+            'capital_adequacy': (0, 50),            # CAR typically 8-25%
+            'npl_ratio': (0, 100),                  # NPL percentage
+            'roa': (-20, 20),                       # ROA typically -5% to 10%
+            'roe': (-100, 100),                     # ROE can swing wildly
+        }
+        
+        bounds_applied = 0
+        for col, (lower, upper) in ratio_bounds.items():
+            if col in merged.columns:
+                before_count = ((merged[col] < lower) | (merged[col] > upper)).sum()
+                merged[col] = merged[col].clip(lower, upper)
+                if before_count > 0:
+                    bounds_applied += before_count
+                    print(f"    Clipped {before_count} values in {col} to [{lower}, {upper}]")
+        
+        if bounds_applied > 0:
+            print(f"  Applied sanity bounds to {bounds_applied} total outlier values")
         
         # HIGH CORRELATION DETECTION AND HANDLING
         merged = self._handle_high_correlations(merged)

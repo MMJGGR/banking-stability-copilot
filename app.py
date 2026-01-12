@@ -321,6 +321,8 @@ with tab_explorer:
     with de_tab_weo:
         weo_data = loader.get_country_data(selected_country_code, 'WEO')
         if weo_data is not None and len(weo_data) > 0:
+            n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
+            st.caption(f"📊 {n_indicators} economic indicators available for {selected_country_code}")
             try:
                 render_time_series_deep_dive(weo_data, "WEO", selected_country_code)
             except Exception as e:
@@ -332,48 +334,57 @@ with tab_explorer:
     with de_tab_fsi:
         st.markdown("#### Financial Soundness Indicators")
         
-        # Load FSIC Data (Core FSI)
-        fsic_data = loader.get_country_data(selected_country_code, 'FSIC')
+        # Sub-tabs for FSIC and FSIBSIS
+        fsi_tab1, fsi_tab2 = st.tabs(["Core FSI (FSIC)", "Balance Sheet (FSIBSIS)"])
         
-        # Load FSIBSIS Data (BIS format) - need to get loader instance
-        try:
-            from src.data_loader_fsibsis import FSIBSISLoader
-            fsibsis_loader = FSIBSISLoader()
-            fsibsis_country_data = fsibsis_loader.get_country_data(selected_country_code)
-        except Exception as e:
-            fsibsis_country_data = pd.DataFrame()
-        
-        # Combine both datasets
-        combined_data = pd.DataFrame()
-        if fsic_data is not None and len(fsic_data) > 0:
-            combined_data = fsic_data.copy()
-        
-        if len(fsibsis_country_data) > 0:
-            # Ensure column alignment before concatenation
-            if len(combined_data) > 0:
-                # Get common year columns
-                fsic_cols = set(combined_data.columns)
-                fsibsis_cols = set(fsibsis_country_data.columns)
-                common_cols = ['INDICATOR'] + sorted([c for c in (fsic_cols & fsibsis_cols) if c.startswith('20')])
-                
-                # Align and concatenate
-                if len(common_cols) > 1:  # More than just INDICATOR
-                    fsic_aligned = combined_data[[c for c in common_cols if c in combined_data.columns]]
-                    fsibsis_aligned = fsibsis_country_data[[c for c in common_cols if c in fsibsis_country_data.columns]]
-                    combined_data = pd.concat([fsic_aligned, fsibsis_aligned], ignore_index=True)
+        with fsi_tab1:
+            # Load FSIC Data (Core FSI) - show ALL indicators with exact names
+            fsic_data = loader.get_country_data(selected_country_code, 'FSIC')
+            
+            if fsic_data is not None and len(fsic_data) > 0:
+                n_indicators = fsic_data['indicator_name'].nunique()
+                st.caption(f"📊 {n_indicators} indicators available for {selected_country_code}")
+                render_time_series_deep_dive(fsic_data, "FSIC", selected_country_code)
             else:
-                combined_data = fsibsis_country_data
+                st.info("No FSIC data available for this country.")
         
-        # Render combined data
-        if len(combined_data) > 0:
-            render_time_series_deep_dive(combined_data, "FSI", selected_country_code)
-        else:
-            st.info("No Financial Soundness Indicators available for this country.")
+        with fsi_tab2:
+            # Load FSIBSIS Data
+            try:
+                from src.data_loader import FSIBSISLoader
+                fsibsis_loader = FSIBSISLoader()
+                fsibsis_loader.load()
+                fsibsis_wide = fsibsis_loader.get_country_data(selected_country_code)
+                
+                if fsibsis_wide is not None and len(fsibsis_wide) > 0:
+                    # Convert to long format
+                    year_cols = [c for c in fsibsis_wide.columns if c.isdigit() and len(c) == 4]
+                    fsibsis_long = fsibsis_wide.melt(
+                        id_vars=['INDICATOR'],
+                        value_vars=year_cols,
+                        var_name='year',
+                        value_name='value'
+                    )
+                    fsibsis_long = fsibsis_long.dropna(subset=['value'])
+                    fsibsis_long['indicator_name'] = fsibsis_long['INDICATOR']
+                    fsibsis_long['indicator_code'] = 'FSIBSIS'
+                    fsibsis_long['period'] = pd.to_datetime(fsibsis_long['year'] + '-01-01')
+                    fsibsis_long['country_code'] = selected_country_code
+                    
+                    n_indicators = fsibsis_long['indicator_name'].nunique()
+                    st.caption(f"📊 {n_indicators} balance sheet indicators available")
+                    render_time_series_deep_dive(fsibsis_long, "FSIBSIS", selected_country_code)
+                else:
+                    st.info("No FSIBSIS data available for this country.")
+            except Exception as e:
+                st.error(f"Error loading FSIBSIS: {e}")
     
     with de_tab_mfs:
         st.markdown("#### Monetary & Financial Statistics")
         mfs_data = loader.get_country_data(selected_country_code, 'MFS')
         if mfs_data is not None and len(mfs_data) > 0:
+            n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
+            st.caption(f"📊 {n_indicators} monetary indicators available for {selected_country_code}")
             render_time_series_deep_dive(mfs_data, "MFS", selected_country_code)
         else:
             st.info("No MFS data available for this country.")

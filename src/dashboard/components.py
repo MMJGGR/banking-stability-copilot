@@ -315,7 +315,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("interbank_funding_ratio", "Interbank Funding Ratio", "{:.1f}%"),
                 ("income_diversification", "Income Diversification", "{:.1f}%"),
                 ("securities_to_assets", "Securities/Assets", "{:.1f}%"),
-                ("specific_provisions_ratio", "Specific Provisions", "{:.2f}%"),
+                ("npl_provisions", "NPL Coverage Ratio", "{:.1f}%"),
                 ("large_exposure_ratio", "Large Exposure Ratio", "{:.1f}%"),
                 ("deposit_funding_ratio", "Deposit Funding Ratio", "{:.1f}%"),
                 # Note: regulatory_quality, rule_of_law, control_corruption dropped due to high correlation
@@ -475,11 +475,11 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
 
 
     # 2. Process Data & Get Names
-    # FSIC has many indicator_names per indicator_code (10 codes, 161 names)
-    # So for FSIC, we need to use indicator_name as the unique key
+    # FSIC/FSIBSIS has many indicator_names per indicator_code (10 codes, 87+ names)
+    # So for FSIC/FSI/FSIBSIS, we need to use indicator_name as the unique key
     # WEO and MFS have 1:1 or many:1 code:name ratios, so indicator_code works fine
     
-    use_name_as_key = dataset_name == "FSIC" and 'indicator_name' in df.columns
+    use_name_as_key = dataset_name in ("FSIC", "FSI", "FSIBSIS") and 'indicator_name' in df.columns
     
     if use_name_as_key:
         # For FSIC: Use indicator_name as the unique identifier
