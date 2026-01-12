@@ -16,27 +16,41 @@ from src.dashboard.components import (
 )
 from src.dashboard.global_view import render_global_summary
 from src.utils import find_peers
-import streamlit.components.v1 as components
+try:
+    from streamlit_mermaid import st_mermaid
+    HAS_STREAMLIT_MERMAID = True
+except ImportError:
+    HAS_STREAMLIT_MERMAID = False
+    import streamlit.components.v1 as components
 
 def render_mermaid(code: str, height: int = 500) -> None:
-    """Render a mermaid diagram."""
-    components.html(
-        f'''
-        <div class="mermaid" style="width: 100%; height: 100%;">
-        {code}
-        </div>
-        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-        <script>
-            mermaid.initialize({{
-                startOnLoad: true,
-                securityLevel: 'loose',
-                theme: 'default',
-            }});
-        </script>
-        ''',
-        height=height,
-        scrolling=True, # Enable scrolling if content overflows
-    )
+    """Render a mermaid diagram using streamlit-mermaid package.
+    
+    Falls back to components.html if package not available (local dev).
+    """
+    if HAS_STREAMLIT_MERMAID:
+        # Use the proper Streamlit component (works on Cloud)
+        st_mermaid(code, height=height)
+    else:
+        # Fallback for local development if package not installed
+        import streamlit.components.v1 as components
+        components.html(
+            f'''
+            <div class="mermaid" style="width: 100%; height: 100%;">
+            {code}
+            </div>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <script>
+                mermaid.initialize({{
+                    startOnLoad: true,
+                    securityLevel: 'loose',
+                    theme: 'default',
+                }});
+            </script>
+            ''',
+            height=height,
+            scrolling=True,
+        )
 
 def extract_mermaid_code(markdown_text: str) -> str:
     """Extract mermaid code block from markdown."""
