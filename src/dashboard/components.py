@@ -113,184 +113,42 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                          model_features: pd.DataFrame = None, pca_info: Dict = None):
     """
     Renders key indicators used in the model for a country.
-    Extracts actual values from WEO, FSIC, and WGI data via the loader.
-    Compares with model_features to show any differences from training data.
-    Shows PCA pillar weights from pca_info.
+    
+    IMPORTANT: All feature values are read directly from crisis_features.parquet
+    (the model's computed features) to ensure consistency between dashboard and model.
+    No redundant calculations - single source of truth.
     """
     
-    # Build a dict of actual values from the loader
+    # SINGLE SOURCE OF TRUTH: Read all features from crisis_features.parquet
+    # This is exact same data the model uses - no recalculation needed
     actual_values = {}
     
-    if loader and country_code:
-        # Dynamic max year filter - exclude IMF forecasts
-        from datetime import datetime
-        max_data_year = datetime.now().year
-        
-        # Load WEO data and extract latest values
-        try:
-            weo_data = loader.get_country_data(country_code, 'WEO')
-            if weo_data is not None and len(weo_data) > 0:
-                # Filter to historical data only (exclude forecasts)
-                weo_data = weo_data.copy()
-                weo_data['year'] = pd.to_datetime(weo_data['period']).dt.year
-                weo_data = weo_data[weo_data['year'] <= max_data_year]
-                
-                # Get latest value AND year per indicator
-                latest_weo = weo_data.sort_values('period').groupby('indicator_code').agg({
-                    'value': 'last',
-                    'year': 'last'
-                })
-                for feature_name, indicator_code in WEO_INDICATORS.items():
-                    if indicator_code in latest_weo.index:
-                        actual_values[feature_name] = latest_weo.loc[indicator_code, 'value']
-                        actual_values[f'{feature_name}_year'] = int(latest_weo.loc[indicator_code, 'year'])
-                
-                # Store nominal GDP for credit_to_gdp computation
-                if 'NGDP' in latest_weo.index:
-                    nominal_gdp = latest_weo.loc['NGDP', 'value']  # GDP in billions (local currency)
-                else:
-                    nominal_gdp = None
-        except Exception as e:
-            nominal_gdp = None
-            
-        # Load FSIC data and extract latest values (filter by name pattern)
-        try:
-            fsic_data = loader.get_country_data(country_code, 'FSIC')
-            if fsic_data is not None and len(fsic_data) > 0:
-                fsic_data = fsic_data.copy()
-                fsic_data['year'] = pd.to_datetime(fsic_data['period']).dt.year
-                for feature_name, name_pattern in FSIC_NAME_PATTERNS.items():
-                    import re
-                    matches = fsic_data[fsic_data['indicator_name'].str.contains(name_pattern, case=False, na=False, regex=True)]
-                    if len(matches) > 0:
-                        # Get the latest value and year
-                        latest_row = matches.sort_values('period').iloc[-1]
-                        actual_values[feature_name] = latest_row['value']
-                        actual_values[f'{feature_name}_year'] = int(latest_row['year'])
-        except Exception as e:
-            pass
-            
-        # IMPUTATION: FX Loan Exposure for Reserve Currency Countries
-        # If missing, we impute 0.0% as per feature_engineering.py logic
-        if 'fx_loan_exposure' not in actual_values and country_code in RESERVE_CURRENCY_COUNTRIES:
-            actual_values['fx_loan_exposure'] = 0.0
-            actual_values['fx_loan_exposure_year'] = datetime.now().year
-        
-        # Compute credit and sovereign ratios from MFS + WEO (per feature_engineering.py logic)
-        try:
-            mfs_data = loader.get_country_data(country_code, 'MFS')
-            if mfs_data is not None and len(mfs_data) > 0 and nominal_gdp is not None and nominal_gdp > 0:
-                # 1. Private Credit: DCORP_A_ACO_PS (Claims on Private Sector)
-                priv_mask = mfs_data['indicator_code'].str.contains('DCORP_A_ACO_PS', case=False, na=False)
-                priv_data = mfs_data[priv_mask]
-                if len(priv_data) > 0:
-                    latest_priv = priv_data.sort_values('period')['value'].iloc[-1]  # in millions
-                    # Convert credit from millions to billions, compute ratio
-                    priv_ratio = (latest_priv / 1000 / nominal_gdp) * 100
-                    if 0 < priv_ratio < 500:  # Sanity check
-                        actual_values['private_credit_to_gdp'] = priv_ratio
-                        actual_values['credit_to_gdp'] = priv_ratio # Backward compatibility
-
-                # 2. Total Credit: DCORP_A_ACO_S1_Z (Claims on Real Sector)
-                tot_mask = mfs_data['indicator_code'].str.contains('DCORP_A_ACO_S1_Z', case=False, na=False)
-                tot_data = mfs_data[tot_mask]
-                if len(tot_data) > 0:
-                    latest_tot = tot_data.sort_values('period')['value'].iloc[-1]
-                    tot_ratio = (latest_tot / 1000 / nominal_gdp) * 100
-                    if 0 < tot_ratio < 600:
-                        actual_values['total_credit_to_gdp'] = tot_ratio
-
-                # 3. Sovereign Nexus: DCORP_A_ACO_S13M1 (Claims on Central Govt)
-                sov_mask = mfs_data['indicator_code'].str.contains('DCORP_A_ACO_S13M1', case=False, na=False)
-                sov_data = mfs_data[sov_mask]
-                if len(sov_data) > 0:
-                    latest_sov = sov_data.sort_values('period')['value'].iloc[-1]
-                    sov_ratio = (latest_sov / 1000 / nominal_gdp) * 100
-                    if 0 <= sov_ratio < 200:
-                        actual_values['sovereign_exposure_ratio'] = sov_ratio
-
-        except Exception as e:
-            pass
-        
-        # Extract WGI governance indicators (harmonized with feature_engineering.py)
-        if wgi_data is not None and len(wgi_data) > 0:
-            try:
-                country_wgi = wgi_data[wgi_data['country_code'] == country_code]
-                if len(country_wgi) > 0:
-                    # Get latest year for this country
-                    latest_wgi = country_wgi.sort_values('year').iloc[-1]
-                    wgi_year = int(latest_wgi['year'])
-                    
-                    # WGI columns used in model (from feature_engineering.py)
-                    wgi_cols = {
-                        'voice_accountability': 'voice_accountability',
-                        'political_stability': 'political_stability',
-                        'govt_effectiveness': 'govt_effectiveness',
-                        'regulatory_quality': 'regulatory_quality',
-                        'rule_of_law': 'rule_of_law',
-                        'control_corruption': 'control_corruption'
-                    }
-                    for feature_name, col_name in wgi_cols.items():
-                        if col_name in latest_wgi.index and pd.notna(latest_wgi[col_name]):
-                            actual_values[feature_name] = latest_wgi[col_name]
-                            actual_values[f'{feature_name}_year'] = wgi_year
-            except Exception as e:
-                pass
-
-    # FSIBSIS-derived features: Pull from crisis_features.parquet directly since these are computed values
-    # not available in the raw IMF API data, and model_features may be from older training.
-    # Includes: NIM, interbank funding, income diversification, securities/assets, provisions, 
-    # large exposures, deposit funding, capital_quality
-    fsibsis_features = [
-        'net_interest_margin', 'interbank_funding_ratio', 'income_diversification',
-        'securities_to_assets', 'specific_provisions_ratio', 'large_exposure_ratio',
-        'deposit_funding_ratio', 'sovereign_exposure_fsibsis', 'capital_quality',
-        'credit_to_gdp_gap'  # Also computed in feature engineering
-    ]
-    
-    # First try model_features (for features that exist there)
-    if model_features is not None and country_code:
-        try:
-            model_row = model_features[model_features['country_code'] == country_code]
-            if len(model_row) > 0:
-                model_row = model_row.iloc[0]
-                for feat in fsibsis_features:
-                    if feat in model_row.index and pd.notna(model_row[feat]):
-                        if feat not in actual_values:
-                            actual_values[feat] = model_row[feat]
-                            # Copy year metadata if available
-                            year_col = f"{feat}_year"
-                            if year_col in model_row.index and pd.notna(model_row[year_col]):
-                                try:
-                                    actual_values[year_col] = int(model_row[year_col])
-                                except: pass
-        except Exception:
-            pass
-    
-    # Also load from crisis_features.parquet for FSIBSIS features not in model_features
-    # This ensures new features show even before model retraining
     from src.config import CACHE_DIR
     import os
     parquet_path = os.path.join(CACHE_DIR, 'crisis_features.parquet')
+    
     if os.path.exists(parquet_path) and country_code:
         try:
             crisis_df = pd.read_parquet(parquet_path)
             crisis_row = crisis_df[crisis_df['country_code'] == country_code]
             if len(crisis_row) > 0:
-                crisis_row = crisis_row.iloc[0]
-                for feat in fsibsis_features:
-                    # Logic 1: Always try to get Year metadata (because model_features might be stale and lack it)
-                    year_col = f"{feat}_year"
-                    if f"{feat}_year" not in actual_values:
-                        if year_col in crisis_row.index and pd.notna(crisis_row[year_col]):
-                            try:
-                                actual_values[year_col] = int(crisis_row[year_col])
-                            except: pass
-
-                    # Logic 2: Get Value if missing
-                    if feat not in actual_values:  # Don't override existing values
-                        if feat in crisis_row.index and pd.notna(crisis_row[feat]):
-                            actual_values[feat] = crisis_row[feat]
+                row = crisis_row.iloc[0]
+                # Extract all numeric values from model features
+                for col in crisis_df.columns:
+                    if col != 'country_code' and pd.notna(row.get(col)):
+                        actual_values[col] = row[col]
+        except Exception as e:
+            pass
+    
+    # Fallback: If parquet not available, try model_features (for testing/dev)
+    if not actual_values and model_features is not None and country_code:
+        try:
+            model_row = model_features[model_features['country_code'] == country_code]
+            if len(model_row) > 0:
+                row = model_row.iloc[0]
+                for col in model_features.columns:
+                    if col != 'country_code' and pd.notna(row.get(col)):
+                        actual_values[col] = row[col]
         except Exception:
             pass
 
@@ -303,13 +161,13 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
             ("gdp_per_capita", "GDP per Capita", "${:,.0f}"),
             ("gdp_growth", "GDP Growth", "{:.1f}%"),
             ("inflation", "Inflation Rate", "{:.1f}%"),
-            ("unemployment", "Unemployment", "{:.1f}%"),
             ("govt_debt_gdp", "Govt Debt/GDP", "{:.1f}%"),
             ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
+            ("credit_to_gdp_gap", "Credit-to-GDP Gap", "{:+.1f}pp"), # Moved from Liquidity
+            ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW
         ],
         "Banking Sector Health": [
             ("capital_adequacy", "Capital Adequacy Ratio", "{:.1f}%"),
-            ("capital_quality", "Capital Quality (T1/CAR)", "{:.1f}%"),
             ("npl_ratio", "NPL Ratio", "{:.1f}%"),
             ("roe", "Return on Equity", "{:.1f}%"),
             ("sovereign_exposure_ratio", "Sovereign Exposure", "{:.1f}%"),
@@ -317,7 +175,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
         ],
         "Liquidity & Funding": [
             ("liquid_assets_st_liab", "Liquid Assets/ST Liab", "{:.1f}%"),
-            ("credit_to_gdp_gap", "Credit-to-GDP Gap", "{:+.1f}pp"),
+            ("bank_liability_to_nfa", "Bank Liab/NFA", "{:.1f}x"), # NEW
             ("customer_deposits_loans", "Deposits/Loans", "{:.1f}%"),
             ("deposit_funding_ratio", "Deposit Funding Ratio", "{:.1f}%"),
         ],
@@ -329,14 +187,17 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     # Load crisis_features.parquet to get imputed values
     from src.config import CACHE_DIR
     import os
-    parquet_path = os.path.join(CACHE_DIR, 'crisis_features.parquet')
+    import os
+    # Read IMPUTED features (from train_model.py) for the "imputed_values" dict
+    # This allows us to detect when Raw (crisis_features) differs from Imputed (imputed_features)
+    parquet_path = os.path.join(CACHE_DIR, 'imputed_features.parquet')
     imputed_values = {}
     if os.path.exists(parquet_path) and country_code:
         try:
-            crisis_df = pd.read_parquet(parquet_path)
-            crisis_row = crisis_df[crisis_df['country_code'] == country_code]
-            if len(crisis_row) > 0:
-                imputed_values = crisis_row.iloc[0].to_dict()
+            imputed_df = pd.read_parquet(parquet_path)
+            imputed_row = imputed_df[imputed_df['country_code'] == country_code]
+            if len(imputed_row) > 0:
+                imputed_values = imputed_row.iloc[0].to_dict()
         except Exception:
             pass
     
@@ -399,15 +260,23 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
                 ("unemployment", "Unemployment", "{:.1f}%"),
                 ("credit_to_gdp_gap", "Credit-to-GDP Gap", "{:+.1f}pp"),
-                # Governance indicators from WGI
+                ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW (Ratio)
+                # Governance indicators from WGI (only 2 kept after correlation filtering)
                 ("voice_accountability", "Voice & Accountability", "{:.0f}/100"),
                 ("political_stability", "Political Stability", "{:.0f}/100"),
-                ("govt_effectiveness", "Govt Effectiveness", "{:.0f}/100"),
             ]
             for key, name, fmt in economic_features:
                 val = actual_values.get(key)
                 year = actual_values.get(f'{key}_year', '')
-                year_str = f" ({year})" if year else ""
+                year_str = ""
+                if year:
+                    try:
+                        # Convert float year (2026.0) to int (2026)
+                        year_int = int(float(year))
+                        year_str = f" ({year_int})"
+                    except:
+                        year_str = f" ({year})"
+                
                 if val is not None and not pd.isna(val):
                     try:
                         formatted = fmt.format(val)
@@ -440,6 +309,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("fx_loan_exposure", "FX Loan Exposure", "{:.1f}%"),
                 ("loan_concentration", "Loan Concentration", "{:.1f}%"),
                 ("real_estate_loans", "Real Estate Loans", "{:.1f}%"),
+                ("bank_liability_to_nfa", "Bank Liab/NFA", "{:.1f}x"), # NEW (Ratio)
                 # NEW FSIBSIS Features (2026-01)
                 ("net_interest_margin", "Net Interest Margin", "{:.2f}%"),
                 ("interbank_funding_ratio", "Interbank Funding Ratio", "{:.1f}%"),
@@ -448,15 +318,19 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("specific_provisions_ratio", "Specific Provisions", "{:.2f}%"),
                 ("large_exposure_ratio", "Large Exposure Ratio", "{:.1f}%"),
                 ("deposit_funding_ratio", "Deposit Funding Ratio", "{:.1f}%"),
-                # Governance
-                ("regulatory_quality", "Regulatory Quality", "{:.0f}/100"),
-                ("rule_of_law", "Rule of Law", "{:.0f}/100"),
-                ("control_corruption", "Corruption Control", "{:.0f}/100"),
+                # Note: regulatory_quality, rule_of_law, control_corruption dropped due to high correlation
             ]
             for key, name, fmt in industry_features:
                 val = actual_values.get(key)
                 year = actual_values.get(f'{key}_year', '')
-                year_str = f" ({year})" if year else ""
+                year_str = ""
+                if year:
+                    try:
+                        year_int = int(float(year))
+                        year_str = f" ({year_int})"
+                    except:
+                        year_str = f" ({year})"
+                
                 if val is not None and not pd.isna(val):
                     try:
                         formatted = fmt.format(val)

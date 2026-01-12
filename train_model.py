@@ -34,7 +34,7 @@ from src.config import CACHE_DIR
 from src.feature_engineering import CrisisFeatureEngineer
 from src.crisis_classifier import CrisisClassifier, HybridRiskScorer, train_crisis_model
 from src.imputation import GapImputer
-from src.wgi_loader import WGILoader
+from src.data_loader import WGILoader
 
 MODEL_PATH = os.path.join(CACHE_DIR, "risk_model.pkl")
 
@@ -224,6 +224,7 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
         'gdp_growth', 'gdp_per_capita', 'inflation', 'current_account_gdp', 
         'govt_debt_gdp', 'fiscal_balance_gdp', 'unemployment', 'nominal_gdp',
         'credit_to_gdp', 'credit_to_gdp_gap', 'debt_service_gdp', 'external_debt_gdp',
+        'sovereign_liability_to_reserves', # New Sovereign FX Risk
         # WGI governance (BICRA: Economic Risk)
         'voice_accountability', 'political_stability', 'govt_effectiveness'
     ]
@@ -232,7 +233,8 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
         'capital_adequacy', 'npl_ratio', 'roe', 'roa', 'liquid_assets_st_liab', 
         'liquid_assets_total', 'customer_deposits_loans', 'fx_loan_exposure', 
         'tier1_capital', 'npl_provisions', 'loan_concentration',
-        'real_estate_loans', 'sovereign_exposure_ratio', # Include new nexus feature
+        'real_estate_loans', 'sovereign_exposure_ratio',
+        'bank_liability_to_nfa', # New Banking Sector FX Risk
         # WGI governance (BICRA: Institutional Framework)
         'regulatory_quality', 'rule_of_law', 'control_corruption'
     ]
@@ -297,6 +299,16 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     
     # Use imputed features for scaling
     features_numeric = features_imputed
+    
+    # Save imputed features for dashboard display (to show asterisks correctly)
+    try:
+        from src.config import CACHE_DIR
+        imputed_path = os.path.join(CACHE_DIR, 'imputed_features.parquet')
+        # Reset index to make country_code a column
+        features_imputed.reset_index().to_parquet(imputed_path, index=False)
+        print(f"  Saved imputed features to: {imputed_path}")
+    except Exception as e:
+        print(f"  WARNING: Could not save imputed features: {e}")
     
     # --- PREPROCESSING: LOG TRANSFORM SKEWED FEATURES ---
     # Fix single-feature dominance in PCA by compressing scale of high-variance features
@@ -661,19 +673,24 @@ class BankingRiskModel:
         print("\n" + "="*70)
         print("TRAINING HYBRID BANKING RISK MODEL")
         print("="*70)
+        print(f"  Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"  Input data: FSIC ({len(fsic_df):,} records), WEO ({len(weo_df):,} records), MFS ({len(mfs_df):,} records)")
         
         # --- 1. FEATURE ENGINEERING ---
-        print("\n[Step 1] Running Feature Engineering Pipeline...")
+        print("\n" + "-"*70)
+        print("[Step 1/4] FEATURE ENGINEERING")
+        print("-"*70)
         engineer = CrisisFeatureEngineer()
         
         # Extract features from each dataset
+        print("  [1a] Extracting core IMF features (WEO, FSIC, MFS)...")
         weo_features = engineer.extract_weo_features(weo_df)
         fsic_features = engineer.extract_fsic_features(fsic_df)
         credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
         sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
         
         # Load WGI governance features
-        print("  Loading WGI governance indicators...")
+        print("\n  [1b] Loading WGI governance indicators...")
         try:
             wgi_loader = WGILoader()
             wgi_features = wgi_loader.get_latest_scores()
@@ -690,15 +707,22 @@ class BankingRiskModel:
             print(f"  WARNING: Could not load WGI data: {e}")
             wgi_features = None
         
-        # Load FSIBSIS features (new funding stability indicators)
-        print("  Loading FSIBSIS funding stability indicators...")
+        # Load FSIBSIS features (balance sheet funding stability indicators)
+        print("\n  [1c] Loading FSIBSIS balance sheet indicators...")
         try:
-            from src.data_loader_fsibsis import load_fsibsis_features
+            from src.data_loader import load_fsibsis_features
             fsibsis_features = load_fsibsis_features()
             if fsibsis_features is not None and len(fsibsis_features) > 0:
-                print(f"  FSIBSIS: {len(fsibsis_features)} countries, {len(fsibsis_features.columns)-1} indicators")
+                fsibsis_cols = [c for c in fsibsis_features.columns if c != 'country_code' and not c.endswith('_year')]
+                print(f"        Countries: {len(fsibsis_features)}")
+                print(f"        Features:  {len(fsibsis_cols)} indicators")
+                for col in fsibsis_cols[:6]:  # Show first 6
+                    non_null = fsibsis_features[col].notna().sum()
+                    print(f"          - {col}: {non_null} countries")
+                if len(fsibsis_cols) > 6:
+                    print(f"          ... and {len(fsibsis_cols) - 6} more")
         except Exception as e:
-            print(f"  WARNING: Could not load FSIBSIS data: {e}")
+            print(f"        WARNING: Could not load FSIBSIS data: {e}")
             fsibsis_features = None
         
         # Merge all features (using keyword args for clarity)
@@ -717,11 +741,106 @@ class BankingRiskModel:
         
         if len(features) == 0:
             raise ValueError("Feature engineering failed: No data produced")
-            
-        print(f"  Generated features for {len(features)} countries")
+        
+        # Print organized feature summary matching README structure
+        print("\n  " + "-"*50)
+        print("  FEATURE MATRIX SUMMARY")
+        print("  " + "-"*50)
+        
+        # Define feature categories
+        economic_features = [
+            'gdp_per_capita', 'gdp_growth', 'inflation', 'unemployment', 'nominal_gdp',
+            'current_account_gdp', 'govt_debt_gdp', 'fiscal_balance_gdp',
+            'external_debt_gdp', 'debt_service_gdp', 'credit_to_gdp', 'credit_to_gdp_gap',
+            'voice_accountability', 'political_stability', 'govt_effectiveness'
+        ]
+        industry_features = [
+            'capital_adequacy', 'tier1_capital', 'capital_quality', 'npl_ratio', 'npl_provisions',
+            'roe', 'roa', 'liquid_assets_st_liab', 'liquid_assets_total',
+            'customer_deposits_loans', 'fx_loan_exposure', 'loan_concentration',
+            'real_estate_loans', 'sovereign_exposure_ratio',
+            'regulatory_quality', 'rule_of_law', 'control_corruption'
+        ]
+        fsibsis_features = [
+            'net_interest_margin', 'interbank_funding_ratio', 'income_diversification',
+            'securities_to_assets', 'specific_provisions_ratio', 'large_exposure_ratio',
+            'deposit_funding_ratio'
+        ]
+        
+        feature_cols = [c for c in features.columns if c != 'country_code' and not c.endswith('_period')]
+        
+        # Count by category
+        econ_present = [f for f in economic_features if f in feature_cols]
+        ind_present = [f for f in industry_features if f in feature_cols]
+        fsib_present = [f for f in fsibsis_features if f in feature_cols]
+        
+        print(f"\n  Countries: {len(features)}")
+        print(f"  Total Features: {len(feature_cols)}")
+        print(f"\n  Economic Pillar ({len(econ_present)}/{len(economic_features)} features):")
+        for f in econ_present:
+            coverage = features[f].notna().sum()
+            print(f"    - {f}: {coverage} countries")
+        missing_econ = set(economic_features) - set(econ_present)
+        if missing_econ:
+            print(f"    [MISSING: {', '.join(missing_econ)}]")
+        
+        print(f"\n  Industry Pillar ({len(ind_present)}/{len(industry_features)} features):")
+        for f in ind_present:
+            coverage = features[f].notna().sum()
+            print(f"    - {f}: {coverage} countries")
+        missing_ind = set(industry_features) - set(ind_present)
+        if missing_ind:
+            print(f"    [MISSING: {', '.join(missing_ind)}]")
+        
+        print(f"\n  FSIBSIS Computed ({len(fsib_present)}/{len(fsibsis_features)} features):")
+        for f in fsib_present:
+            coverage = features[f].notna().sum()
+            print(f"    - {f}: {coverage} countries")
+        print("  " + "-"*50)
+        
+        # Save features to parquet (including WGI) for dashboard consistency
+        from src.config import CACHE_DIR
+        features_path = os.path.join(CACHE_DIR, 'crisis_features.parquet')
+        features.to_parquet(features_path, index=False)
+        print(f"\n  Saved features to: {features_path}")
+        
+        # --- 1b. PLOT CORRELATION MATRIX ---
+        try:
+             import seaborn as sns
+             import matplotlib.pyplot as plt
+             
+             # Select pillars cols
+             cols_to_plot = economic_cols + industry_cols
+             cols_available = [c for c in cols_to_plot if c in features.columns]
+             
+             if len(cols_available) > 1:
+                 print("\n  Generating Correlation Matrix Plot...")
+                 plt.figure(figsize=(16, 14))
+                 corr = features[cols_available].corr()
+                 
+                 # Mask upper triangle
+                 mask = np.triu(np.ones_like(corr, dtype=bool))
+                 
+                 sns.heatmap(corr, mask=mask, cmap='coolwarm', center=0,
+                             square=True, linewidths=.5, cbar_kws={"shrink": .5},
+                             annot=False) # Annot extraction is too crowded
+                 
+                 plt.title('Feature Correlation Matrix (Economic & Industry Pillars)', fontsize=16)
+                 plt.tight_layout()
+                 
+                 corr_path = os.path.join(CACHE_DIR, 'eda', 'feature_correlations.png')
+                 os.makedirs(os.path.dirname(corr_path), exist_ok=True)
+                 plt.savefig(corr_path, dpi=150)
+                 plt.close()
+                 print(f"  Saved Correlation Plot: {corr_path}")
+        except Exception as e:
+            print(f"  Could not save correlation plot: {e}")
+
         
         # --- 2. SUPERVISED CRISIS CLASSIFIER ---
-        print("\n[Step 2] Training/Loading Crisis Classifier...")
+        print("\n" + "-"*70)
+        print("[Step 2/4] CRISIS CLASSIFIER")
+        print("-"*70)
         # Train classifier (or load if already trained and cached)
         classifier, metrics = train_crisis_model()
         
@@ -743,10 +862,12 @@ class BankingRiskModel:
         crisis_probs = classifier.predict_proba(X_aligned)
         
         features['crisis_prob'] = crisis_probs
-        print(f"  Crisis probabilities generated (mean: {crisis_probs.mean():.1%})")
+        print(f"  Crisis probability: mean={crisis_probs.mean():.1%}, std={crisis_probs.std():.1%}")
         
         # --- 3. UNSUPERVISED PILLARS (Economic + Industry) ---
-        print("\n[Step 3] Building Unsupervised Pillars...")
+        print("\n" + "-"*70)
+        print("[Step 3/4] PCA PILLAR CONSTRUCTION")
+        print("-"*70)
         
         # Load country names mapping for display (deduplicate to avoid InvalidIndexError)
         country_names = weo_df[['country_code', 'country_name']].drop_duplicates(subset='country_code').set_index('country_code')['country_name']
@@ -760,7 +881,9 @@ class BankingRiskModel:
         pillar_scores, pca_loadings = build_two_pillar_model(features, anchor, country_names)
         
         # --- 4. HYBRID RISK SCORE ---
-        print("\n[Step 4] Computing Final Hybrid Scores...")
+        print("\n" + "-"*70)
+        print("[Step 4/4] FINAL RISK SCORING")
+        print("-"*70)
         
         # Merge pillar scores with crisis probabilities
         final_df = pillar_scores.merge(
@@ -880,18 +1003,63 @@ def main():
     print("=" * 70)
     print("DATA-DRIVEN BANKING SYSTEM RISK MODEL")
     print("=" * 70)
+    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Load data
+    # Load IMF data (FSIC, WEO, MFS)
+    print("\n" + "-" * 70)
+    print("DATA LOADING")
+    print("-" * 70)
+    
     loader = IMFDataLoader()
     
     if not loader.load_from_cache():
-        print("\nLoading from CSV files...")
+        print("  Loading from CSV files...")
         loader.load_all_datasets()
         loader.save_cache()
     
     fsic_df = loader._data_cache.get('FSIC', pd.DataFrame())
     weo_df = loader._data_cache.get('WEO', pd.DataFrame())
     mfs_df = loader._data_cache.get('MFS', pd.DataFrame())
+    
+    # Load FSIBSIS for summary (also loaded in train())
+    from src.data_loader import FSIBSISLoader, WGILoader
+    
+    print("\n  Loading FSIBSIS balance sheet data...")
+    try:
+        fsibsis_loader = FSIBSISLoader()
+        fsibsis_loader.load()
+        fsibsis_records = len(fsibsis_loader.bank_data) if fsibsis_loader.bank_data is not None else 0
+        fsibsis_countries = fsibsis_loader.bank_data['country_code'].nunique() if fsibsis_loader.bank_data is not None else 0
+    except Exception as e:
+        print(f"    Warning: {e}")
+        fsibsis_records = 0
+        fsibsis_countries = 0
+    
+    print("  Loading WGI governance data...")
+    try:
+        wgi_loader = WGILoader()
+        wgi_data = wgi_loader.load()
+        wgi_records = len(wgi_data) if wgi_data is not None else 0
+        wgi_countries = wgi_data['country_code'].nunique() if wgi_data is not None else 0
+    except Exception as e:
+        print(f"    Warning: {e}")
+        wgi_records = 0
+        wgi_countries = 0
+    
+    # Print comprehensive data summary
+    print("\n" + "-" * 70)
+    print("DATA SOURCES SUMMARY")
+    print("-" * 70)
+    print(f"  {'Source':<12} {'Records':>12} {'Countries':>12} {'Description'}")
+    print(f"  {'-'*12} {'-'*12} {'-'*12} {'-'*30}")
+    print(f"  {'FSIC':<12} {len(fsic_df):>12,} {fsic_df['country_code'].nunique() if len(fsic_df) > 0 else 0:>12} Financial Soundness Indicators")
+    print(f"  {'WEO':<12} {len(weo_df):>12,} {weo_df['country_code'].nunique() if len(weo_df) > 0 else 0:>12} World Economic Outlook")
+    print(f"  {'MFS':<12} {len(mfs_df):>12,} {mfs_df['country_code'].nunique() if len(mfs_df) > 0 else 0:>12} Monetary & Financial Stats")
+    print(f"  {'FSIBSIS':<12} {fsibsis_records:>12,} {fsibsis_countries:>12} Balance Sheet Data")
+    print(f"  {'WGI':<12} {wgi_records:>12,} {wgi_countries:>12} World Governance Indicators")
+    print(f"  {'-'*12} {'-'*12} {'-'*12}")
+    total_records = len(fsic_df) + len(weo_df) + len(mfs_df) + fsibsis_records + wgi_records
+    print(f"  {'TOTAL':<12} {total_records:>12,}")
     
     # Explore all indicators
     explore_all_indicators(fsic_df, weo_df, mfs_df)

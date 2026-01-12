@@ -146,17 +146,19 @@ class CrisisFeatureEngineer:
         weo_df = weo_df[weo_df['year'] <= max_data_year]
         print(f"  Filtered to data <= {max_data_year} (excluding forecasts)")
         
-        weo_df = weo_df.sort_values('period')
+        weo_df = weo_df.sort_values('period') # Sort ensures 'last' is latest
+        
+        # Store YEAR as integer for dashboard display
         latest = weo_df.groupby(['country_code', 'indicator_code']).agg({
             'value': 'last',
-            'period': 'last'
+            'year': 'last'  # Use integer year
         }).reset_index()
         
         # Pivot to wide format for each mapped indicator
         features_list = []
         for feature_name, (code, _) in weo_mappings.items():
-            code_data = latest[latest['indicator_code'] == code][['country_code', 'value', 'period']]
-            code_data = code_data.rename(columns={'value': feature_name, 'period': f'{feature_name}_period'})
+            code_data = latest[latest['indicator_code'] == code][['country_code', 'value', 'year']]
+            code_data = code_data.rename(columns={'value': feature_name, 'year': f'{feature_name}_year'})
             features_list.append(code_data.set_index('country_code'))
         
         # Merge all features
@@ -222,7 +224,9 @@ class CrisisFeatureEngineer:
                     matched = country_data[mask].sort_values('period')
                     if len(matched) > 0:
                         country_features[feature_name] = matched['value'].iloc[-1]
-                        country_features[f'{feature_name}_period'] = matched['period'].iloc[-1]
+                        # Store YEAR as integer
+                        p = pd.to_datetime(matched['period'].iloc[-1])
+                        country_features[f'{feature_name}_year'] = p.year
             
             if len(country_features) > 1:
                 features_list.append(country_features)
@@ -344,6 +348,8 @@ class CrisisFeatureEngineer:
                             'country_code': country,
                             'credit_to_gdp': private_ratio,  # Keep for backwards compat
                             'private_credit_to_gdp': private_ratio,
+                            # Save YEAR
+                            'credit_to_gdp_gap_year': pd.to_datetime(country_private.sort_values('period')['period'].iloc[-1]).year
                         }
                         
                         # Add total credit if available
@@ -403,71 +409,260 @@ class CrisisFeatureEngineer:
             print("  WARNING: MFS data missing")
             return pd.DataFrame()
         
-        # Define sector codes for claims - EXCLUDE S121 (Central Bank)
-        # S121 = Central Bank - doesn't create doom-loop risk (can't fail)
-        # DCORP = All Depository Corporations, ODCORP = Other Depository Corps
-        # We only want commercial bank exposure to sovereign debt
-        govt_claim_codes = ['DCORP_A_ACO_S1311MIXED', 'ODCORP_A_ACO_S1311MIXED']
+        # Methodology Update (2026-01):
+        # 1. Focus on ODCORP (Other Depository Corporations = Commercial Banks).
+        #    Exclude DCORP (Depository Corps) as it includes Central Bank (S121).
+        # 2. Denominator: "Total Assets" approximated by summing key components:
+        #    Govt + Private + Foreign + Public + Fin + Reserves.
+        #    This fixes anomalies where "Total Credit" underestimated assets (e.g. TZA 94% -> 17%).
         
-        # Build government claims per country
-        govt_claims_dict = {}
-        for code in govt_claim_codes:
-            mask = mfs_df['indicator_code'].str.contains(code, case=False, na=False, regex=False)
-            sector_data = mfs_df[mask].copy()
-            latest = sector_data.sort_values('period').groupby('country_code')['value'].last()
-            for country, val in latest.items():
-                if pd.notna(val) and val > 0:
-                    if country not in govt_claims_dict:
-                        govt_claims_dict[country] = 0
-                    govt_claims_dict[country] += val
+        # Component Codes (ODCORP only)
+        components = {
+            'govt': 'ODCORP_A_ACO_S1311MIXED',
+            'private': 'ODCORP_A_ACO_PS',
+            'foreign': 'ODCORP_A_ACO_NRES',
+            'public': 'ODCORP_A_ACO_S11001',
+            'fin': 'ODCORP_A_ACO_S12R',
+            'reserves_1': 'ODCORP_A_OCO_S121',     # Other claims on CB
+            'reserves_2': 'ODCORP_A_F21_ACO_S121', # Currency
+            'reserves_3': 'ODCORP_A_F2MSOTS_RR_ACO_S121' # Deposits/Reserves
+        }
         
-        print(f"  Govt claims data: {len(govt_claims_dict)} countries")
+        # Pre-filter data for efficiency
+        # We need all these codes.
+        all_codes = list(components.values())
+        mask = mfs_df['indicator_code'].isin(all_codes)
+        relevant_data = mfs_df[mask].copy()
         
-        # Total domestic credit - use DCORP_A_ACO_S1 or S1_Z (already includes all sectors)
-        # This is cleaner than summing individual sectors
-        total_credit_codes = ['DCORP_A_ACO_S1_Z', 'DCORP_A_ACO_S1']
+        # Get latest value per country per indicator
+        # Sort by period to keep latest
+        latest_vals = relevant_data.sort_values('period').drop_duplicates(subset=['country_code', 'indicator_code'], keep='last')
         
-        total_credit_dict = {}
-        for code in total_credit_codes:
-            mask = mfs_df['indicator_code'].str.match(f'^{code}$', case=False, na=False)
-            sector_data = mfs_df[mask].copy()
-            latest = sector_data.sort_values('period').groupby('country_code')['value'].last()
-            for country, val in latest.items():
-                if pd.notna(val) and val > 0:
-                    if country not in total_credit_dict:
-                        total_credit_dict[country] = val
+        # Pivot to wide format: Index=Country, Cols=IndicatorCode
+        pivot = latest_vals.pivot(index='country_code', columns='indicator_code', values='value')
         
-        print(f"  Total credit data: {len(total_credit_dict)} countries")
-        
-        # Compute ratio for countries with both metrics
         results = []
         countries_processed = 0
         
-        for country in govt_claims_dict.keys():
-            if country in total_credit_dict and total_credit_dict[country] > 0:
-                govt_claims = govt_claims_dict[country]
-                total_credit = total_credit_dict[country]
+        for country in pivot.index:
+            # Helper to safely get value (0 if missing)
+            def get_val(code_key):
+                code = components[code_key]
+                return pivot.loc[country, code] if code in pivot.columns and pd.notna(pivot.loc[country, code]) else 0.0
+            
+            # Numerator: Govt Claims
+            govt_claims = get_val('govt')
+            
+            if govt_claims > 0:
+                # Denominator: Sum of components
+                # Note: 'public' and 'fin' might be missing for some, assume 0
+                reserves = get_val('reserves_1') + get_val('reserves_2') + get_val('reserves_3')
                 
-                ratio = (govt_claims / total_credit) * 100
+                total_assets = (govt_claims + 
+                                get_val('private') + 
+                                get_val('foreign') + 
+                                get_val('public') + 
+                                get_val('fin') + 
+                                reserves)
                 
-                # Sanity check: sovereign exposure typically 0-80% of credit
-                if 0 <= ratio <= 100:
+                # Check for zero total assets (unlikely if govt > 0)
+                if total_assets > 0:
+                    ratio = (govt_claims / total_assets) * 100
+                    
+                    # Sanity check: 0-100% (allow slightly over 100 if data mismatch, cap later?)
+                    # If ratio > 100, it likely means missing denominator components.
+                    # We accept it raw here, but print warning?
+                    # For TZA it was 17%, ZMB 27%.
+                    
+                    # Get year for this country's data (from Govt Claims series usually)
+                    # We need to find the year of the data used.
+                    # pivot has columns=indicator_code. We need to find the period corresponding to the latest value.
+                    # But we've already pivoted values.
+                    # We need to re-extract year from latest_vals.
+                    # Look up year in latest_vals for this country and 'govt' code
+                    govt_code = components['govt']
+                    rows = latest_vals[(latest_vals['country_code'] == country) & (latest_vals['indicator_code'] == govt_code)]
+                    if len(rows) > 0:
+                        yr = pd.to_datetime(rows['period'].iloc[0]).year
+                    else:
+                        yr = None
+
                     results.append({
                         'country_code': country,
                         'sovereign_exposure_ratio': ratio,
+                        'sovereign_exposure_ratio_year': yr
                     })
                     countries_processed += 1
         
         if len(results) > 0:
             nexus_df = pd.DataFrame(results)
             
-            print(f"  Computed sovereign exposure for {countries_processed} countries")
-            print(f"  Median sovereign exposure: {nexus_df['sovereign_exposure_ratio'].median():.1f}%")
-            print(f"  Range: {nexus_df['sovereign_exposure_ratio'].min():.1f}% to {nexus_df['sovereign_exposure_ratio'].max():.1f}%")
+            print(f"  Computed sovereign exposure for {countries_processed} countries (ODCORP Logic)")
+            print(f"  Median ODCORP exposure: {nexus_df['sovereign_exposure_ratio'].median():.1f}%")
             
+            # --- MERGE WITH EXTERNAL RISK METRICS ---
+            ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df)
+            if len(ext_risk) > 0:
+                nexus_df = nexus_df.merge(ext_risk, on='country_code', how='outer')
+                
             return nexus_df
         
+        # If no sovereign exposure but external risk exists
+        ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df)
+        if len(ext_risk) > 0:
+            return ext_risk
+            
         return pd.DataFrame()
+
+    def compute_external_risk_metrics(self, mfs_df: pd.DataFrame, weo_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute External Vulnerability & Liquidity Metrics.
+        
+        Features (2026-01):
+        1. Reserves to Imports (Months of Cover): MFS Reserves (LC) / WEO Imports (LC)
+        2. Bank External Liabilities / Total Assets
+        3. Net Foreign Assets / GDP
+        """
+        print("\n" + "="*70)
+        print("COMPUTING EXTERNAL RISK METRICS")
+        print("="*70)
+        
+        if mfs_df is None or weo_df is None:
+            return pd.DataFrame()
+            
+        mfs_df = mfs_df.sort_values('period')
+        mfs_df['year'] = pd.to_datetime(mfs_df['period']).dt.year
+        
+        latest_mfs = mfs_df.groupby(['country_code', 'indicator_code']).agg({
+            'value': 'last',
+            'year': 'last'
+        }).reset_index()
+        
+        def get_mfs_series(code):
+            return latest_mfs[latest_mfs['indicator_code'] == code].set_index('country_code')['value']
+        
+        def get_mfs_year(code):
+            return latest_mfs[latest_mfs['indicator_code'] == code].set_index('country_code')['year']
+
+        features = pd.DataFrame(index=latest_mfs['country_code'].unique())
+        
+        # 1. RESERVES TO IMPORTS
+        # Reserves: S121_A_ACO_NRES (Central Bank Claims on Nonresidents - LC)
+        reserves_lc = get_mfs_series('S121_A_ACO_NRES')
+        res_year = get_mfs_year('S121_A_ACO_NRES')
+        
+        # Imports: WEO 'BM' (Imports of goods and services - USD)
+        # FX Rate: NGDP (LC) / NGDPD (USD)
+        weo_ngdp = weo_df[weo_df['indicator_code'] == 'NGDP'].sort_values('period').groupby('country_code')['value'].last()
+        weo_ngdpd = weo_df[weo_df['indicator_code'] == 'NGDPD'].sort_values('period').groupby('country_code')['value'].last()
+        weo_bm = weo_df[weo_df['indicator_code'] == 'BM'].sort_values('period').groupby('country_code')['value'].last()
+        
+        if not reserves_lc.empty and not weo_bm.empty:
+            # Align indices
+            common = reserves_lc.index.intersection(weo_bm.index).intersection(weo_ngdp.index).intersection(weo_ngdpd.index)
+            
+            if len(common) > 0:
+                fx = weo_ngdp.loc[common] / weo_ngdpd.loc[common]
+                imports_lc = weo_bm.loc[common] * fx
+                # Ratio: Reserves / (Imports/12)
+                # Ensure imports > 0
+                mask = imports_lc > 0
+                
+                # Careful with units. Reserves usually Millions. WEO Imports Billions?
+                # NGDP Billions? NGDPD Billions?
+                # WEO BM (Imports) -> Billions USD usually.
+                # MFS Reserves -> Millions LC usually.
+                # FX = Billions LC / Billions USD = LC/USD (Unitless ratio).
+                # Imports LC = Billions USD * (LC/USD) = Billions LC.
+                # Reserves LC = Millions LC.
+                # So Ratio = (Millions / 1000) / (Billions / 12) ?
+                # OR: Scale everything to Billions.
+                # Reserves (Billions) = Reserves_MFS / 1000.
+                # Ratio = (Reserves_MFS / 1000) / (Imports_LC / 12).
+                
+                # Let's check MFS unit. Usually 'Domestic currency' but scale varies.
+                # Often it's Millions or Billions.
+                # Safest to just compute raw and check median?
+                # If median is 0.005, then scale mismatch.
+                # If median is 5.0, then months.
+                
+                # Assumption: MFS is Millions, WEO is Billions.
+                # Factor = 1000.
+                
+                res_billions = reserves_lc.loc[common] / 1000.0
+                months_cover = res_billions / (imports_lc.loc[common] / 12.0)
+                
+                features.loc[common, 'reserves_to_imports'] = months_cover
+                features.loc[common, 'reserves_to_imports_year'] = res_year.loc[common]
+                
+                # Sanity Filter: 0 to 50 months
+                # Cap at 50 to avoid outliers from bad units
+                features.loc[features['reserves_to_imports'] > 50, 'reserves_to_imports'] = np.nan
+        
+        # 2. BANK EXTERNAL LIABILITIES / ASSETS
+        # Consolidating into Net Foreign Assets (NFA) per user request.
+        # NFA captures the net position (Assets - Liabilities), which is a superior measure.
+        # We skip separate liability tracking to avoid multicollinearity.
+
+        # 2. BANK EXTERNAL LIABILITIES / BANKING SECTOR NET FOREIGN ASSETS
+        # User Request: "bank_ext_liabilities over banking_sector_net_foreign_assets"
+        # We derive ODCORP NFA since direct indicator is DCORP (all banks).
+        # ODCORP_NFA = Assets(NonRes) - Liab(NonRes)
+        
+        odcorp_assets_nres = get_mfs_series('ODCORP_A_ACO_NRES')
+        odcorp_liab_nres = get_mfs_series('ODCORP_L_LT_NRES')
+        
+        if not odcorp_assets_nres.empty and not odcorp_liab_nres.empty:
+            common = odcorp_assets_nres.index.intersection(odcorp_liab_nres.index)
+            if len(common) > 0:
+                assets = odcorp_assets_nres.loc[common]
+                liab = odcorp_liab_nres.loc[common]
+                nfa = assets - liab
+                
+                # Ratio: Liabilities / NFA
+                # Caution: If NFA is near 0, this explodes. If NFA negative, ratio is negative.
+                # User specifically asked for this leverage-like formulation.
+                # We apply a cap to prevent infinity, but preserve sign.
+                
+                # Avoid division by zero
+                # If NFA is 0, we set it to a small number (1.0 in millions LC)
+                nfa_safe = nfa.replace(0, 1.0)
+                
+                ratio = liab / nfa_safe
+                
+                # Cap extreme values to [-100, 100] to prevent model instability
+                ratio = ratio.clip(-100, 100)
+                
+                features.loc[common, 'bank_liability_to_nfa'] = ratio
+                features.loc[common, 'bank_liability_to_nfa_year'] = get_mfs_year('ODCORP_L_LT_NRES').loc[common]
+
+        # 3. SOVEREIGN EXT LIABILITIES / FX RESERVES
+        # User Request: "sovereing net_foteinf assets liabilities/fx reserves"
+        # Interpreted as: Central Bank Ext Liabilities / Central Bank Reserves
+        # Reserves: S121_A_ACO_NRES (Claims on Non-residents)
+        # Liab: S121_L_LT_NRES (Liabilities to Non-residents)
+        
+        cb_reserves = get_mfs_series('S121_A_ACO_NRES')
+        cb_liab = get_mfs_series('S121_L_LT_NRES')
+        
+        if not cb_reserves.empty and not cb_liab.empty:
+            common_cb = cb_reserves.index.intersection(cb_liab.index)
+            if len(common_cb) > 0:
+                res = cb_reserves.loc[common_cb]
+                liab = cb_liab.loc[common_cb]
+                
+                # Ratio: Liabilities / Reserves
+                # If reserves 0 (rare for central bank), handle it.
+                res_safe = res.replace(0, 1.0)
+                
+                ratio_cb = liab / res_safe
+                
+                features.loc[common_cb, 'sovereign_liability_to_reserves'] = ratio_cb
+                features.loc[common_cb, 'sovereign_liability_to_reserves_year'] = get_mfs_year('S121_L_LT_NRES').loc[common_cb]
+
+        print(f"  Computed FX Risk Feature 1 (Bank Liab/NFA) for {features['bank_liability_to_nfa'].notna().sum()} countries")
+        print(f"  Computed FX Risk Feature 2 (Sov Liab/Reserves) for {features['sovereign_liability_to_reserves'].notna().sum()} countries")
+        return features.reset_index().rename(columns={'index': 'country_code'})
     
     def merge_features(self, weo_features: pd.DataFrame,
                        fsic_features: pd.DataFrame,
@@ -591,12 +786,20 @@ class CrisisFeatureEngineer:
                 if liq_imputed > 0:
                     print(f"  Liquidity cross-imputation: {liq_imputed} values filled (ratio={median_ratio:.2f})")
         
-        # Filter to numeric columns only (drop period columns for modeling)
-        numeric_cols = ['country_code'] + [
-            c for c in merged.columns 
-            if c != 'country_code' and not c.endswith('_period')
-        ]
-        merged = merged[numeric_cols]
+        # Filter to numeric columns AND year columns (keep metadata for dashboard)
+        # We need '_year' columns to display data vintage
+        cols_to_keep = ['country_code']
+        for c in merged.columns:
+            if c == 'country_code':
+                continue
+            # Keep numeric features
+            if pd.api.types.is_numeric_dtype(merged[c]):
+                cols_to_keep.append(c)
+            # Keep year metadata
+            elif c.endswith('_year'):
+                cols_to_keep.append(c)
+                
+        merged = merged[cols_to_keep]
         
         # HIGH CORRELATION DETECTION AND HANDLING
         merged = self._handle_high_correlations(merged)

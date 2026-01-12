@@ -29,9 +29,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from typing import Dict, List, Optional, Tuple, Any
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.metrics import roc_auc_score, precision_recall_curve, classification_report
+from sklearn.metrics import roc_auc_score, precision_recall_curve, classification_report, roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -154,89 +154,85 @@ class CrisisClassifier:
     
     def fit(self, X: pd.DataFrame, y: pd.Series, cv: int = 5) -> 'CrisisClassifier':
         """
-        Fit the crisis classifier with cross-validation.
-        
-        CRISP-DM: Modeling - Model Training
-        
-        Args:
-            X: Feature DataFrame
-            y: Binary crisis target (0/1)
-            cv: Number of cross-validation folds (default=5)
-        
-        Returns:
-            self
+        Fit the crisis classifier with cross-validation and generate diagnostics.
         """
         print("\n" + "="*70)
         print("TRAINING CRISIS CLASSIFIER")
-        print("CRISP-DM Phase: Modeling")
         print("="*70)
         
-        # Store feature names
         self.feature_names_ = list(X.columns)
         
-        # Handle missing values (in-place to save memory)
-        # IMPORTANT: Only compute median for numeric columns to avoid errors with _year columns
         X_filled = X.copy()
         numeric_cols = X_filled.select_dtypes(include=['number']).columns
-        self.numeric_cols_ = list(numeric_cols)  # Store for predict_proba consistency
+        self.numeric_cols_ = list(numeric_cols)
         X_filled[numeric_cols] = X_filled[numeric_cols].fillna(X_filled[numeric_cols].median())
         
-        # Scale features - ONLY numeric columns (must match predict_proba)
         X_scaled = self.scaler.fit_transform(X_filled[numeric_cols])
         
-        # Class distribution
         n_positive = int(y.sum())
         n_negative = len(y) - n_positive
-        
-        print(f"\n  Training samples: {len(y)}")
-        print(f"  Crisis cases: {n_positive} ({n_positive/len(y)*100:.1f}%)")
-        print(f"  Non-crisis: {n_negative} ({n_negative/len(y)*100:.1f}%)")
-        print(f"  Features: {len(self.feature_names_)}")
-        
-        # Create model
         self.model = self._create_model(n_positive, n_negative)
         
-        # --- CROSS-VALIDATION ---
-        print(f"\n--- {cv}-Fold Stratified Cross-Validation ---")
+        # --- CROSS-VALIDATION WITH ROC PLOTTING ---
+        print(f"\n--- {cv}-Fold Stratified Cross-Validation & ROC Curves ---")
         
-        # Check if we have enough samples for CV
+        tprs = []
+        aucs = []
+        mean_fpr = np.linspace(0, 1, 100)
+        
+        plt.figure(figsize=(10, 8))
+        
         min_class_count = min(n_positive, n_negative)
         actual_cv = min(cv, min_class_count) if min_class_count > 1 else 2
         
-        if actual_cv < cv:
-            print(f"  Note: Reduced to {actual_cv}-fold CV due to class imbalance")
+        cv_splitter = StratifiedKFold(n_splits=actual_cv, shuffle=True, random_state=self.random_state)
         
-        try:
-            skf = StratifiedKFold(n_splits=actual_cv, shuffle=True, random_state=self.random_state)
-            cv_scores = cross_val_score(
-                self.model, X_scaled, y, 
-                cv=skf, 
-                scoring='roc_auc',
-                n_jobs=-1
-            )
+        for i, (train_idx, val_idx) in enumerate(cv_splitter.split(X_scaled, y)):
+            self.model.fit(X_scaled[train_idx], y.iloc[train_idx])
+            probas_ = self.model.predict_proba(X_scaled[val_idx])[:, 1]
             
-            self.cv_scores_ = cv_scores
-            print(f"  CV ROC-AUC Scores: {[f'{s:.3f}' for s in cv_scores]}")
-            print(f"  Mean CV ROC-AUC:   {cv_scores.mean():.3f} (+/- {cv_scores.std()*2:.3f})")
+            fpr, tpr, thresholds = roc_curve(y.iloc[val_idx], probas_)
+            roc_auc = auc(fpr, tpr)
+            aucs.append(roc_auc)
             
-            if cv_scores.mean() >= 0.70:
-                print("  [PASS] CV performance meets academic threshold (>0.70)")
-            else:
-                print("  [WARN] CV performance below threshold - consider more data/features")
-                
-        except Exception as e:
-            print(f"  Cross-validation failed: {e}")
-            self.cv_scores_ = np.array([0.5])
+            # Interp
+            interp_tpr = np.interp(mean_fpr, fpr, tpr)
+            interp_tpr[0] = 0.0
+            tprs.append(interp_tpr)
+            
+            plt.plot(fpr, tpr, lw=1, alpha=0.3, label=f'Fold {i+1} (AUC = {roc_auc:.2f})')
         
-        # Train final model on all data
+        # Plot Mean ROC
+        mean_tpr = np.mean(tprs, axis=0)
+        mean_tpr[-1] = 1.0
+        mean_auc = auc(mean_fpr, mean_tpr)
+        std_auc = np.std(aucs)
+        
+        plt.plot(mean_fpr, mean_tpr, color='b', label=f'Mean ROC (AUC = {mean_auc:.2f} $\pm$ {std_auc:.2f})', lw=2, alpha=0.8)
+        
+        # Plot Chance
+        plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=0.8)
+        
+        plt.xlim([-0.05, 1.05])
+        plt.ylim([-0.05, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (Cross-Validation)')
+        plt.legend(loc="lower right")
+        
+        roc_path = os.path.join(self.output_dir, 'cv_roc_curve.png')
+        plt.savefig(roc_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  Saved CV ROC Plot: {roc_path}")
+        print(f"  Mean CV ROC-AUC:   {mean_auc:.3f} (+/- {std_auc*2:.3f})")
+        
+        self.cv_scores_ = np.array(aucs)
+        
+        # Train final model
         print("\n  Training final model on all data...")
         self.model.fit(X_scaled, y)
-        
-        # Compute feature importance
         self._compute_feature_importance(X_scaled, y)
-        
         self.fitted_ = True
-        print("\n  Model training complete")
         
         return self
     
@@ -341,43 +337,37 @@ class CrisisClassifier:
         return (proba >= threshold).astype(int)
     
     def evaluate(self, X: pd.DataFrame, y: pd.Series) -> Dict[str, float]:
-        """
-        Evaluate model performance.
-        
-        CRISP-DM: Evaluation Phase
-        """
+        """Evaluate model and save Confusion Matrix."""
         print("\n" + "="*70)
         print("MODEL EVALUATION")
-        print("CRISP-DM Phase: Evaluation")
         print("="*70)
         
         y_proba = self.predict_proba(X)
         y_pred = self.predict(X)
         
-        # AUC-ROC
         try:
             auc_roc = roc_auc_score(y, y_proba)
         except:
             auc_roc = 0.5
+            
+        print(f"  AUC-ROC (Training): {auc_roc:.3f}")
         
-        # Classification report (handle single-class case)
-        print("\n  Classification Report:")
-        if len(np.unique(y)) > 1:
-            print(classification_report(y, y_pred, target_names=['No Crisis', 'Crisis']))
+        # Confusion Matrix Plot
+        cm = confusion_matrix(y, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['No Crisis', 'Crisis'])
         
-        print(f"\n  AUC-ROC: {auc_roc:.3f}")
-        print(f"  (Academic baseline: >0.70)")
+        plt.figure(figsize=(6, 6))
+        disp.plot(cmap='Blues', values_format='d', ax=plt.gca())
+        plt.title('Confusion Matrix (Training Set)')
         
-        if auc_roc >= 0.70:
-            print("  [PASS] Model meets academic performance threshold")
-        else:
-            print("  [WARN] Model below academic baseline - consider more features/data")
+        cm_path = os.path.join(self.output_dir, 'confusion_matrix.png')
+        plt.savefig(cm_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  Saved Confusion Matrix: {cm_path}")
         
         return {
             'auc_roc': auc_roc,
-            'accuracy': (y_pred == y).mean(),
-            'precision': (y_pred & y).sum() / max(y_pred.sum(), 1),
-            'recall': (y_pred & y).sum() / max(y.sum(), 1),
+            'accuracy': (y_pred == y).mean()
         }
     
     def save(self, path: str = None):
