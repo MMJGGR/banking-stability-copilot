@@ -152,6 +152,7 @@ class CrisisFeatureEngineer:
             'current_account_gdp': ('BCA_NGDPD', True),  # Current account % GDP
             'govt_debt_gdp': ('GGXWDG_NGDP', False),     # Govt gross debt % GDP
             'fiscal_balance_gdp': ('GGXCNL_NGDP', True), # Fiscal balance % GDP
+            'primary_balance_gdp': ('GGXONLB_NGDP', True), # Primary balance % GDP (ex-interest)
             'unemployment': ('LUR', False),               # Unemployment rate
             'nominal_gdp': ('NGDPD', True),              # Nominal GDP (for credit/GDP)
         }
@@ -683,13 +684,252 @@ class CrisisFeatureEngineer:
         print(f"  Computed FX Risk Feature 1 (Bank Liab/NFA) for {features['bank_liability_to_nfa'].notna().sum()} countries")
         print(f"  Computed FX Risk Feature 2 (Sov Liab/Reserves) for {features['sovereign_liability_to_reserves'].notna().sum()} countries")
         return features.reset_index().rename(columns={'index': 'country_code'})
+
+    def compute_literature_gap_features(self, weo_df: pd.DataFrame, 
+                                         mfs_df: pd.DataFrame,
+                                         fsic_df: pd.DataFrame,
+                                         weo_features: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute features identified as gaps in literature comparison.
+        
+        Literature-First Gap Analysis (2026-02):
+        Ref: Drehmann & Juselius (2014), Kaminsky & Reinhart (1999),
+             Gourinchas & Obstfeld (2012), Reinhart & Rogoff (2009)
+        
+        Features computed:
+        1. inflation_differential_3yr  - REER proxy (Gourinchas & Obstfeld)
+        2. interest_cost_gdp           - Debt sustainability (fiscal_bal - primary_bal)
+        3. interest_cost_trend_3yr     - Debt servicing pressure trend
+        4. credit_growth_3yr           - Credit boom indicator (Schularick & Taylor)
+        5. m2_to_reserves              - Twin crises indicator (Kaminsky & Reinhart)
+        6. real_estate_credit_growth_3yr - Housing boom proxy (Reinhart & Rogoff)
+        7. tot_deterioration_3yr       - Terms of trade shock
+        8. ca_deficit_severity         - Capital inflow surge proxy
+        """
+        print("\n" + "="*70)
+        print("COMPUTING LITERATURE GAP FEATURES")
+        print("="*70)
+        
+        results = pd.DataFrame()
+        
+        if weo_df is None or len(weo_df) == 0:
+            print("  WARNING: WEO data missing, skipping literature gap features")
+            return results
+        
+        # Prepare WEO time series
+        from datetime import datetime
+        weo = weo_df.copy()
+        weo['year'] = pd.to_datetime(weo['period']).dt.year
+        max_year = datetime.now().year
+        weo = weo[weo['year'] <= max_year]
+        
+        countries = weo['country_code'].unique()
+        gap_data = []
+        
+        # Pre-extract time series for key indicators
+        def get_ts(indicator_code, country):
+            """Get time series (year, value) for a country-indicator pair."""
+            mask = (weo['indicator_code'] == indicator_code) & (weo['country_code'] == country)
+            ts = weo[mask][['year', 'value']].sort_values('year').drop_duplicates(subset='year')
+            return ts.set_index('year')['value']
+        
+        # --- WORLD INFLATION BASELINE (for REER proxy) ---
+        # Use USA inflation as proxy for advanced economy baseline
+        # More robust than single-country: use median of G7
+        g7 = ['USA', 'GBR', 'DEU', 'FRA', 'JPN', 'CAN', 'ITA']
+        g7_inflation = {}
+        for g7c in g7:
+            ts = get_ts('PCPIPCH', g7c)
+            if len(ts) > 0:
+                g7_inflation[g7c] = ts
+        
+        if g7_inflation:
+            g7_df = pd.DataFrame(g7_inflation)
+            world_inflation = g7_df.median(axis=1)  # Median G7 inflation per year
+        else:
+            world_inflation = pd.Series(dtype=float)
+        
+        print(f"  G7 inflation baseline: {len(world_inflation)} years")
+        
+        for country in countries:
+            row = {'country_code': country}
+            
+            # --- 1. INFLATION DIFFERENTIAL (REER PROXY) ---
+            # Gourinchas & Obstfeld (2012): REER appreciation = crisis predictor
+            # Proxy: Cumulative domestic inflation - cumulative G7 inflation over 3 years
+            infl_ts = get_ts('PCPIPCH', country)
+            if len(infl_ts) >= 3 and len(world_inflation) >= 3:
+                latest_yr = infl_ts.index.max()
+                common_years = sorted(set(infl_ts.index) & set(world_inflation.index))
+                if len(common_years) >= 3:
+                    recent_3 = common_years[-3:]
+                    domestic_cum = infl_ts.loc[recent_3].sum()
+                    world_cum = world_inflation.loc[recent_3].sum()
+                    row['inflation_differential_3yr'] = domestic_cum - world_cum
+            
+            # --- 2. INTEREST COST OF DEBT ---
+            # User-identified: fiscal balance - primary balance = interest payments
+            fiscal_ts = get_ts('GGXCNL_NGDP', country)
+            primary_ts = get_ts('GGXONLB_NGDP', country)
+            if len(fiscal_ts) > 0 and len(primary_ts) > 0:
+                common_yrs = sorted(set(fiscal_ts.index) & set(primary_ts.index))
+                if common_yrs:
+                    latest = common_yrs[-1]
+                    # Interest cost = fiscal - primary (negative = interest expense)
+                    interest_cost = fiscal_ts.loc[latest] - primary_ts.loc[latest]
+                    row['interest_cost_gdp'] = interest_cost  # Negative = paying interest
+                    
+                    # --- 3. INTEREST COST TREND ---
+                    if len(common_yrs) >= 4:
+                        yr_3ago = [y for y in common_yrs if y <= latest - 3]
+                        if yr_3ago:
+                            old = yr_3ago[-1]
+                            old_cost = fiscal_ts.loc[old] - primary_ts.loc[old]
+                            row['interest_cost_trend_3yr'] = interest_cost - old_cost
+            
+            # --- 4. CREDIT GROWTH 3YR ---
+            # Schularick & Taylor (2012): Credit growth = most powerful crisis predictor
+            # Use MFS private credit time series
+            if mfs_df is not None and len(mfs_df) > 0:
+                credit_mask = (mfs_df['indicator_code'].str.contains('DCORP_A_ACO_PS', case=False, na=False, regex=False)) & \
+                              (mfs_df['country_code'] == country)
+                credit_ts = mfs_df[credit_mask].copy()
+                if len(credit_ts) >= 2:
+                    credit_ts['year'] = pd.to_datetime(credit_ts['period']).dt.year
+                    credit_ts = credit_ts.sort_values('year').drop_duplicates(subset='year')
+                    credit_latest = credit_ts['value'].iloc[-1]
+                    # Find value 3 years ago (or nearest)
+                    target_year = credit_ts['year'].iloc[-1] - 3
+                    older = credit_ts[credit_ts['year'] <= target_year]
+                    if len(older) > 0 and credit_latest > 0:
+                        credit_old = older['value'].iloc[-1]
+                        if credit_old > 0:
+                            row['credit_growth_3yr'] = ((credit_latest / credit_old) - 1) * 100
+            
+            # --- 5. CA DEFICIT SEVERITY ---
+            # Reinhart & Rogoff: Large CA deficits = capital inflow surge proxy
+            ca_ts = get_ts('BCA_NGDPD', country)
+            if len(ca_ts) > 0:
+                latest_ca = ca_ts.iloc[-1]
+                # Severity = magnitude of deficit (positive = more severe deficit)
+                row['ca_deficit_severity'] = max(0, -latest_ca)
+            
+            gap_data.append(row)
+        
+        # --- 6. M2 TO RESERVES ---
+        # Kaminsky & Reinhart (1999): M2/Reserves = twin crises indicator
+        if mfs_df is not None and len(mfs_df) > 0:
+            print("  Computing M2/Reserves ratio...")
+            mfs = mfs_df.copy()
+            mfs['year'] = pd.to_datetime(mfs['period']).dt.year
+            latest_mfs = mfs.sort_values('period').groupby(['country_code', 'indicator_code']).agg(
+                {'value': 'last'}).reset_index()
+            
+            # Broad money (M2): DCORP_RA_L_OTH_DMB_S1  or  ODCORP_L_LBM  (Broad Money)
+            # Try multiple codes for broad money
+            m2_codes = ['DCORP_L_BM']  # Broad Money (verified from MFS dataset)
+            reserves_code = 'S121_A_ACO_NRES'  # Central Bank claims on non-residents
+            
+            m2_data = latest_mfs[latest_mfs['indicator_code'].isin(m2_codes)]
+            res_data = latest_mfs[latest_mfs['indicator_code'] == reserves_code]
+            
+            if len(m2_data) > 0 and len(res_data) > 0:
+                # Take best M2 data per country (prefer first code)
+                m2_vals = m2_data.sort_values('indicator_code').drop_duplicates(
+                    subset='country_code', keep='first').set_index('country_code')['value']
+                res_vals = res_data.set_index('country_code')['value']
+                
+                common = m2_vals.index.intersection(res_vals.index)
+                if len(common) > 0:
+                    ratio = m2_vals.loc[common] / res_vals.loc[common].replace(0, np.nan)
+                    # Sanity: M2/Reserves typically 1-50, cap at 100
+                    ratio = ratio.clip(0, 100)
+                    
+                    # Add to gap_data
+                    for cc in common:
+                        if not np.isnan(ratio.loc[cc]):
+                            # Find existing row or create
+                            match = [r for r in gap_data if r['country_code'] == cc]
+                            if match:
+                                match[0]['m2_to_reserves'] = ratio.loc[cc]
+                            else:
+                                gap_data.append({'country_code': cc, 'm2_to_reserves': ratio.loc[cc]})
+                    
+                    print(f"    M2/Reserves computed for {len(common)} countries")
+        
+        # --- 7. REAL ESTATE CREDIT GROWTH ---
+        # Reinhart & Rogoff: Housing boom-bust = crisis precursor  
+        # Use FSIC real_estate_loans time series
+        if fsic_df is not None and len(fsic_df) > 0:
+            print("  Computing Real Estate credit growth...")
+            # FSIC indicator for real estate loans: REM (verified from FSIC dataset)
+            re_mask = fsic_df['indicator_code'] == 'REM'
+            re_data = fsic_df[re_mask].copy()
+            
+            if len(re_data) > 0:
+                re_data['year'] = pd.to_datetime(re_data['period']).dt.year
+                re_computed = 0
+                
+                for cc in re_data['country_code'].unique():
+                    cc_data = re_data[re_data['country_code'] == cc].sort_values('year').drop_duplicates('year')
+                    if len(cc_data) >= 2:
+                        latest_val = cc_data['value'].iloc[-1]
+                        latest_yr = cc_data['year'].iloc[-1]
+                        older = cc_data[cc_data['year'] <= latest_yr - 3]
+                        if len(older) > 0:
+                            old_val = older['value'].iloc[-1]
+                            if old_val > 0:
+                                growth = latest_val - old_val  # Percentage point change
+                                match = [r for r in gap_data if r['country_code'] == cc]
+                                if match:
+                                    match[0]['real_estate_credit_growth_3yr'] = growth
+                                else:
+                                    gap_data.append({'country_code': cc, 'real_estate_credit_growth_3yr': growth})
+                                re_computed += 1
+                
+                print(f"    RE credit growth computed for {re_computed} countries")
+        
+        # --- 8. TERMS OF TRADE DETERIORATION ---
+        print("  Computing Terms of Trade trends...")
+        tot_computed = 0
+        for country in countries:
+            # WEO code: TTPCH (Terms of Trade % Change - verified from WEO dataset)
+            tot_ts = get_ts('TTPCH', country)
+            if len(tot_ts) < 2:
+                continue
+            # TTPCH is already % change, so sum last 3 years for cumulative deterioration
+            recent_years = sorted(tot_ts.index)[-3:]
+            cumulative = tot_ts.loc[recent_years].sum()
+            # Negative cumulative = deterioration
+            match = [r for r in gap_data if r['country_code'] == country]
+            if match:
+                match[0]['tot_deterioration_3yr'] = cumulative  # Negative = worsening
+            tot_computed += 1
+        
+        print(f"    ToT deterioration computed for {tot_computed} countries")
+        
+        # Build DataFrame
+        results = pd.DataFrame(gap_data)
+        
+        if len(results) > 0:
+            # Summary
+            gap_features = [c for c in results.columns if c != 'country_code']
+            print(f"\n  Literature Gap Features Summary:")
+            for f in gap_features:
+                coverage = results[f].notna().sum()
+                if coverage > 0:
+                    mean_val = results[f].mean()
+                    print(f"    - {f}: {coverage} countries, mean={mean_val:.2f}")
+        
+        return results
     
     def merge_features(self, weo_features: pd.DataFrame,
                        fsic_features: pd.DataFrame,
                        credit_gap: pd.DataFrame,
                        sovereign_nexus: pd.DataFrame = None,
                        wgi_features: pd.DataFrame = None,
-                       fsibsis_features: pd.DataFrame = None) -> pd.DataFrame:
+                       fsibsis_features: pd.DataFrame = None,
+                       lit_gap_features: pd.DataFrame = None) -> pd.DataFrame:
         """
         Merge all feature sets into unified country-level dataset.
         
@@ -768,6 +1008,16 @@ class CrisisFeatureEngineer:
                 merged.loc[gap_filled, 'real_estate_loans'] = merged.loc[gap_filled, 'real_estate_loans_fsibsis']
                 if gap_filled.sum() > 0:
                     print(f"    Filled {gap_filled.sum()} real_estate_loans gaps with FSIBSIS data")
+        
+        # Merge Literature Gap Features (2026-02: REER proxy, interest cost, credit growth, etc.)
+        if lit_gap_features is not None and len(lit_gap_features) > 0:
+            lit_cols = [c for c in lit_gap_features.columns if c != 'country_code']
+            merged = merged.merge(lit_gap_features, on='country_code', how='outer')
+            print(f"  Merged Literature Gap features: {len(lit_cols)} indicators")
+            for col in lit_cols:
+                coverage = merged[col].notna().sum()
+                if coverage > 0:
+                    print(f"    - {col}: {coverage} countries")
         
         # FX EXPOSURE IMPUTATION for reserve currency countries
         # These countries issue global reserve currencies, so FX mismatch risk is minimal

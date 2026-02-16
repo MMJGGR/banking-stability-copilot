@@ -220,11 +220,23 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     
     # Separate banking (FSIC) from macro (WEO) indicators
     # Define pillar mapping matching FeatureEngineer output
+    # NOTE: gdp_per_capita RE-INCLUDED in PCA to ensure the primary component captures
+    # development level (Wealth = Resilience). However, it remains EXCLUDED from the 
+    # supervised CrisisClassifier to prevent wealth-bias in the crisis probability component.
+    # Ref: Borio & Lowe (2002), Drehmann & Juselius (2014)
     economic_cols = [
-        'gdp_growth', 'gdp_per_capita', 'inflation', 'current_account_gdp', 
-        'govt_debt_gdp', 'fiscal_balance_gdp', 'unemployment', 'nominal_gdp',
+        'gdp_growth', 'inflation', 'current_account_gdp', 'gdp_per_capita',
+        'govt_debt_gdp', 'fiscal_balance_gdp', 'unemployment',
         'credit_to_gdp', 'credit_to_gdp_gap', 'debt_service_gdp', 'external_debt_gdp',
-        'sovereign_liability_to_reserves', # New Sovereign FX Risk
+        'sovereign_liability_to_reserves',
+        # Literature gap features (2026-02)
+        'inflation_differential_3yr',   # REER proxy (Gourinchas & Obstfeld 2012)
+        'interest_cost_gdp',            # Debt sustainability (fiscal - primary balance)
+        'interest_cost_trend_3yr',      # Interest cost trend
+        'credit_growth_3yr',            # Credit boom (Schularick & Taylor 2012)
+        'm2_to_reserves',               # Twin crises (Kaminsky & Reinhart 1999)
+        'ca_deficit_severity',          # Capital inflow surge proxy
+        'tot_deterioration_3yr',        # Terms of trade shock
         # WGI governance (BICRA: Economic Risk)
         'voice_accountability', 'political_stability', 'govt_effectiveness'
     ]
@@ -234,7 +246,8 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
         'liquid_assets_total', 'customer_deposits_loans', 'fx_loan_exposure', 
         'tier1_capital', 'npl_provisions', 'loan_concentration',
         'real_estate_loans', 'sovereign_exposure_ratio',
-        'bank_liability_to_nfa', # New Banking Sector FX Risk
+        'bank_liability_to_nfa', # Banking Sector FX Risk
+        'real_estate_credit_growth_3yr',  # Housing boom proxy (Reinhart & Rogoff 2009)
         # WGI governance (BICRA: Institutional Framework)
         'regulatory_quality', 'rule_of_law', 'control_corruption'
     ]
@@ -298,6 +311,13 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
         features_imputed = features_numeric.fillna(features_numeric.median()).fillna(0)
     
     # Use imputed features for scaling
+    # Post-imputation safety: fill any remaining NaN with column median
+    # This handles very sparse features (e.g., tot_deterioration_3yr with <10 countries)
+    # where KNN can't find enough neighbors with data
+    remaining_nans = features_imputed.isna().sum().sum()
+    if remaining_nans > 0:
+        features_imputed = features_imputed.fillna(features_imputed.median()).fillna(0)
+        print(f"  Post-KNN median fallback: {remaining_nans} remaining NaN values filled")
     features_numeric = features_imputed
     
     # Save imputed features for dashboard display (to show asterisks correctly)
@@ -320,10 +340,10 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     
     # --- PREPROCESSING: LOG TRANSFORM SKEWED FEATURES ---
     # Fix single-feature dominance in PCA by compressing scale of high-variance features
+    # NOTE: nominal_gdp and gdp_per_capita removed from skewed_features
+    # since they are no longer in the PCA model inputs
     skewed_features = [
-        'nominal_gdp',          # Range: 0.1B to 30,000B -> Log reduces variance dominance
         'inflation',            # Range: -5% to 1000% -> Log handles hyperinflation outliers
-        'gdp_per_capita',       # Range: $200 to $130k -> Log reflects standard economic utility
         'sovereign_exposure_ratio' # Range: 0% to 50% -> Log smooths high exposure
     ]
     
@@ -440,46 +460,43 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     else:
         combined_score_raw = np.zeros(len(good_countries))
     
-    # --- ANCHOR ADJUSTMENT ---
-    print("\n--- Anchoring with Development Level ---")
+    # --- ANCHOR ADJUSTMENT (Crisis-Frequency Based) ---
+    # REVERTED: Crisis Frequency Anchor caused model inversion (Advanced Economies have more GFC crises).
+    # Using GDP per Capita (Development) as the robust anchor for structural safety.
+    # High GDP -> High Pillar Score (Safe)
+    print("\n--- PCA Direction Anchor (GDP/Development Based) ---")
     
-    # Get anchor values for our countries
     if anchor_series is not None:
-        anchor_aligned = anchor_series.reindex(good_countries)
-        anchor_filled = anchor_aligned.fillna(anchor_aligned.median())
-        
-        # Log transform GDP per capita (better distribution)
+        anchor_aligned_gdp = anchor_series.reindex(good_countries)
+        anchor_filled = anchor_aligned_gdp.fillna(anchor_aligned_gdp.median())
+        # Use log GDP to reduce outlier impact
         anchor_log = np.log10(anchor_filled.clip(lower=100))
-        anchor_scaled = (anchor_log - anchor_log.mean()) / anchor_log.std()
+        anchor_sc = (anchor_log - anchor_log.mean()) / anchor_log.std()
         
-        econ_corr = np.corrcoef(anchor_scaled, economic_score_raw)[0,1]
-        ind_corr = np.corrcoef(anchor_scaled, industry_score_raw)[0,1]
-        comb_corr = np.corrcoef(anchor_scaled, combined_score_raw)[0,1]
-        
-        print(f"  Anchor correlation with Economic: {econ_corr:.2f}")
-        print(f"  Anchor correlation with Industry: {ind_corr:.2f}")
-        print(f"  Anchor correlation with Combined: {comb_corr:.2f}")
-        
-        # Ensure direction: higher development (anchor) should mean HIGHER combined score (= lower risk)
-        # If correlation is NEGATIVE, we need to flip so higher anchor = higher pillar score
-        if econ_corr < 0:
+        # Economic Pillar
+        corr_econ = np.corrcoef(anchor_sc, economic_score_raw)[0,1]
+        print(f"  GDP correlation with Economic PC1: {corr_econ:.2f}")
+        if corr_econ < 0:
             economic_score_raw = -economic_score_raw
-            print("  Flipped economic score direction")
-        
-        if ind_corr < 0:
+            print("  Flipped economic score (High GDP = High Score/Safe)")
+            
+        # Industry Pillar
+        corr_ind = np.corrcoef(anchor_sc, industry_score_raw)[0,1]
+        print(f"  GDP correlation with Industry PC1: {corr_ind:.2f}")
+        if corr_ind < 0:
             industry_score_raw = -industry_score_raw
-            print("  Flipped industry score direction")
-        
-        if comb_corr < 0:
+            print("  Flipped industry score (High GDP = High Score/Safe)")
+            
+        # Combined Pillar
+        corr_comb = np.corrcoef(anchor_sc, combined_score_raw)[0,1]
+        print(f"  GDP correlation with Combined PC1: {corr_comb:.2f}")
+        if corr_comb < 0:
             combined_score_raw = -combined_score_raw
-            print("  Flipped combined score direction")
-        
-        # REMOVED: GDP per capita anchor was biasing model too heavily toward development
-        # GDP per capita is now ONLY in the Economic pillar, not double-counted
-        anchor_weight = 0.0  # No anchor weight - pure pillar-based scoring
-    else:
-        anchor_scaled = np.zeros(len(good_countries))
-        anchor_weight = 0.0
+            print("  Flipped combined score (High GDP = High Score/Safe)")
+    
+    # Pure pillar-based scoring — no anchor weight
+    anchor_weight = 0.0
+    anchor_scaled = np.zeros(len(good_countries))
     
     # --- COMBINE INTO FINAL SCORE ---
     print("\n--- Computing Final Risk Scores ---")
@@ -697,6 +714,12 @@ class BankingRiskModel:
         credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
         sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
         
+        # Compute literature-identified gap features (2026-02)
+        print("\n  [1a+] Computing literature gap features...")
+        lit_gap_features = engineer.compute_literature_gap_features(
+            weo_df=weo_df, mfs_df=mfs_df, fsic_df=fsic_df, weo_features=weo_features
+        )
+        
         # Load WGI governance features
         print("\n  [1b] Loading WGI governance indicators...")
         try:
@@ -740,7 +763,8 @@ class BankingRiskModel:
             credit_gap=credit_gap, 
             sovereign_nexus=sovereign_nexus,
             wgi_features=wgi_features, 
-            fsibsis_features=fsibsis_features
+            fsibsis_features=fsibsis_features,
+            lit_gap_features=lit_gap_features
         )
         
         # Free intermediate DataFrames
@@ -760,6 +784,8 @@ class BankingRiskModel:
             'gdp_per_capita', 'gdp_growth', 'inflation', 'unemployment', 'nominal_gdp',
             'current_account_gdp', 'govt_debt_gdp', 'fiscal_balance_gdp',
             'external_debt_gdp', 'debt_service_gdp', 'credit_to_gdp', 'credit_to_gdp_gap',
+            'inflation_differential_3yr', 'interest_cost_gdp', 'interest_cost_trend_3yr',
+            'credit_growth_3yr', 'm2_to_reserves', 'ca_deficit_severity', 'tot_deterioration_3yr',
             'voice_accountability', 'political_stability', 'govt_effectiveness'
         ]
         industry_features = [
@@ -767,6 +793,7 @@ class BankingRiskModel:
             'roe', 'roa', 'liquid_assets_st_liab', 'liquid_assets_total',
             'customer_deposits_loans', 'fx_loan_exposure', 'loan_concentration',
             'real_estate_loans', 'sovereign_exposure_ratio',
+            'real_estate_credit_growth_3yr',
             'regulatory_quality', 'rule_of_law', 'control_corruption'
         ]
         fsibsis_features = [
@@ -850,7 +877,7 @@ class BankingRiskModel:
         print("[Step 2/4] CRISIS CLASSIFIER")
         print("-"*70)
         # Train classifier (or load if already trained and cached)
-        classifier, metrics = train_crisis_model()
+        classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
         
         # Get crisis probabilities
         print("  Generating crisis probabilities...")
