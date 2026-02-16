@@ -31,7 +31,12 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Optional, Tuple, Any
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.metrics import roc_auc_score, precision_recall_curve, classification_report, roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import (roc_auc_score, roc_curve, precision_recall_curve, 
+                             confusion_matrix, ConfusionMatrixDisplay, classification_report)
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+import seaborn as sns
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -45,6 +50,13 @@ except ImportError:
     print("WARNING: XGBoost not installed. Using RandomForest fallback.")
 
 try:
+    from imblearn.over_sampling import SMOTE
+    HAS_SMOTE = True
+except ImportError:
+    HAS_SMOTE = False
+    print("WARNING: SMOTE not installed. Class imbalance handling will be limited.")
+
+try:
     import shap
     HAS_SHAP = True
 except ImportError:
@@ -52,7 +64,7 @@ except ImportError:
     print("WARNING: SHAP not installed. Feature importance will be limited.")
 
 # Fallback to RandomForest if needed
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+# from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier # Already imported above
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import CACHE_DIR
@@ -118,7 +130,9 @@ class CrisisClassifier:
                  n_estimators: int = 100,
                  max_depth: int = 5,
                  learning_rate: float = 0.1,
-                 random_state: int = 42):
+                 random_state: int = 42,
+                 use_smote: bool = False,
+                 ensemble: bool = False):
         """
         Initialize crisis classifier.
         
@@ -127,11 +141,15 @@ class CrisisClassifier:
             max_depth: Max tree depth (keep low to avoid overfitting)
             learning_rate: Learning rate for boosting
             random_state: Random seed for reproducibility
+            use_smote: Upgrade minority class (crisis) using SMOTE
+            ensemble: Use VotingClassifier (XGB + LR + RF)
         """
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.random_state = random_state
+        self.use_smote = use_smote
+        self.ensemble = ensemble
         
         self.model = None
         self.calibrated_model = None  # Isotonic-calibrated wrapper
@@ -146,22 +164,10 @@ class CrisisClassifier:
     
     def _create_model(self, n_positive: int, n_negative: int,
                       monotone_constraints: tuple = None):
-        """
-        Create classifier model with class imbalance handling.
-        
-        CRISP-DM: Modeling - Algorithm Selection
-        
-        Args:
-            n_positive: Number of positive (crisis) samples
-            n_negative: Number of negative (non-crisis) samples
-            monotone_constraints: Tuple of (-1, 0, +1) per feature.
-                +1 = higher feature value -> higher crisis probability
-                -1 = higher feature value -> lower crisis probability
-                 0 = no constraint
-        """
-        # Calculate scale_pos_weight for class imbalance
+        """Create classifier model (Single or Ensemble)."""
         scale_pos_weight = n_negative / max(n_positive, 1)
         
+        # Base XGBoost Model
         if HAS_XGBOOST:
             params = dict(
                 n_estimators=self.n_estimators,
@@ -172,26 +178,40 @@ class CrisisClassifier:
                 use_label_encoder=False,
                 eval_metric='logloss',
                 verbosity=0,
-                # Regularization to prevent overfitting on small datasets
-                subsample=0.7,            # Row sampling per tree
-                colsample_bytree=0.7,     # Feature sampling per tree
-                min_child_weight=5,       # Min samples per leaf (prevents tiny splits)
-                reg_alpha=1.0,            # L1 penalty (feature selection pressure)
-                reg_lambda=5.0,           # L2 penalty (weight shrinkage)
-                gamma=1.0,               # Min loss reduction for split
+                # Regularization
+                subsample=0.7,
+                colsample_bytree=0.7,
+                min_child_weight=5,
+                reg_alpha=1.0,
+                reg_lambda=5.0,
+                gamma=1.0,
             )
             if monotone_constraints is not None:
                 params['monotone_constraints'] = monotone_constraints
-            return xgb.XGBClassifier(**params)
+            base_model = xgb.XGBClassifier(**params)
         else:
-            # Fallback to RandomForest with class weighting
-            return RandomForestClassifier(
+            base_model = RandomForestClassifier(
                 n_estimators=self.n_estimators,
                 max_depth=self.max_depth,
                 class_weight='balanced',
-                random_state=self.random_state,
-                n_jobs=-1
+                random_state=self.random_state
             )
+            
+        if not self.ensemble:
+            return base_model
+            
+        # Ensemble: XGBoost + Logistic Regression + Random Forest
+        # Logic: XGB captures non-linear, LR captures linear baseline, RF adds diversity
+        lr = LogisticRegression(class_weight='balanced', solver='liblinear', penalty='l1', C=0.1, random_state=self.random_state)
+        rf = RandomForestClassifier(n_estimators=50, max_depth=3, class_weight='balanced', random_state=self.random_state)
+        
+        # Soft voting averages probabilities
+        voting_clf = VotingClassifier(
+            estimators=[('xgb', base_model), ('lr', lr), ('rf', rf)],
+            voting='soft',
+            weights=[2, 1, 1]  # Weight XGBoost higher but let others correct it
+        )
+        return voting_clf
     
     def fit(self, X: pd.DataFrame, y: pd.Series, cv: int = 5,
             sample_weights: np.ndarray = None,
@@ -224,8 +244,6 @@ class CrisisClassifier:
         
         n_positive = int(y_arr.sum())
         n_negative = len(y_arr) - n_positive
-        self.model = self._create_model(n_positive, n_negative,
-                                         monotone_constraints=monotone_constraints)
         
         # Prepare sample weights (default to uniform if not provided)
         if sample_weights is None:
@@ -245,24 +263,48 @@ class CrisisClassifier:
         min_class_count = min(n_positive, n_negative)
         actual_cv = min(cv, min_class_count) if min_class_count > 1 else 2
         
-        cv_splitter = StratifiedKFold(n_splits=actual_cv, shuffle=True, random_state=self.random_state)
+        skf = StratifiedKFold(n_splits=actual_cv, shuffle=True, random_state=self.random_state)
         
-        for i, (train_idx, val_idx) in enumerate(cv_splitter.split(X_scaled, y_arr)):
-            # Pass sample weights to XGBoost for weighted training
-            self.model.fit(X_scaled[train_idx], y_arr[train_idx],
-                          sample_weight=sw[train_idx])
-            probas_ = self.model.predict_proba(X_scaled[val_idx])[:, 1]
+        for fold, (train_idx, val_idx) in enumerate(skf.split(X_scaled, y_arr)):
+            X_train_fold, y_train_fold = X_scaled[train_idx], y_arr[train_idx]
+            X_val_fold, y_val_fold = X_scaled[val_idx], y_arr[val_idx]
+            w_train_fold = sw[train_idx]
             
-            fpr, tpr, thresholds = roc_curve(y_arr[val_idx], probas_)
-            roc_auc = auc(fpr, tpr)
-            aucs.append(roc_auc)
+            # --- APPLY SMOTE (Training Fold Only) ---
+            if self.use_smote and HAS_SMOTE:
+                # Note: SMOTE doesn't support sample_weights generation easily, 
+                # so we rely on the synthetic data generation to balance classes
+                # and assume uniform weights for synthetic samples.
+                smote = SMOTE(random_state=42, k_neighbors=min(5, sum(y_train_fold)-1))
+                X_train_fold, y_train_fold = smote.fit_resample(X_train_fold, y_train_fold)
+                w_train_fold = np.ones(len(y_train_fold)) # Reset weights for balanced data
             
-            # Interp
-            interp_tpr = np.interp(mean_fpr, fpr, tpr)
-            interp_tpr[0] = 0.0
-            tprs.append(interp_tpr)
+            # Create fresh model for this fold
+            fold_model = self._create_model(
+                n_positive=sum(y_train_fold), 
+                n_negative=len(y_train_fold) - sum(y_train_fold),
+                monotone_constraints=monotone_constraints
+            )
             
-            plt.plot(fpr, tpr, lw=1, alpha=0.3, label=f'Fold {i+1} (AUC = {roc_auc:.2f})')
+            # Fit
+            fold_model.fit(X_train_fold, y_train_fold, sample_weight=w_train_fold)
+            
+            # Evaluate
+            try:
+                probas_ = fold_model.predict_proba(X_val_fold)[:, 1]
+                fpr, tpr, thresholds = roc_curve(y_val_fold, probas_)
+                roc_auc = auc(fpr, tpr)
+                aucs.append(roc_auc)
+                
+                # Interp
+                interp_tpr = np.interp(mean_fpr, fpr, tpr)
+                interp_tpr[0] = 0.0
+                tprs.append(interp_tpr)
+                
+                plt.plot(fpr, tpr, lw=1, alpha=0.3, label=f'Fold {fold+1} (AUC = {roc_auc:.2f})')
+            except Exception as e:
+                print(f"  Fold {fold+1} failed: {e}")
+                aucs.append(0.5)
         
         # Plot Mean ROC
         mean_tpr = np.mean(tprs, axis=0)
@@ -290,10 +332,27 @@ class CrisisClassifier:
         
         self.cv_scores_ = np.array(aucs)
         
-        # Train final model on all provided data (with weights)
+        # Train final model on all provided data (with weights/SMOTE)
         print("\n  Training final model on all data...")
-        self.model.fit(X_scaled, y_arr, sample_weight=sw)
-        self._compute_feature_importance(X_scaled, y)
+        
+        X_final, y_final, w_final = X_scaled, y_arr, sw
+        if self.use_smote and HAS_SMOTE:
+             print("  Applying SMOTE to full training set...")
+             smote = SMOTE(random_state=42, k_neighbors=min(5, sum(y_final)-1))
+             X_final, y_final = smote.fit_resample(X_final, y_final)
+             w_final = np.ones(len(y_final))
+
+        # Re-create model for final fit
+        self.model = self._create_model(
+            n_positive=sum(y_final), 
+            n_negative=len(y_final) - sum(y_final),
+            monotone_constraints=monotone_constraints
+        )
+        self.model.fit(X_final, y_final, sample_weight=w_final)
+        
+        # Feature importance only available for base XGBoost (not voting classifier)
+        if not self.ensemble and hasattr(self.model, 'feature_importances_'):
+            self._compute_feature_importance(X_scaled, y)
         
         # --- PROBABILITY CALIBRATION (Isotonic Regression) ---
         # Raw XGBoost probabilities cluster near 0 due to class imbalance.
@@ -1091,7 +1150,9 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     classifier = CrisisClassifier(
         n_estimators=50,
         max_depth=2,
-        learning_rate=0.1
+        learning_rate=0.1,
+        use_smote=True,
+        ensemble=True
     )
     
     classifier.fit(X_train, y_train, cv=5, sample_weights=w_train,

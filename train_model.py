@@ -707,6 +707,13 @@ class BankingRiskModel:
         print("-"*70)
         engineer = CrisisFeatureEngineer()
         
+        classifier = CrisisClassifier(
+            n_estimators=50,
+            max_depth=2,
+            learning_rate=0.1,
+            use_smote=True,
+            ensemble=True
+        )
         # Extract features from each dataset
         print("  [1a] Extracting core IMF features (WEO, FSIC, MFS)...")
         weo_features = engineer.extract_weo_features(weo_df)

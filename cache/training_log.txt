@@ -1,0 +1,592 @@
+﻿python : INFO:src.data_loader:Loading FSIBSIS from: 
+C:\Users\Richard\Banking\dataset_2026-01-07T14_49_15.772533145Z_DEFAULT_INTEGRATION_IMF.STA_FSIBSIS_18.0.0.csv
+At line:1 char:1
++ python train_model.py 2>&1 | Out-File -FilePath "cache/training_log.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO:src.data_l...BSIS_18.0.0.csv:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+INFO:src.data_loader:FSIBSIS: 25636 rows, 111 countries
+INFO:src.data_loader:Loading FSIBSIS from: 
+C:\Users\Richard\Banking\dataset_2026-01-07T14_49_15.772533145Z_DEFAULT_INTEGRATION_IMF.STA_FSIBSIS_18.0.0.csv
+INFO:src.data_loader:FSIBSIS: 25636 rows, 111 countries
+======================================================================
+DATA-DRIVEN BANKING SYSTEM RISK MODEL
+======================================================================
+  Started: 2026-02-16 12:05:49
+
+----------------------------------------------------------------------
+DATA LOADING
+----------------------------------------------------------------------
+Loaded FSIC from cache: 859227 records
+Loaded WEO from cache: 354240 records
+Loaded MFS from cache: 1326510 records
+
+  Loading FSIBSIS balance sheet data...
+  Loading WGI governance data...
+
+======================================================================
+LOADING WORLD GOVERNANCE INDICATORS
+======================================================================
+  Source: C:\Users\Richard\Banking\wgidataset_with_sourcedata-2025.xlsx
+  VA (voice_accountability): 5444 records
+  PV (political_stability): 5429 records
+  GE (govt_effectiveness): 5340 records
+  RQ (regulatory_quality): 5341 records
+  RL (rule_of_law): 5476 records
+  CC (control_corruption): 5373 records
+
+  Total: 5481 country-year records, 216 countries
+
+----------------------------------------------------------------------
+DATA SOURCES SUMMARY
+----------------------------------------------------------------------
+  Source            Records    Countries Description
+  ------------ ------------ ------------ ------------------------------
+  FSIC              859,227          155 Financial Soundness Indicators
+  WEO               354,240          208 World Economic Outlook
+  MFS             1,326,510          178 Monetary & Financial Stats
+  FSIBSIS            25,636          111 Balance Sheet Data
+  WGI                 5,481          216 World Governance Indicators
+  ------------ ------------ ------------
+  TOTAL           2,571,094
+
+======================================================================
+EXPLORING ALL AVAILABLE INDICATORS
+======================================================================
+
+FSIC: 11 indicators
+WEO:  145 indicators
+MFS:  91 indicators
+
+Top FSIC indicators by country coverage:
+  S12CFSI: 155 countries, mean=65673147.30
+  REM: 136 countries, mean=14.51
+  S1: 83 countries, mean=14459969767796.40
+  S12R: 63 countries, mean=53760262.94
+  S14: 51 countries, mean=24374928.43
+  S128: 47 countries, mean=12335780.45
+  S11: 41 countries, mean=4793900554.63
+  S129: 35 countries, mean=6457720.30
+  S1282: 30 countries, mean=1067207.22
+  S1281: 29 countries, mean=1330523.79
+  S123: 19 countries, mean=2110297.60
+
+Top WEO indicators by country coverage:
+  NGDPD: 208 countries
+  NGDP_RPCH: 208 countries
+  PCPIEPCH: 208 countries
+  PCPIPCH: 208 countries
+  BCA: 207 countries
+  GGR_NGDP: 207 countries
+  GGXCNL_NGDP: 207 countries
+  GGX_NGDP: 207 countries
+  PPPGDP: 207 countries
+  BCA_NGDPD: 206 countries
+  PPPPC: 206 countries
+  GGXWDG_NGDP: 204 countries
+  NGDPRPPPPC: 204 countries
+  PPPSH: 201 countries
+  NGDP_D: 200 countries
+
+======================================================================
+TRAINING HYBRID BANKING RISK MODEL
+======================================================================
+  Timestamp: 2026-02-16 12:06:52
+  Input data: FSIC (859,227 records), WEO (354,240 records), MFS (1,326,510 records)
+
+----------------------------------------------------------------------
+[Step 1/4] FEATURE ENGINEERING
+----------------------------------------------------------------------
+  [1a] Extracting core IMF features (WEO, FSIC, MFS)...
+
+======================================================================
+EXTRACTING ECONOMIC PILLAR FEATURES (WEO)
+======================================================================
+  Filtered to data <= 2026 (excluding forecasts)
+  Extracted 16 features for 208 countries
+
+  WEO Features Summary:
+    Countries: 208
+    Features: 16
+    - gdp_growth: 208 values, mean=3.22, std=3.42
+    - gdp_growth_year: 208 values, mean=2025.84, std=1.24
+    - gdp_per_capita: 197 values, mean=21596.86, std=31474.44
+    - gdp_per_capita_year: 197 values, mean=2025.83, std=1.27
+    - inflation: 208 values, mean=8.57, std=47.58
+
+======================================================================
+EXTRACTING INDUSTRY PILLAR FEATURES (FSIC)
+======================================================================
+    Computed capital_quality (Tier1/CAR) for 154 countries
+  Extracted 25 features for 155 countries
+
+  FSIC Features Summary:
+    Countries: 155
+    Features: 25
+    - capital_adequacy: 154 values, mean=19.54, std=6.73
+    - capital_adequacy_year: 154 values, mean=2024.42, std=1.28
+    - npl_ratio: 155 values, mean=5.73, std=6.14
+    - npl_ratio_year: 155 values, mean=2024.43, std=1.25
+    - roe: 153 values, mean=15.51, std=8.88
+
+======================================================================
+COMPUTING CREDIT-TO-GDP METRICS (BIS Methodology)
+======================================================================
+  Private credit data rows: 38453
+  Total credit data rows: 18692
+  GDP data rows (local currency): 9131
+  Computed credit-to-GDP for 156 countries
+  Median private credit/GDP: 29.0%
+  Gap range: -23.8 to 148.5
+  Total credit/GDP coverage: 150/156 countries
+
+======================================================================
+COMPUTING SOVEREIGN-BANK NEXUS (Claims on Govt / Total Banking Assets)
+======================================================================
+  Computed sovereign exposure for 172 countries (ODCORP Logic)
+  Median ODCORP exposure: 11.6%
+
+======================================================================
+COMPUTING EXTERNAL RISK METRICS
+======================================================================
+  Computed FX Risk Feature 1 (Bank Liab/NFA) for 177 countries
+  Computed FX Risk Feature 2 (Sov Liab/Reserves) for 177 countries
+
+  [1b] Loading WGI governance indicators...
+
+======================================================================
+LOADING WORLD GOVERNANCE INDICATORS
+======================================================================
+  Source: C:\Users\Richard\Banking\wgidataset_with_sourcedata-2025.xlsx
+  VA (voice_accountability): 5444 records
+  PV (political_stability): 5429 records
+  GE (govt_effectiveness): 5340 records
+  RQ (regulatory_quality): 5341 records
+  RL (rule_of_law): 5476 records
+  CC (control_corruption): 5373 records
+
+  Total: 5481 country-year records, 216 countries
+
+  WGI GOVERNANCE INDICATORS LOADED:
+    - voice_accountability: 216 countries, mean=56.0
+    - voice_accountability_year: 216 countries, mean=2024.0
+    - political_stability: 216 countries, mean=66.1
+    - political_stability_year: 216 countries, mean=2024.0
+    - govt_effectiveness: 214 countries, mean=52.9
+    - govt_effectiveness_year: 216 countries, mean=2024.0
+    - regulatory_quality: 214 countries, mean=54.9
+    - regulatory_quality_year: 216 countries, mean=2024.0
+    - rule_of_law: 216 countries, mean=56.9
+    - rule_of_law_year: 216 countries, mean=2024.0
+    - control_corruption: 216 countries, mean=48.0
+    - control_corruption_year: 216 countries, mean=2024.0
+
+  [1c] Loading FSIBSIS balance sheet indicators...
+        Countries: 110
+        Features:  8 indicators
+          - net_interest_margin: 110 countries
+          - interbank_funding_ratio: 100 countries
+          - income_diversification: 108 countries
+          - securities_to_assets: 106 countries
+          - specific_provisions_ratio: 110 countries
+          - large_exposure_ratio: 76 countries
+          ... and 2 more
+
+======================================================================
+MERGING FEATURE SETS
+======================================================================
+  Merged sovereign-bank nexus feature
+  Merged WGI governance features: 12 indicators
+  Merged FSIBSIS features: 16 new indicators
+    Filled 4 sovereign_exposure gaps with FSIBSIS data
+    Fixed 17 sovereign exposures using securities_to_assets (e.g. Kenya/Uganda)
+  Imputed FX exposure = 0 for 3 reserve currency countries
+  Liquidity cross-imputation: 4 values filled (ratio=1.57)
+  Excluded 14 aggregate codes (ASEAN-5, EA, SSA, etc.)
+    Clipped 1 values in deposit_funding_ratio to [0, 200]
+    Clipped 1 values in net_interest_margin to [-5, 30]
+    Clipped 1 values in large_exposure_ratio to [0, 500]
+    Clipped 2 values in capital_adequacy to [0, 50]
+  Applied sanity bounds to 5 total outlier values
+
+  --- Correlation Analysis (threshold=0.85) ---
+    Found 15 highly correlated pairs:
+      capital_adequacy <-> tier1_capital: r=0.904
+      npl_provisions <-> specific_provisions_ratio: r=0.983
+      credit_to_gdp <-> private_credit_to_gdp: r=1.000
+      credit_to_gdp <-> total_credit_to_gdp: r=0.963
+      credit_to_gdp <-> credit_to_gdp_gap: r=1.000
+      private_credit_to_gdp <-> total_credit_to_gdp: r=0.963
+      private_credit_to_gdp <-> credit_to_gdp_gap: r=1.000
+      total_credit_to_gdp <-> credit_to_gdp_gap: r=0.963
+      voice_accountability <-> rule_of_law: r=0.902
+      govt_effectiveness <-> regulatory_quality: r=0.944
+      govt_effectiveness <-> rule_of_law: r=0.895
+      govt_effectiveness <-> control_corruption: r=0.917
+      regulatory_quality <-> rule_of_law: r=0.902
+      regulatory_quality <-> control_corruption: r=0.900
+      rule_of_law <-> control_corruption: r=0.940
+    Dropping 9 redundant features: ['control_corruption', 'credit_to_gdp', 'govt_effectiveness', 'private_credit_to_gdp', 'regulatory_quality', 'rule_of_law', 'specific_provisions_ratio', 'tier1_capital', 'total_credit_to_gdp']
+  Final dataset: 221 countries, 71 features
+  Feature completeness: 70.3%
+
+  --------------------------------------------------
+  FEATURE MATRIX SUMMARY
+  --------------------------------------------------
+
+  Countries: 221
+  Total Features: 71
+
+  Economic Pillar (11/15 features):
+    - gdp_per_capita: 197 countries
+    - gdp_growth: 197 countries
+    - inflation: 197 countries
+    - unemployment: 118 countries
+    - nominal_gdp: 197 countries
+    - current_account_gdp: 196 countries
+    - govt_debt_gdp: 194 countries
+    - fiscal_balance_gdp: 197 countries
+    - credit_to_gdp_gap: 156 countries
+    - voice_accountability: 215 countries
+    - political_stability: 215 countries
+    [MISSING: external_debt_gdp, debt_service_gdp, govt_effectiveness, credit_to_gdp]
+
+  Industry Pillar (13/17 features):
+    - capital_adequacy: 153 countries
+    - capital_quality: 153 countries
+    - npl_ratio: 154 countries
+    - npl_provisions: 152 countries
+    - roe: 152 countries
+    - roa: 153 countries
+    - liquid_assets_st_liab: 153 countries
+    - liquid_assets_total: 153 countries
+    - customer_deposits_loans: 151 countries
+    - fx_loan_exposure: 140 countries
+    - loan_concentration: 72 countries
+    - real_estate_loans: 131 countries
+    - sovereign_exposure_ratio: 177 countries
+    [MISSING: tier1_capital, rule_of_law, regulatory_quality, control_corruption]
+
+  FSIBSIS Computed (6/7 features):
+    - net_interest_margin: 110 countries
+    - interbank_funding_ratio: 100 countries
+    - income_diversification: 108 countries
+    - securities_to_assets: 106 countries
+    - large_exposure_ratio: 76 countries
+    - deposit_funding_ratio: 110 countries
+  --------------------------------------------------
+
+  Saved features to: C:\Users\Richard\Banking\cache\crisis_features.parquet
+  Could not save correlation plot: name 'economic_cols' is not defined
+
+----------------------------------------------------------------------
+[Step 2/4] CRISIS CLASSIFIER
+----------------------------------------------------------------------
+======================================================================
+DEBIASED CRISIS CLASSIFIER TRAINING PIPELINE
+CRISP-DM Phases: Data Preparation -> Modeling -> Evaluation
+======================================================================
+
+Loaded features: 221 countries, 72 columns
+
+--- Feature Transformations ---
+  Development tiers: {1: 20, 2: 68, 3: 56, 4: 77}
+  Fiscal space: mean=-3.59
+
+--- Multi-Epoch Crisis Labels ---
+  (Corrects for GFC-dominated single-epoch bias)
+  Loaded 71 countries with 243 crisis-years
+  Epoch 1990: 16 crises / 221 countries ù Africa (KEN,NGA,TZA), Nordic (FIN,SWE,NOR)
+  Epoch 1995: 18 crises / 221 countries ù Asian crisis (THA,IDN,KOR,MYS), LatAm (ARG,MEX)
+  Epoch 2000: 8 crises / 221 countries ù Argentina (2001), Turkey (2000), Japan (1997-2001)
+  Epoch 2005: 27 crises / 221 countries ù Global Financial Crisis (USA,GBR,ESP,ISL,GRC...)
+  Epoch 2015: 3 crises / 221 countries ù Turkey (2018), Ghana (2017-2018), Lebanon (2019)
+
+  Combined training set: 293 observations
+  Crisis: 72 | Non-crisis: 221
+
+--- Feature Selection ---
+  Using 32 features (excluded: ['gdp_per_capita', 'nominal_gdp', 'development_tier'])
+
+--- Income-Tier Sample Weights ---
+  Income-tier sample weights:
+    Tier 1 (Low): 20 countries, 0 crises, weight=3.66
+    Tier 2 (Lower-Mid): 82 countries, 14 crises, weight=0.89
+    Tier 3 (Upper-Mid): 77 countries, 21 crises, weight=0.95
+    Tier 4 (High): 114 countries, 37 crises, weight=0.64
+
+--- Train-Test Split (80/20 stratified) ---
+  Train: 234 (58 crises)
+  Test:  59 (14 crises)
+
+======================================================================
+TRAINING CRISIS CLASSIFIER
+======================================================================
+
+--- 5-Fold Stratified Cross-Validation & ROC Curves ---
+  Saved CV ROC Plot: C:\Users\Richard\Banking\cache\eda\cv_roc_curve.png
+  Mean CV ROC-AUC:   0.525 (+/- 0.115)
+
+  Training final model on all data...
+
+--- Computing Feature Importance ---
+  Using SHAP values for feature importance
+  Saved: C:\Users\Richard\Banking\cache\eda\shap_summary.png
+
+  Top 10 Feature Importance:
+    1. current_account_gdp: 1.000
+    2. npl_ratio: 0.676
+    3. bank_liability_to_nfa: 0.490
+    4. sovereign_exposure_ratio: 0.390
+    5. political_stability: 0.359
+    6. voice_accountability: 0.347
+    7. govt_debt_gdp: 0.340
+    8. real_estate_loans: 0.323
+    9. unemployment: 0.290
+    10. income_diversification: 0.266
+
+======================================================================
+HOLDOUT TEST SET EVALUATION
+======================================================================
+
+======================================================================
+MODEL EVALUATION
+======================================================================
+  AUC-ROC (Training): 0.354
+  Saved Confusion Matrix: C:\Users\Richard\Banking\cache\eda\confusion_matrix.png
+
+  Re-fitting on full dataset for deployment...
+
+======================================================================
+TRAINING CRISIS CLASSIFIER
+======================================================================
+
+--- 5-Fold Stratified Cross-Validation & ROC Curves ---
+  Saved CV ROC Plot: C:\Users\Richard\Banking\cache\eda\cv_roc_curve.png
+  Mean CV ROC-AUC:   0.516 (+/- 0.049)
+
+  Training final model on all data...
+
+--- Computing Feature Importance ---
+  Using SHAP values for feature importance
+  Saved: C:\Users\Richard\Banking\cache\eda\shap_summary.png
+
+  Top 10 Feature Importance:
+    1. npl_ratio: 1.000
+    2. real_estate_loans: 0.720
+    3. voice_accountability: 0.695
+    4. current_account_gdp: 0.649
+    5. unemployment: 0.593
+    6. political_stability: 0.585
+    7. npl_provisions: 0.572
+    8. bank_liability_to_nfa: 0.562
+    9. securities_to_assets: 0.421
+    10. deposit_funding_ratio: 0.326
+
+======================================================================
+HISTORICAL TEST CASE ANALYSIS
+(Grounded in published crisis studies)
+======================================================================
+
+  Country Crisis Prob  Tier Period               Notes
+  --------------------------------------------------------------------------------
+  USA         72.2%  T4(High) GFC 2007-09          Core epicenter, subprime crisis
+  GBR         73.3%  T4(High) GFC 2007-09          Northern Rock, RBS nationalization
+  ISL         74.5%  T4(High) GFC 2008-10          Total banking collapse, 3 largest banks failed
+  ESP         73.8%  T4(High) GFC 2008-12          Savings bank (cajas) crisis, property bubble
+  IRL         73.2%  T4(High) GFC 2008-11          Property bubble, Anglo Irish Bank
+  THA         74.5%  T3(UMid) Asian 1997-00        Trigger country, baht collapse
+  IDN         86.1%  T3(UMid) Asian 1997-01        Deepest impact, bank runs
+  KOR         70.4%  T4(High) Asian 1997-98        IMF program, chaebol restructuring
+  KEN         75.1%  T2(LMid) Africa 1992-95       Political banking, ethnic tensions
+  NGA         74.4%  T2(LMid) Africa 1991-95       SAP aftermath, bank distress
+  GHA         85.5%  T2(LMid) Multi 1997,2017,2022 Repeated banking + sovereign stress
+  TUR         86.6%  T4(High) 2018-19              Lira crisis, policy credibility
+  LBN          0.9%  T3(UMid) 2019-24              Worst financial crisis in 150 years (World Bank)
+  CHE         11.7%  T4(High) Control              No systemic crisis in database
+  CAN         13.1%  T4(High) Control              No systemic crisis, strong regulation
+  AUS         11.1%  T4(High) Control              Survived GFC without systemic crisis
+
+  Interpretation:
+  - Crisis countries should show elevated probabilities (>30%)
+  - Control countries should show low probabilities (<20%)
+  - Probabilities should NOT correlate with income tier
+
+  Saved model to: C:\Users\Richard\Banking\cache\crisis_classifier.pkl
+  Generating crisis probabilities...
+  Crisis probability: mean=21.7%, std=30.1%
+
+----------------------------------------------------------------------
+[Step 3/4] PCA PILLAR CONSTRUCTION
+----------------------------------------------------------------------
+
+======================================================================
+IDENTIFYING DEVELOPMENT ANCHOR
+======================================================================
+Using gdp_per_capita as development anchor (197 countries)
+
+======================================================================
+BUILDING TWO-PILLAR RISK MODEL
+======================================================================
+Economic (Macro) indicators: 10
+Industry (Banking) indicators: 13
+Countries with sufficient data: 201
+
+--- Weighted Hybrid Imputation ---
+  Data completeness range: 27% - 100%
+  KNN imputation applied (2648 values imputed)
+  Saved imputed features to: C:\Users\Richard\Banking\cache\imputed_features.parquet (with 38 year columns)
+  Applied log transform to loan_concentration
+  Applied log transform to inflation
+  Applied log transform to sovereign_exposure_ratio
+
+--- Pillar 1: Economic Risk ---
+  PCA variance explained: 87.7%
+
+--- Pillar 2: Industry Risk ---
+  PCA variance explained: 73.6%
+
+--- Combined PCA (Economic + Industry) ---
+  PCA variance explained: 61.2%
+  PC1 variance: 24.7%
+  Correlation (Combined vs Separate Pillars): 0.890
+  [INFO] High correlation - Combined & Separate approaches are consistent
+
+--- PCA Direction Anchor (Crisis-Frequency Based) ---
+  Loaded 71 countries with 243 crisis-years
+  Crisis-freq correlation with Economic: 0.06
+  Crisis-freq correlation with Industry: -0.23
+  Crisis-freq correlation with Combined: 0.01
+  Flipped economic score direction (more crises = lower score)
+  Flipped combined score direction (more crises = lower score)
+
+--- Computing Final Risk Scores ---
+
+--- Confidence-Based Risk Caps ---
+  Risk floor applied to 48 countries
+  Coverage thresholds: <50% -> floor 6.0, 50-70% -> floor 4.0
+
+----------------------------------------------------------------------
+[Step 4/4] FINAL RISK SCORING
+----------------------------------------------------------------------
+
+======================================================================
+MODEL VALIDATION
+======================================================================
+
+  Data coverage correlation with risk score: 0.225
+  (Low correlation is GOOD - means scores are not biased by data availability)
+  Running data quality checks...
+  [PASS] Score Range: All scores 1-10
+  [PASS] Score Distribution: Std dev reasonable (1.5-4.0)
+  [PASS] Data Confidence: Correlation with coverage: 0.23 < 0.4
+
+  Informational: Regional consistency checks (non-blocking)
+         USA (8.1) > NGA (3.8)
+         JPN (8.7) > NGA (3.8)
+         DEU (9.0) > ARG (8.5)
+         CHE (6.7) > VEN (5.5)
+         GBR (3.9) < PAK (4.4)
+         CAN (6.5) > TUR (4.5)
+
+Validation: 3 passed, 0 failed
+
+Model saved to: C:\Users\Richard\Banking\cache\risk_model.pkl
+
+======================================================================
+FINAL RISK RANKINGS
+======================================================================
+
+TOP 20 LOWEST RISK:
+country_code                      country_name  risk_score      risk_category
+         COD Congo, Democratic Republic of the    1.826047 1-2: Very Low Risk
+         LBN                           Lebanon    2.087785      3-4: Low Risk
+         SOM                           Somalia    2.354327      3-4: Low Risk
+         NIC                         Nicaragua    2.469726      3-4: Low Risk
+         SLV                       El Salvador    2.579379      3-4: Low Risk
+         MOZ           Mozambique, Republic of    2.632758      3-4: Low Risk
+         DJI                          Djibouti    2.689225      3-4: Low Risk
+         GMB                       Gambia, The    2.719448      3-4: Low Risk
+         DZA                           Algeria    2.735277      3-4: Low Risk
+         KHM                          Cambodia    2.740750      3-4: Low Risk
+         BDI                           Burundi    2.915127      3-4: Low Risk
+         IRQ                              Iraq    2.998779      3-4: Low Risk
+         CAF          Central African Republic    3.181304      3-4: Low Risk
+         HND                          Honduras    3.383120      3-4: Low Risk
+         GEO                           Georgia    3.384576      3-4: Low Risk
+         TJK           Tajikistan, Republic of    3.451951      3-4: Low Risk
+         KWT                            Kuwait    3.454501      3-4: Low Risk
+         BIH            Bosnia and Herzegovina    3.465366      3-4: Low Risk
+         GIN                            Guinea    3.547504      3-4: Low Risk
+         WBG                West Bank and Gaza    3.598979      3-4: Low Risk
+
+TOP 20 HIGHEST RISK:
+country_code       country_name  risk_score        risk_category
+         ARG          Argentina    8.466946 9-10: Very High Risk
+         CZE     Czech Republic    8.590229 9-10: Very High Risk
+         ISL            Iceland    8.600085 9-10: Very High Risk
+         ITA              Italy    8.707935 9-10: Very High Risk
+         LUX         Luxembourg    8.714741 9-10: Very High Risk
+         JPN              Japan    8.745613 9-10: Very High Risk
+         BWA           Botswana    8.747624 9-10: Very High Risk
+         GRC             Greece    8.748852 9-10: Very High Risk
+         CHL              Chile    8.780371 9-10: Very High Risk
+         BLZ             Belize    8.943401 9-10: Very High Risk
+         URY            Uruguay    8.971477 9-10: Very High Risk
+         DEU            Germany    9.041860 9-10: Very High Risk
+         BRA             Brazil    9.145797 9-10: Very High Risk
+         AUT            Austria    9.227837 9-10: Very High Risk
+         FRA             France    9.309791 9-10: Very High Risk
+         NOR             Norway    9.320444 9-10: Very High Risk
+         GHA              Ghana    9.509339 9-10: Very High Risk
+         DOM Dominican Republic    9.585845 9-10: Very High Risk
+         KOR Korea, Republic of    9.640037 9-10: Very High Risk
+         DNK            Denmark    9.676951 9-10: Very High Risk
+
+======================================================================
+KEY COUNTRIES
+======================================================================
+country_code                        country_name  risk_score  economic_pillar  industry_pillar  combined_pillar  variance
+         AUS                           Australia    3.620119         0.398010        10.000000         0.248756     -4.95
+         ZAF                        South Africa    3.652043         5.820896         4.726368         4.875622     -0.40
+         NGA                             Nigeria    3.830611         9.154229         1.343284         9.353234      4.10
+         GBR                      United Kingdom    3.881142         1.492537         9.950249         1.094527     -4.63
+         CHN         China, People's Republic of    4.337248         7.412935         7.164179         6.766169     -0.52
+         PAK                            Pakistan    4.433281         9.054726         0.746269         9.502488      4.60
+         TUR                Tⁿrkiye, Republic of    4.474438         8.358209         2.189055         8.308458      3.03
+         EGY             Egypt, Arab Republic of    4.994742         8.756219         6.915423         8.358209      0.52
+         VEN Venezuela, Rep·blica Bolivariana de    5.529459         9.701493         8.009950         9.452736      0.60
+         MEX                              Mexico    5.797494         6.069652         3.184080         6.417910      1.79
+         CAN                              Canada    6.511982         1.094527         6.716418         0.995025     -2.91
+         KEN                               Kenya    6.525655         7.860697         0.597015         8.606965      4.38
+         CHE                         Switzerland    6.685239         0.298507         8.258706         0.199005     -4.08
+         IDN                           Indonesia    6.806990         5.671642         2.238806         5.621891      1.67
+         IND                               India    7.241894         5.870647         1.144279         6.218905      2.71
+         USA                       United States    8.078688         3.631841         3.233831         3.383085     -0.05
+         ARG                           Argentina    8.466946         4.875622         1.442786         5.522388      2.36
+         JPN                               Japan    8.745613         0.547264         5.572139         0.398010     -2.66
+         DEU                             Germany    9.041860         1.144279         3.830846         1.243781     -1.24
+         BRA                              Brazil    9.145797         4.577114         0.646766         5.771144      3.16
+         FRA                              France    9.309791         2.686567         2.437811         2.189055     -0.37
+
+  Variance Statistics:
+    Mean Variance:     0.34
+    Std Dev Variance:  2.95
+    Max Deviation:     4.95
+
+  Countries with significant variance (|diff| > 1.5):
+    AUS: Combined lower by 5.0 points
+    NGA: Combined higher by 4.1 points
+    GBR: Combined lower by 4.6 points
+    PAK: Combined higher by 4.6 points
+    TUR: Combined higher by 3.0 points
+    MEX: Combined higher by 1.8 points
+    CAN: Combined lower by 2.9 points
+    KEN: Combined higher by 4.4 points
+    CHE: Combined lower by 4.1 points
+    IDN: Combined higher by 1.7 points
+    IND: Combined higher by 2.7 points
+    ARG: Combined higher by 2.4 points
+    JPN: Combined lower by 2.7 points
+    BRA: Combined higher by 3.2 points
