@@ -1068,7 +1068,11 @@ production.
     `0.51`, above the current `0.40` threshold. The legacy and persisted
     implementations produce the identical failure, so this remains an explicit
     confidence-policy audit item rather than being waived.
-- [ ] Checkpoint 3: May 2026 IMF crisis-label provenance and recent-window
-  corrections, including explicit borderline-case handling. Local verification
-  complete with 28 tests; mark checked after the changes are pushed to draft
-  pull request #1.
+- [x] Checkpoint 3: May 2026 IMF crisis-label provenance and recent-window
+  corrections, including explicit borderline-case handling.
+  - Published commit: `6bdfbdb`
+  - Pull request: draft
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Verification: 28 tests passed. Unsupported recent currency/sovereign-stress
+    labels were removed, official recent systemic episodes were added, and
+    source-designated borderline cases are excluded from training by default.
