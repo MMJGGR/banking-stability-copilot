@@ -29,9 +29,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from typing import Dict, List, Optional, Tuple, Any
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.metrics import (roc_auc_score, roc_curve, precision_recall_curve, 
+from sklearn.metrics import (auc, roc_auc_score, roc_curve, precision_recall_curve,
                              confusion_matrix, ConfusionMatrixDisplay, classification_report)
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
@@ -215,7 +215,8 @@ class CrisisClassifier:
     
     def fit(self, X: pd.DataFrame, y: pd.Series, cv: int = 5,
             sample_weights: np.ndarray = None,
-            monotone_constraints: tuple = None) -> 'CrisisClassifier':
+            monotone_constraints: tuple = None,
+            groups=None) -> 'CrisisClassifier':
         """
         Fit the crisis classifier with cross-validation and generate diagnostics.
         
@@ -225,6 +226,8 @@ class CrisisClassifier:
             cv: Number of CV folds
             sample_weights: Per-sample weights for income-tier rebalancing
             monotone_constraints: Tuple of (-1, 0, +1) per feature for economic direction
+            groups: Optional country/group identifier. When supplied, no group is
+                allowed in both the training and validation side of a CV fold.
         """
         print("\n" + "="*70)
         print("TRAINING CRISIS CLASSIFIER")
@@ -241,6 +244,9 @@ class CrisisClassifier:
         
         # Reset y to numpy array for safe integer indexing (multi-epoch concat can break iloc)
         y_arr = y.values if hasattr(y, 'values') else np.array(y)
+        groups_arr = None if groups is None else np.asarray(groups)
+        if groups_arr is not None and len(groups_arr) != len(y_arr):
+            raise ValueError("groups must have the same number of rows as X and y")
         
         n_positive = int(y_arr.sum())
         n_negative = len(y_arr) - n_positive
@@ -263,9 +269,29 @@ class CrisisClassifier:
         min_class_count = min(n_positive, n_negative)
         actual_cv = min(cv, min_class_count) if min_class_count > 1 else 2
         
-        skf = StratifiedKFold(n_splits=actual_cv, shuffle=True, random_state=self.random_state)
+        if groups_arr is not None:
+            unique_groups = np.unique(groups_arr)
+            actual_cv = min(actual_cv, len(unique_groups))
+            if actual_cv < 2:
+                raise ValueError("At least two unique groups are required for grouped CV")
+            splitter = StratifiedGroupKFold(
+                n_splits=actual_cv,
+                shuffle=True,
+                random_state=self.random_state,
+            )
+            split_iterator = splitter.split(X_scaled, y_arr, groups_arr)
+            print(f"  Grouped by {len(unique_groups)} unique entities")
+        else:
+            splitter = StratifiedKFold(
+                n_splits=actual_cv,
+                shuffle=True,
+                random_state=self.random_state,
+            )
+            split_iterator = splitter.split(X_scaled, y_arr)
         
-        for fold, (train_idx, val_idx) in enumerate(skf.split(X_scaled, y_arr)):
+        calibration_splits = []
+        for fold, (train_idx, val_idx) in enumerate(split_iterator):
+            calibration_splits.append((train_idx, val_idx))
             X_train_fold, y_train_fold = X_scaled[train_idx], y_arr[train_idx]
             X_val_fold, y_val_fold = X_scaled[val_idx], y_arr[val_idx]
             w_train_fold = sw[train_idx]
@@ -306,6 +332,13 @@ class CrisisClassifier:
                 print(f"  Fold {fold+1} failed: {e}")
                 aucs.append(0.5)
         
+        if not tprs:
+            plt.close()
+            raise RuntimeError(
+                "Cross-validation produced no valid ROC curves. "
+                "Review fold errors and class distribution before training."
+            )
+
         # Plot Mean ROC
         mean_tpr = np.mean(tprs, axis=0)
         mean_tpr[-1] = 1.0
@@ -361,8 +394,9 @@ class CrisisClassifier:
         try:
             from sklearn.calibration import CalibratedClassifierCV
             print("\n  Calibrating probabilities (isotonic regression)...")
+            calibration_cv = calibration_splits if groups_arr is not None else min(3, min_class_count)
             self.calibrated_model = CalibratedClassifierCV(
-                self.model, method='isotonic', cv=min(3, min_class_count)
+                self.model, method='isotonic', cv=calibration_cv
             )
             self.calibrated_model.fit(X_scaled, y_arr, sample_weight=sw)
             
@@ -499,7 +533,7 @@ class CrisisClassifier:
         
         try:
             auc_roc = roc_auc_score(y, y_proba)
-        except:
+        except ValueError:
             auc_roc = 0.5
         
         # Classification metrics
@@ -1095,12 +1129,13 @@ def train_crisis_model(weo_df=None, fsic_df=None):
         
         panel_df = pd.concat(epoch_datasets, ignore_index=True)
     
-    # De-duplicate non-crisis observations (keep crisis rows from all epochs)
-    crisis_rows = panel_df[panel_df['crisis_target'] == 1]
-    non_crisis_rows = panel_df[panel_df['crisis_target'] == 0].drop_duplicates(
-        subset='country_code', keep='last'
-    )
-    training_df = pd.concat([crisis_rows, non_crisis_rows], ignore_index=True)
+    # Preserve the full country-epoch panel. Grouped validation prevents the
+    # same country leaking across train/test, while the complete panel enables
+    # genuine out-of-time evaluation.
+    training_df = panel_df.drop_duplicates(
+        subset=['country_code', 'epoch'],
+        keep='last',
+    ).reset_index(drop=True)
     
     print(f"\n  Panel: {len(training_df)} observations "
           f"(Crisis: {int(training_df['crisis_target'].sum())} | "
@@ -1136,12 +1171,22 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     # --- TRAIN-TEST SPLIT (80/20, stratified) ---
     print("\n--- Train-Test Split (80/20 stratified) ---")
     
-    X_train, X_test, y_train, y_test, w_train, w_test = train_test_split(
-        X, y, sample_weights, 
-        test_size=0.20, 
-        random_state=42, 
-        stratify=y
+    groups = training_df['country_code'].to_numpy()
+    holdout_splitter = StratifiedGroupKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=42,
     )
+    train_idx, test_idx = next(holdout_splitter.split(X, y, groups))
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    w_train, w_test = sample_weights[train_idx], sample_weights[test_idx]
+    groups_train = groups[train_idx]
+    groups_test = groups[test_idx]
+
+    overlap = set(groups_train).intersection(groups_test)
+    if overlap:
+        raise RuntimeError(f"Grouped holdout leakage detected: {sorted(overlap)[:5]}")
     
     print(f"  Train: {len(X_train)} ({y_train.sum():.0f} crises)")
     print(f"  Test:  {len(X_test)} ({y_test.sum():.0f} crises)")
@@ -1156,7 +1201,7 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     )
     
     classifier.fit(X_train, y_train, cv=5, sample_weights=w_train,
-                   monotone_constraints=mc)
+                   monotone_constraints=mc, groups=groups_train)
     
     # Compute train AUC for overfitting check
     train_proba = classifier.predict_proba(X_train)
@@ -1166,7 +1211,65 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     print("\n" + "="*70)
     print("HOLDOUT TEST SET EVALUATION")
     print("="*70)
-    metrics = classifier.evaluate(X_test, y_test, train_auc=train_auc)
+    unseen_country_metrics = classifier.evaluate(
+        X_test,
+        y_test,
+        train_auc=train_auc,
+    )
+
+    # --- OUT-OF-TIME EVALUATION ---
+    latest_epoch = int(training_df['epoch'].max())
+    temporal_train_mask = training_df['epoch'] < latest_epoch
+    temporal_test_mask = training_df['epoch'] == latest_epoch
+    temporal_metrics = None
+
+    if (
+        temporal_train_mask.any()
+        and temporal_test_mask.any()
+        and y.loc[temporal_train_mask].nunique() == 2
+        and y.loc[temporal_test_mask].nunique() == 2
+    ):
+        print("\n" + "="*70)
+        print(f"OUT-OF-TIME EVALUATION (HOLDOUT EPOCH {latest_epoch})")
+        print("="*70)
+        temporal_classifier = CrisisClassifier(
+            n_estimators=50,
+            max_depth=2,
+            learning_rate=0.1,
+            use_smote=True,
+            ensemble=False,
+        )
+        temporal_classifier.fit(
+            X.loc[temporal_train_mask],
+            y.loc[temporal_train_mask],
+            cv=5,
+            sample_weights=sample_weights[temporal_train_mask.to_numpy()],
+            monotone_constraints=mc,
+            groups=groups[temporal_train_mask.to_numpy()],
+        )
+        temporal_train_proba = temporal_classifier.predict_proba(
+            X.loc[temporal_train_mask]
+        )
+        temporal_train_auc = roc_auc_score(
+            y.loc[temporal_train_mask],
+            temporal_train_proba,
+        )
+        temporal_metrics = temporal_classifier.evaluate(
+            X.loc[temporal_test_mask],
+            y.loc[temporal_test_mask],
+            train_auc=temporal_train_auc,
+        )
+    else:
+        print(
+            f"  WARNING: Epoch {latest_epoch} cannot support a binary "
+            "out-of-time evaluation."
+        )
+
+    metrics = {
+        'unseen_country_holdout': unseen_country_metrics,
+        'out_of_time_holdout': temporal_metrics,
+        'out_of_time_epoch': latest_epoch,
+    }
     
     # --- FULL DATASET RE-FIT ---
     print("\n  Re-fitting on full dataset for deployment...")
@@ -1176,7 +1279,7 @@ def train_crisis_model(weo_df=None, fsic_df=None):
         learning_rate=0.05
     )
     classifier_full.fit(X, y, cv=5, sample_weights=sample_weights,
-                        monotone_constraints=mc)
+                        monotone_constraints=mc, groups=groups)
     
     # --- FORWARD-LOOKING RISK ASSESSMENT (2026-2028) ---
     # NOTE: This uses CURRENT (2025) features to predict crisis in next 3 years.
@@ -1247,8 +1350,8 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     # --- BACKTESTED EPOCH ACCURACY ---
     # How well does the model identify crisis countries in each epoch?
     print("\n" + "="*70)
-    print("BACKTESTED EPOCH ACCURACY")
-    print("(How well does the model flag crisis countries per epoch?)")
+    print("IN-SAMPLE EPOCH DIAGNOSTICS")
+    print("(Descriptive only; these rows were used to fit the deployment model)")
     print("="*70)
     
     total_crisis_flagged = 0

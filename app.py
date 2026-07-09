@@ -6,7 +6,7 @@ import time
 import os
 
 from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
-from train_model import BankingRiskModel
+from src.model_store import load_data_manifest, load_model_artifact
 from src.dashboard.styles import STYLES, score_to_tier
 from src.dashboard.components import (
     render_summary_card, 
@@ -99,26 +99,20 @@ def load_all_data():
     """Load model and all datasets."""
     # timestamp: force_reload_2026_01_12_v2
     try:
-        model = BankingRiskModel.load()
-        scores_df = model.get_all_scores()
-        model_features = model.feature_values  # Get stored feature values for comparison
-        pca_info = model.pca_info if hasattr(model, 'pca_info') else {}
+        model = load_model_artifact()
+        scores_df = model['country_scores'].copy()
+        model_features = model.get('feature_values')
+        pca_info = dict(model.get('pca_info', {}))
+        pca_info.setdefault('training_date', model['training_date'])
     except Exception as e:
         st.error(f"Error loading model: {e}")
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None
 
     loader = IMFDataLoader()
     try:
         loader.load_from_cache() 
-    except:
-        st.warning("Cache not found, please run data pipeline.")
-
-    # Load FSIBSIS data
-    try:
-        fsibsis_loader = FSIBSISLoader()
-        fsibsis_data = fsibsis_loader.load()
     except Exception as e:
-        fsibsis_data = None
+        st.warning(f"Data cache could not be loaded: {e}")
 
     try:
         wgi_loader = WGILoader()
@@ -126,9 +120,10 @@ def load_all_data():
     except Exception as e:
         wgi_data = None
         
-    return scores_df, loader, wgi_data, model_features, pca_info, fsibsis_data
+    return scores_df, loader, wgi_data, model_features, pca_info
 
-scores_df, loader, wgi_data, model_features, pca_info, fsibsis_data = load_all_data()
+scores_df, loader, wgi_data, model_features, pca_info = load_all_data()
+data_manifest = load_data_manifest()
 
 if scores_df is None:
     st.error("Application cannot start without model data.")
@@ -147,7 +142,11 @@ header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
 with header_col1:
     st.markdown("### Banking System Stability Copilot")
     training_date = pca_info.get('training_date', 'Unknown') if pca_info else 'Unknown'
-    st.caption(f"v2.0 | Risk Model with PCA-based pillars")
+    snapshot_id = data_manifest.get('snapshot_id', 'unversioned')
+    snapshot_status = data_manifest.get('snapshot_status', 'manifest unavailable')
+    st.caption(
+        f"v2.0 | Snapshot {snapshot_id} | {snapshot_status.replace('_', ' ')}"
+    )
 
 with header_col2:
     available_countries = scores_df.sort_values('country_name')[['country_code', 'country_name']].drop_duplicates()
@@ -349,33 +348,53 @@ with tab_explorer:
                 st.info("No FSIC data available for this country.")
         
         with fsi_tab2:
+            load_fsibsis = st.checkbox(
+                "Load balance-sheet history",
+                value=False,
+                help="Loads the larger FSIBSIS dataset only when needed.",
+            )
             # Load FSIBSIS Data
             try:
-                from src.data_loader import FSIBSISLoader
-                fsibsis_loader = FSIBSISLoader()
-                fsibsis_loader.load()
-                fsibsis_wide = fsibsis_loader.get_country_data(selected_country_code)
+                if load_fsibsis:
+                    from src.data_loader import FSIBSISLoader
+                    fsibsis_loader = FSIBSISLoader()
+                    fsibsis_loader.load()
+                    fsibsis_wide = fsibsis_loader.get_country_data(
+                        selected_country_code
+                    )
+                else:
+                    fsibsis_wide = pd.DataFrame()
                 
                 if fsibsis_wide is not None and len(fsibsis_wide) > 0:
                     # Convert to long format
-                    year_cols = [c for c in fsibsis_wide.columns if c.isdigit() and len(c) == 4]
+                    time_cols = [
+                        c for c in fsibsis_wide.columns
+                        if c != 'INDICATOR'
+                    ]
                     fsibsis_long = fsibsis_wide.melt(
                         id_vars=['INDICATOR'],
-                        value_vars=year_cols,
-                        var_name='year',
+                        value_vars=time_cols,
+                        var_name='period_label',
                         value_name='value'
                     )
                     fsibsis_long = fsibsis_long.dropna(subset=['value'])
                     fsibsis_long['indicator_name'] = fsibsis_long['INDICATOR']
                     fsibsis_long['indicator_code'] = 'FSIBSIS'
-                    fsibsis_long['period'] = pd.to_datetime(fsibsis_long['year'] + '-01-01')
+                    from src.data_loader import parse_period_label
+                    fsibsis_long['period'] = fsibsis_long['period_label'].map(parse_period_label)
                     fsibsis_long['country_code'] = selected_country_code
                     
                     n_indicators = fsibsis_long['indicator_name'].nunique()
                     st.caption(f"📊 {n_indicators} balance sheet indicators available")
                     render_time_series_deep_dive(fsibsis_long, "FSIBSIS", selected_country_code)
                 else:
-                    st.info("No FSIBSIS data available for this country.")
+                    if load_fsibsis:
+                        st.info("No FSIBSIS data available for this country.")
+                    else:
+                        st.caption(
+                            "Balance-sheet history is loaded on demand to "
+                            "reduce startup time."
+                        )
             except Exception as e:
                 st.error(f"Error loading FSIBSIS: {e}")
     

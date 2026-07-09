@@ -128,7 +128,13 @@ class CrisisFeatureEngineer:
     # CRISP-DM: DATA PREPARATION - Feature Extraction
     # ==========================================================================
     
-    def extract_weo_features(self, weo_df: pd.DataFrame) -> pd.DataFrame:
+    def extract_weo_features(
+        self,
+        weo_df: pd.DataFrame,
+        as_of_date=None,
+        include_estimates: bool = True,
+        include_projections: bool = False,
+    ) -> pd.DataFrame:
         """
         Extract Economic Pillar features from WEO dataset.
         
@@ -158,14 +164,24 @@ class CrisisFeatureEngineer:
         }
         
         # Vectorized extraction: get latest value per country-indicator
-        # IMPORTANT: Filter to historical data only (no forecasts)
-        # Use current year as max to dynamically update without code changes
-        from datetime import datetime
-        max_data_year = datetime.now().year
+        cutoff = pd.Timestamp(as_of_date or f"{pd.Timestamp.today().year - 1}-12-31")
+        max_data_year = cutoff.year
         weo_df = weo_df.copy()
         weo_df['year'] = pd.to_datetime(weo_df['period']).dt.year
-        weo_df = weo_df[weo_df['year'] <= max_data_year]
-        print(f"  Filtered to data <= {max_data_year} (excluding forecasts)")
+        weo_df = weo_df[pd.to_datetime(weo_df['period']) <= cutoff]
+
+        if 'observation_status' in weo_df.columns:
+            allowed_statuses = {'actual', 'unknown'}
+            if include_estimates:
+                allowed_statuses.add('estimate')
+            if include_projections:
+                allowed_statuses.add('projection')
+            weo_df = weo_df[weo_df['observation_status'].isin(allowed_statuses)]
+
+        print(
+            f"  Filtered to data <= {cutoff.date()} "
+            f"(estimates={include_estimates}, projections={include_projections})"
+        )
         
         weo_df = weo_df.sort_values('period') # Sort ensures 'last' is latest
         

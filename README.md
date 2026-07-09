@@ -1,6 +1,15 @@
 # Methodology
 ## Banking System Stability Model
 
+> **Current release status:** The committed February 2026 model is a legacy
+> artifact whose snapshot cutoff cannot be verified from its metadata. It
+> remains available for continuity, but it must not be represented as an
+> approved YE2025 or mid-2026 snapshot. The remediation work introduces
+> explicit cutoffs, observation statuses, grouped validation, artifact
+> checksums, and candidate-release controls. See
+> `BANKING_COPILOT_COMPREHENSIVE_REMEDIATION_AND_IMPLEMENTATION_PLAN.md`,
+> `docs/MODEL_CARD.md`, and `docs/DATA_CARD.md`.
+
 ### Overview
 This package provides everything needed to replicate and validate the Banking Risk Model.
 
@@ -136,6 +145,10 @@ The model employs a **Hybrid Architecture** combining unsupervised structure wit
     *   **Metric**: Area Under ROC Curve (AUC).
 
 #### Validation Results
+The figures below are retained as historical project claims. They have not yet
+been reproduced under the new country-grouped and out-of-time validation
+standard and are not approved production performance metrics.
+
 | Metric | Score | Interpretation |
 |--------|-------|----------------|
 | **Mean CV AUC** | **0.840** | Strong predictive power (Baseline: 0.70) |

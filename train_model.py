@@ -685,7 +685,7 @@ class BankingRiskModel:
         self.feature_values = None  # Raw feature values per country for comparison
         self.pca_info = {}  # PCA loadings for explainability
         
-    def train(self, fsic_df, weo_df, mfs_df):
+    def train(self, fsic_df, weo_df, mfs_df, as_of_date=None):
         """
         Train the hybrid risk model.
         
@@ -699,6 +699,21 @@ class BankingRiskModel:
         print("TRAINING HYBRID BANKING RISK MODEL")
         print("="*70)
         print(f"  Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        cutoff = pd.Timestamp(
+            as_of_date or f"{pd.Timestamp.today().year - 1}-12-31"
+        )
+
+        def filter_to_cutoff(df):
+            if df is None or len(df) == 0 or 'period' not in df.columns:
+                return df
+            periods = pd.to_datetime(df['period'], errors='coerce')
+            return df.loc[periods.notna() & (periods <= cutoff)].copy()
+
+        fsic_df = filter_to_cutoff(fsic_df)
+        weo_df = filter_to_cutoff(weo_df)
+        mfs_df = filter_to_cutoff(mfs_df)
+
+        print(f"  Snapshot cutoff: {cutoff.date()}")
         print(f"  Input data: FSIC ({len(fsic_df):,} records), WEO ({len(weo_df):,} records), MFS ({len(mfs_df):,} records)")
         
         # --- 1. FEATURE ENGINEERING ---
@@ -716,7 +731,12 @@ class BankingRiskModel:
         )
         # Extract features from each dataset
         print("  [1a] Extracting core IMF features (WEO, FSIC, MFS)...")
-        weo_features = engineer.extract_weo_features(weo_df)
+        weo_features = engineer.extract_weo_features(
+            weo_df,
+            as_of_date=cutoff,
+            include_estimates=True,
+            include_projections=False,
+        )
         fsic_features = engineer.extract_fsic_features(fsic_df)
         credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
         sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
@@ -852,7 +872,7 @@ class BankingRiskModel:
              import matplotlib.pyplot as plt
              
              # Select pillars cols
-             cols_to_plot = economic_cols + industry_cols
+             cols_to_plot = econ_present + ind_present + fsib_present
              cols_available = [c for c in cols_to_plot if c in features.columns]
              
              if len(cols_available) > 1:
@@ -876,7 +896,7 @@ class BankingRiskModel:
                  plt.close()
                  print(f"  Saved Correlation Plot: {corr_path}")
         except Exception as e:
-            print(f"  Could not save correlation plot: {e}")
+            print(f"  WARNING: Could not save correlation plot: {e}")
 
         
         # --- 2. SUPERVISED CRISIS CLASSIFIER ---
@@ -973,6 +993,8 @@ class BankingRiskModel:
         
         # Store PCA explanation (weights are 50% Economic + 50% Industry)
         self.pca_info = {
+            'training_date': self.training_date,
+            'snapshot_date': cutoff.date().isoformat(),
             'economic_weight': 0.50,
             'industry_weight': 0.50,
             'note': 'PCA reduces features to principal components. First PC captures most variance.',
@@ -1108,7 +1130,8 @@ def main():
     
     # Train model
     model = BankingRiskModel()
-    results = model.train(fsic_df, weo_df, mfs_df)
+    as_of_date = os.getenv("MODEL_AS_OF_DATE")
+    results = model.train(fsic_df, weo_df, mfs_df, as_of_date=as_of_date)
     
     # Validate
     validate_model(results)

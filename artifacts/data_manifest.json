@@ -1,0 +1,70 @@
+{
+  "artifacts": {
+    "cache/FSIBSIS_cache.parquet": {
+      "bytes": 10033984,
+      "sha256": "0630fbb9a5f6e0365889e75e958580c681129f8db3e51c3695771e9260368c81"
+    },
+    "cache/WGI_cache.parquet": {
+      "bytes": 310825,
+      "sha256": "fb66adcd48a0d640d961497cb1bc3b3a04ad813e39f3e82f8a18864fb28d391c"
+    },
+    "cache/crisis_classifier.pkl": {
+      "bytes": 185373,
+      "sha256": "1f8acabdadabde718d7d2664ec2de0d972b52e348fb61ed0a679d031be7684f2"
+    },
+    "cache/crisis_features.parquet": {
+      "bytes": 120477,
+      "sha256": "92c0d97c0d671f9c3dddee3e9886d090d06786df810fe746167d233b4fac894a"
+    },
+    "cache/imputed_features.parquet": {
+      "bytes": 136860,
+      "sha256": "59dd767aaf981bb97f2e4baebaccffe3b2dff6c091517f965f5e380d9e2ef4c6"
+    },
+    "cache/risk_model.pkl": {
+      "bytes": 174597,
+      "sha256": "644ea4526b4e00cc8d28da7c0bc3317102dffcbb7c6c939b38c307ee58a86b28"
+    }
+  },
+  "as_of_date": "2025-12-31",
+  "generated_at": "2026-07-09T10:16:58.651579+00:00",
+  "model": {
+    "countries_trained": 201,
+    "cutoff_verified": false,
+    "snapshot_date": null,
+    "training_date": "2026-02-16T18:40:27.782238"
+  },
+  "schema_version": 1,
+  "snapshot_id": "2025-12-31",
+  "snapshot_status": "legacy_model_unverified_cutoff",
+  "sources": {
+    "FSIBSIS": {
+      "countries": 110,
+      "latest_observation": "2025-11-30",
+      "latest_period_label": "2025-M11",
+      "rows": 25636
+    },
+    "FSIC": {
+      "countries": 155,
+      "indicators": 11,
+      "latest_observation": "2025-09-01",
+      "rows": 859227
+    },
+    "MFS": {
+      "countries": 178,
+      "indicators": 91,
+      "latest_observation": "2025-09-01",
+      "rows": 1326510
+    },
+    "WEO": {
+      "countries": 208,
+      "indicators": 145,
+      "latest_observation": "2025-12-31",
+      "rows": 315731
+    },
+    "WGI": {
+      "countries": 216,
+      "latest_observation": "2024-12-31",
+      "rows": 5481
+    }
+  }
+}
