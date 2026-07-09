@@ -119,6 +119,7 @@ def build_snapshot_manifest(as_of_date, repository_root=None) -> dict:
 
     artifact_paths = [
         cache_dir / "risk_model.pkl",
+        cache_dir / "inference_pipeline.pkl",
         cache_dir / "crisis_classifier.pkl",
         cache_dir / "crisis_features.parquet",
         cache_dir / "imputed_features.parquet",

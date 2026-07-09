@@ -70,6 +70,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import CACHE_DIR
 
 
+CLASSIFIER_ARTIFACT_SCHEMA_VERSION = 2
+
+
 class CrisisClassifier:
     """
     Supervised crisis prediction model with interpretability.
@@ -155,6 +158,8 @@ class CrisisClassifier:
         self.calibrated_model = None  # Isotonic-calibrated wrapper
         self.scaler = RobustScaler()
         self.feature_names_ = []
+        self.numeric_cols_ = []
+        self.feature_fill_values_ = None
         self.feature_importance_ = {}
         self.fitted_ = False
         
@@ -238,7 +243,18 @@ class CrisisClassifier:
         X_filled = X.copy()
         numeric_cols = X_filled.select_dtypes(include=['number']).columns
         self.numeric_cols_ = list(numeric_cols)
-        X_filled[numeric_cols] = X_filled[numeric_cols].fillna(X_filled[numeric_cols].median())
+        self.feature_fill_values_ = X_filled[numeric_cols].median()
+        missing_fill_values = self.feature_fill_values_[
+            self.feature_fill_values_.isna()
+        ].index.tolist()
+        if missing_fill_values:
+            raise ValueError(
+                "Training features contain no usable values: "
+                f"{missing_fill_values}"
+            )
+        X_filled[numeric_cols] = X_filled[numeric_cols].fillna(
+            self.feature_fill_values_
+        )
         
         X_scaled = self.scaler.fit_transform(X_filled[numeric_cols])
         
@@ -504,12 +520,35 @@ class CrisisClassifier:
         """
         if not self.fitted_:
             raise ValueError("Model not fitted. Call fit() first.")
-        
-        # Only compute median for numeric columns (avoid _year string columns)
-        X_filled = X.copy()
-        numeric_cols = X_filled.select_dtypes(include=['number']).columns
-        X_filled[numeric_cols] = X_filled[numeric_cols].fillna(X_filled[numeric_cols].median())
-        X_scaled = self.scaler.transform(X_filled[numeric_cols])
+
+        missing_features = [
+            column for column in self.numeric_cols_ if column not in X.columns
+        ]
+        if missing_features:
+            raise ValueError(
+                "Prediction input is missing trained features: "
+                f"{missing_features}"
+            )
+
+        X_filled = X.loc[:, self.numeric_cols_].apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
+        if self.feature_fill_values_ is not None:
+            X_filled = X_filled.fillna(self.feature_fill_values_)
+        else:
+            # Backward compatibility for legacy artifacts. New artifacts always
+            # persist training-time medians so predictions are batch invariant.
+            X_filled = X_filled.fillna(X_filled.median())
+
+        if X_filled.isna().any().any():
+            unresolved = X_filled.columns[X_filled.isna().any()].tolist()
+            raise ValueError(
+                "Prediction features could not be imputed: "
+                f"{unresolved}"
+            )
+
+        X_scaled = self.scaler.transform(X_filled)
         
         # Use calibrated model if available and requested
         if calibrated and self.calibrated_model is not None:
@@ -592,12 +631,23 @@ class CrisisClassifier:
         
         with open(path, 'wb') as f:
             pickle.dump({
+                'schema_version': CLASSIFIER_ARTIFACT_SCHEMA_VERSION,
                 'model': self.model,
+                'calibrated_model': self.calibrated_model,
                 'scaler': self.scaler,
                 'feature_names': self.feature_names_,
                 'numeric_cols': getattr(self, 'numeric_cols_', self.feature_names_),
+                'feature_fill_values': self.feature_fill_values_,
                 'feature_importance': self.feature_importance_,
                 'fitted': self.fitted_,
+                'configuration': {
+                    'n_estimators': self.n_estimators,
+                    'max_depth': self.max_depth,
+                    'learning_rate': self.learning_rate,
+                    'random_state': self.random_state,
+                    'use_smote': self.use_smote,
+                    'ensemble': self.ensemble,
+                },
             }, f)
         
         print(f"\n  Saved model to: {path}")
@@ -607,15 +657,17 @@ class CrisisClassifier:
         """Load trained model."""
         path = path or os.path.join(CACHE_DIR, 'crisis_classifier.pkl')
         
-        classifier = cls()
-        
         with open(path, 'rb') as f:
             data = pickle.load(f)
-        
+
+        configuration = data.get('configuration', {})
+        classifier = cls(**configuration)
         classifier.model = data['model']
+        classifier.calibrated_model = data.get('calibrated_model')
         classifier.scaler = data['scaler']
         classifier.feature_names_ = data['feature_names']
         classifier.numeric_cols_ = data.get('numeric_cols', data['feature_names'])  # Backward compatible
+        classifier.feature_fill_values_ = data.get('feature_fill_values')
         classifier.feature_importance_ = data['feature_importance']
         classifier.fitted_ = data['fitted']
         

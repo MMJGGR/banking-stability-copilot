@@ -65,4 +65,5 @@ jobs:
             cache/crisis_features.parquet
             cache/imputed_features.parquet
             cache/risk_model.pkl
+            cache/inference_pipeline.pkl
             cache/crisis_classifier.pkl

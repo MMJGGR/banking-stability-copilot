@@ -1015,8 +1015,10 @@ production.
 7. [x] Redesign validation around country-grouped and out-of-time tests.
 8. [ ] Audit crisis labels, GDP anchoring, confidence floors, and associated
    sensitivity. Full country-epoch sample preservation is complete.
-9. [ ] Persist the complete fitted inference pipeline. Artifact checksums and
-   snapshot metadata are complete; transform persistence remains outstanding.
+9. [x] Persist the complete fitted inference pipeline. New candidate artifacts
+   preserve classifier fill values and calibration plus pillar imputation,
+   scaling, PCA orientation, and fixed reference distributions. The legacy
+   committed model predates this contract and still requires a verified rebuild.
 10. [x] Implement WEO, FSIBSIS, FSIC, MFS, and WGI source adapters.
 11. [ ] Define and approve freshness, coverage, imputation, and score-change
     thresholds.
@@ -1051,3 +1053,6 @@ production.
     [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
   - Verification: 22 tests passed, compile and diff checks passed, and the
     Streamlit browser smoke test completed without console errors.
+- [ ] Checkpoint 2: deterministic inference transforms and calibrated classifier
+  persistence. Local verification complete with 26 tests; mark checked after
+  the changes are pushed to draft pull request #1.

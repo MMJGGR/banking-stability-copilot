@@ -35,8 +35,10 @@ from src.feature_engineering import CrisisFeatureEngineer
 from src.crisis_classifier import CrisisClassifier, HybridRiskScorer, train_crisis_model
 from src.imputation import GapImputer
 from src.data_loader import WGILoader
+from src.pillar_pipeline import PillarInferencePipeline
 
 MODEL_PATH = os.path.join(CACHE_DIR, "risk_model.pkl")
+INFERENCE_PIPELINE_PATH = os.path.join(CACHE_DIR, "inference_pipeline.pkl")
 
 
 def explore_all_indicators(fsic_df, weo_df, mfs_df):
@@ -206,7 +208,7 @@ def identify_anchor_indicator(features_df, weo_df):
     return None
 
 
-def build_two_pillar_model(features_df, anchor_series, country_names):
+def build_two_pillar_model_legacy(features_df, anchor_series, country_names):
     """
     Build the two-pillar risk model:
     1. Economic Risk Pillar - macro fundamentals
@@ -618,6 +620,20 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     return results.sort_values('risk_score'), {'economic_loadings': econ_loadings, 'industry_loadings': ind_loadings}
 
 
+def build_two_pillar_model(
+    features_df,
+    anchor_series,
+    country_names,
+    return_pipeline=False,
+):
+    """Fit the persisted pillar pipeline and score the training snapshot."""
+    pipeline = PillarInferencePipeline().fit(features_df, anchor_series)
+    results = pipeline.transform(features_df, country_names)
+    if return_pipeline:
+        return results, pipeline.loadings(), pipeline
+    return results, pipeline.loadings()
+
+
 def validate_model(results_df):
     """
     Validate model produces logically sound results.
@@ -684,6 +700,7 @@ class BankingRiskModel:
         self.countries_trained = 0
         self.feature_values = None  # Raw feature values per country for comparison
         self.pca_info = {}  # PCA loadings for explainability
+        self.pillar_pipeline = None
         
     def train(self, fsic_df, weo_df, mfs_df, as_of_date=None):
         """
@@ -940,7 +957,16 @@ class BankingRiskModel:
         # Build two-pillar model (PCA-based)
         # Build two-pillar model (PCA-based)
         # We pass the engineered features directly
-        pillar_scores, pca_loadings = build_two_pillar_model(features, anchor, country_names)
+        (
+            pillar_scores,
+            pca_loadings,
+            self.pillar_pipeline,
+        ) = build_two_pillar_model(
+            features,
+            anchor,
+            country_names,
+            return_pipeline=True,
+        )
         
         # --- 4. HYBRID RISK SCORE ---
         print("\n" + "-"*70)
@@ -1003,6 +1029,59 @@ class BankingRiskModel:
         }
         
         return self.country_scores
+
+    def score_engineered_features(
+        self,
+        features,
+        crisis_classifier,
+        country_names=None,
+    ):
+        """Score a future engineered snapshot with fitted transforms only."""
+        if self.pillar_pipeline is None:
+            raise ValueError(
+                "Persisted pillar pipeline is unavailable; retraining is "
+                "required before comparable inference"
+            )
+        if country_names is None:
+            country_names = pd.Series(dtype=object)
+
+        classifier_input = features.copy()
+        for column in crisis_classifier.feature_names_:
+            if column not in classifier_input.columns:
+                classifier_input[column] = np.nan
+        probabilities = crisis_classifier.predict_proba(
+            classifier_input[crisis_classifier.feature_names_]
+        )
+        probability_frame = pd.DataFrame(
+            {
+                "country_code": features["country_code"].values,
+                "crisis_prob": probabilities,
+            }
+        )
+
+        pillars = self.pillar_pipeline.transform(features, country_names)
+        scored = pillars.merge(
+            probability_frame,
+            on="country_code",
+            how="left",
+            validate="one_to_one",
+        )
+        scored["crisis_adjustment"] = scored["crisis_prob"] * 3
+        scored["hybrid_risk_score"] = (
+            0.9 * scored["risk_score"]
+            + 0.1 * (1 + 9 * scored["crisis_prob"])
+        ).clip(1, 10)
+        scored["risk_score"] = scored["hybrid_risk_score"]
+        scored["risk_category"] = scored["risk_score"].apply(
+            lambda score: (
+                "1-2: Very Low Risk" if score <= 2 else
+                "3-4: Low Risk" if score <= 4 else
+                "5-6: Moderate Risk" if score <= 6 else
+                "7-8: High Risk" if score <= 8 else
+                "9-10: Very High Risk"
+            )
+        )
+        return scored.sort_values("risk_score")
     
     def get_score(self, country_code):
         """Get risk score for a country."""
@@ -1034,8 +1113,29 @@ class BankingRiskModel:
                 'training_date': self.training_date,
                 'countries_trained': self.countries_trained,
                 'feature_values': self.feature_values,
-                'pca_info': self.pca_info
+                'pca_info': self.pca_info,
             }, f)
+
+        if self.pillar_pipeline is not None:
+            pipeline_path = (
+                INFERENCE_PIPELINE_PATH
+                if path == MODEL_PATH
+                else os.path.join(
+                    os.path.dirname(path),
+                    f"{os.path.splitext(os.path.basename(path))[0]}"
+                    "_inference_pipeline.pkl",
+                )
+            )
+            with open(pipeline_path, "wb") as pipeline_file:
+                pickle.dump(
+                    {
+                        "schema_version": 1,
+                        "snapshot_date": self.pca_info.get("snapshot_date"),
+                        "pillar_pipeline": self.pillar_pipeline,
+                    },
+                    pipeline_file,
+                )
+            print(f"Inference pipeline saved to: {pipeline_path}")
         
         print(f"\nModel saved to: {path}")
     
@@ -1058,6 +1158,19 @@ class BankingRiskModel:
         model.countries_trained = data['countries_trained']
         model.feature_values = data.get('feature_values')  # New: for comparison
         model.pca_info = data.get('pca_info', {})  # New: for explainability
+        pipeline_path = (
+            INFERENCE_PIPELINE_PATH
+            if path == MODEL_PATH
+            else os.path.join(
+                os.path.dirname(path),
+                f"{os.path.splitext(os.path.basename(path))[0]}"
+                "_inference_pipeline.pkl",
+            )
+        )
+        if os.path.exists(pipeline_path):
+            with open(pipeline_path, "rb") as pipeline_file:
+                pipeline_artifact = pickle.load(pipeline_file)
+            model.pillar_pipeline = pipeline_artifact.get("pillar_pipeline")
         
         return model
 

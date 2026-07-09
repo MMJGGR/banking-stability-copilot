@@ -13,6 +13,13 @@
 The legacy artifact is retained for application continuity. It is not an
 approved YE2025 or mid-2026 model release.
 
+New candidate models persist a separate inference-pipeline artifact containing
+training-time imputation values, scaling, PCA transforms and orientation, and
+the reference distributions used for comparable percentile scoring. The crisis
+classifier artifact likewise persists training-time fill values and its
+calibrated estimator. These controls do not retroactively make the legacy model
+comparable; a verified candidate rebuild is still required.
+
 ## Intended Use
 
 The model is intended for:
