@@ -82,6 +82,7 @@ class IMFDataLoader:
         self.data_dir = data_dir or DATA_DIR
         self.cache_dir = cache_dir or CACHE_DIR
         self._data_cache: Dict[str, pd.DataFrame] = {}
+        self._country_data_cache: Dict[Tuple[str, str], pd.DataFrame] = {}
         
         # Ensure cache directory exists
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -410,16 +411,62 @@ class IMFDataLoader:
             
         return pd.DataFrame()
     
+    def _load_country_from_cache(self, country_code: str, dataset: str) -> pd.DataFrame:
+        """Load one country's parquet cache slice without materializing the full table."""
+        country_code = country_code.upper()
+        cache_key = (dataset, country_code)
+
+        if cache_key in self._country_data_cache:
+            return self._country_data_cache[cache_key].copy()
+
+        cache_path = os.path.join(self.cache_dir, f"{dataset}_cache.parquet")
+        if not os.path.exists(cache_path):
+            return pd.DataFrame()
+
+        try:
+            ensure_lfs_file(cache_path)
+            country_data = pd.read_parquet(
+                cache_path,
+                engine="pyarrow",
+                filters=[("country_code", "==", country_code)],
+            )
+        except Exception as e:
+            logger.warning(
+                "Unable to load %s country slice for %s from cache: %s",
+                dataset,
+                country_code,
+                e,
+            )
+            return pd.DataFrame()
+
+        # Keep this bounded because Streamlit holds the loader as a cached resource.
+        if len(self._country_data_cache) >= 24:
+            oldest_key = next(iter(self._country_data_cache))
+            self._country_data_cache.pop(oldest_key, None)
+
+        self._country_data_cache[cache_key] = country_data
+        return country_data.copy()
+
     def get_country_data(self, country_code: str, dataset: str = None) -> pd.DataFrame:
         """Get all data for a specific country."""
         results = []
+
+        if dataset:
+            dataset_names = [dataset]
+        else:
+            cached_names = list(self._data_cache.keys())
+            default_names = ['FSIC', 'WEO', 'MFS']
+            dataset_names = cached_names or default_names
         
-        datasets = {dataset: self._data_cache.get(dataset)} if dataset else self._data_cache
-        
-        for name, df in datasets.items():
+        for name in dataset_names:
+            df = self._data_cache.get(name)
             if df is not None and len(df) > 0:
                 country_data = df[df['country_code'] == country_code.upper()].copy()
                 results.append(country_data)
+            else:
+                country_data = self._load_country_from_cache(country_code, name)
+                if country_data is not None and len(country_data) > 0:
+                    results.append(country_data)
                 
         if results:
             return pd.concat(results, ignore_index=True)

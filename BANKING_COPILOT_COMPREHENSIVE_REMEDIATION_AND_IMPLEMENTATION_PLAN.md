@@ -1278,8 +1278,9 @@ production.
     workflows. Quality, source-check, and manual candidate-refresh workflows are
     implemented; promotion and release automation remain outstanding.
 15. [ ] Complete the Streamlit serving-only refactor. Lightweight model loading,
-    derived caches, manifest display, and on-demand FSIBSIS loading are complete;
-    active verified snapshot display is confirmed in browser; snapshot selection,
+    derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
+    history, and on-demand FSIBSIS loading are complete; active verified
+    snapshot display is confirmed in browser; snapshot selection,
     health/freshness UI, and last-known-good fallback remain.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
@@ -1483,3 +1484,14 @@ predictive surface. See section 2.8 for full detail.
     `IMF.STA:FSIC(13.0.1)` through 2026-04, MFS
     `IMF.STA:MFS_DC(8.0.0)` through 2026-05, FSIBSIS
     `IMF.STA:FSIBSIS(18.0.0)` through 2026-M04, WGI through 2024.
+- [x] Checkpoint 7: Streamlit hosted startup memory fix.
+  - Pending commit: `make historical data loads on demand`
+  - Scope:
+    - Removed full IMF cache loading from Streamlit startup.
+    - Added country-sliced parquet reads for WEO, FSIC, and MFS history.
+    - Added an explicit Data Explorer control so historical source data loads
+      only when requested for the selected country.
+  - Verification: `35 passed`; compile check passed; filtered USA reads
+    returned WEO 1,990 rows, FSIC 11,927 rows, and MFS 18,432 rows; local
+    Streamlit returned HTTP 200 on port 8520 with approximately 134 MB working
+    set and 328 MB private memory after first response.

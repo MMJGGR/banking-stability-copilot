@@ -96,7 +96,7 @@ st.markdown(STYLES, unsafe_allow_html=True)
 # ==============================================================================
 @st.cache_resource
 def load_all_data():
-    """Load model and all datasets."""
+    """Load model artifacts and lightweight reference data."""
     # timestamp: force_reload_2026_01_12_v2
     try:
         model = load_model_artifact()
@@ -109,10 +109,6 @@ def load_all_data():
         return None, None, None, None, None
 
     loader = IMFDataLoader()
-    try:
-        loader.load_from_cache() 
-    except Exception as e:
-        st.warning(f"Data cache could not be loaded: {e}")
 
     try:
         wgi_loader = WGILoader()
@@ -121,6 +117,13 @@ def load_all_data():
         wgi_data = None
         
     return scores_df, loader, wgi_data, model_features, pca_info
+
+
+@st.cache_data(show_spinner=False, max_entries=48)
+def load_country_history(country_code: str, dataset: str) -> pd.DataFrame:
+    """Load one selected-country history slice for the Data Explorer."""
+    return IMFDataLoader().get_country_data(country_code, dataset)
+
 
 scores_df, loader, wgi_data, model_features, pca_info = load_all_data()
 data_manifest = load_data_manifest()
@@ -313,12 +316,26 @@ with tab_profile:
 # ==============================================================================
 with tab_explorer:
     st.markdown("### Historical Data Explorer")
+    load_history = st.checkbox(
+        f"Load selected-country historical data for {selected_country_code}",
+        value=False,
+        help=(
+            "Loads WEO, FSI, and MFS history for the selected country only. "
+            "This keeps hosted startup within Streamlit resource limits."
+        ),
+    )
+    if not load_history:
+        st.info(
+            "Historical source data is loaded on demand. Enable the option "
+            "above to inspect WEO, FSI, MFS, and WGI histories for the "
+            "selected country."
+        )
     
     # Tabs for each dataset
     de_tab_weo, de_tab_fsi, de_tab_mfs, de_tab_wgi = st.tabs(["Economic (WEO)", "Banking (FSI)", "Monetary (MFS)", "Governance (WGI)"])
     
     with de_tab_weo:
-        weo_data = loader.get_country_data(selected_country_code, 'WEO')
+        weo_data = load_country_history(selected_country_code, 'WEO') if load_history else pd.DataFrame()
         if weo_data is not None and len(weo_data) > 0:
             n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
             st.caption(f"📊 {n_indicators} economic indicators available for {selected_country_code}")
@@ -338,7 +355,7 @@ with tab_explorer:
         
         with fsi_tab1:
             # Load FSIC Data (Core FSI) - show ALL indicators with exact names
-            fsic_data = loader.get_country_data(selected_country_code, 'FSIC')
+            fsic_data = load_country_history(selected_country_code, 'FSIC') if load_history else pd.DataFrame()
             
             if fsic_data is not None and len(fsic_data) > 0:
                 n_indicators = fsic_data['indicator_name'].nunique()
@@ -400,7 +417,7 @@ with tab_explorer:
     
     with de_tab_mfs:
         st.markdown("#### Monetary & Financial Statistics")
-        mfs_data = loader.get_country_data(selected_country_code, 'MFS')
+        mfs_data = load_country_history(selected_country_code, 'MFS') if load_history else pd.DataFrame()
         if mfs_data is not None and len(mfs_data) > 0:
             n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
             st.caption(f"📊 {n_indicators} monetary indicators available for {selected_country_code}")
