@@ -138,7 +138,7 @@ The model employs a **Hybrid Architecture** combining unsupervised structure wit
 *   **Significance**: Economic PC1 explains **87%** of variance; Industry PC1 explains **72%**.
 
 #### 2. Supervised Crisis Classifier (XGBoost)
-*   **Algorithm**: XGBoost (Gradient Boosted Trees) trained on the Laeven-Valencia Systemic Banking Crisis dataset.
+*   **Algorithm**: XGBoost (Gradient Boosted Trees) trained on the Laeven-Valencia Systemic Banking Crisis dataset, updated in May 2026 through 2025.
 *   **Objective**: Predict crisis probability (0-1) over a 3-year horizon.
 *   **Validation**:
     *   **5-Fold Stratified Cross-Validation** to prevent overfitting on small crisis samples (n=27).
@@ -193,5 +193,5 @@ python replication/scripts/generate_outputs.py
 
 ### References
 *   BIS (2010): Credit-to-GDP gap methodology
-*   Laeven & Valencia (2018): Crisis definitions
+*   Laeven & Valencia (2026): Systemic Banking Crises Database, 1970-2025
 *   S&P BICRA: Two-pillar framework

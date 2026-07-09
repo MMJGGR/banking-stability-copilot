@@ -46,6 +46,10 @@ The current architecture combines:
 - A supervised systemic-banking-crisis classifier.
 - Data-coverage and confidence adjustments.
 
+The supervised target uses the May 2026 Laeven-Valencia systemic banking crisis
+database through 2025. Events explicitly classified as borderline by the source
+are excluded from primary training and reserved for sensitivity analysis.
+
 The legacy final score uses a 90% pillar component and a 10% crisis-probability
 component. Scores are bounded from 1 to 10.
 

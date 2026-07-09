@@ -1014,7 +1014,10 @@ production.
    endpoints or approved source files are configured.
 7. [x] Redesign validation around country-grouped and out-of-time tests.
 8. [ ] Audit crisis labels, GDP anchoring, confidence floors, and associated
-   sensitivity. Full country-epoch sample preservation is complete.
+   sensitivity. Full country-epoch sample preservation is complete. The
+   training-relevant recent label window now uses the May 2026 IMF update
+   through 2025 and excludes borderline cases by default; full historical
+   reconciliation plus GDP/confidence sensitivity remain outstanding.
 9. [x] Persist the complete fitted inference pipeline. New candidate artifacts
    preserve classifier fill values and calibration plus pillar imputation,
    scaling, PCA orientation, and fixed reference distributions. The legacy
@@ -1065,3 +1068,7 @@ production.
     `0.51`, above the current `0.40` threshold. The legacy and persisted
     implementations produce the identical failure, so this remains an explicit
     confidence-policy audit item rather than being waived.
+- [ ] Checkpoint 3: May 2026 IMF crisis-label provenance and recent-window
+  corrections, including explicit borderline-case handling. Local verification
+  complete with 28 tests; mark checked after the changes are pushed to draft
+  pull request #1.

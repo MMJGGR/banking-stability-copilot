@@ -9,9 +9,15 @@
 | IMF MFS | Monetary and banking balance sheets | Existing normalized cache reaches 2025 Q3 |
 | IMF FSIBSIS | Detailed banking balance-sheet and income-statement data | Raw local source includes observations through November 2025; derived historical features previously used annual data only |
 | World Bank WGI | Structural governance indicators | Current release covers through 2024 |
+| IMF systemic banking crises | Supervised target labels | May 2026 Laeven-Valencia release covers 1970-2025; borderline events are excluded from training by default |
 
 The generated `artifacts/data_manifest.json` is the authoritative machine-
 readable record of the current serving inputs and checksums.
+
+The crisis-label source is IMF Working Paper 26/94. The project distinguishes
+systemic episodes from the source's explicitly borderline Nicaragua 2018,
+Vietnam 2022, and Sri Lanka 2023 cases. Borderline cases are queryable for
+sensitivity analysis but are not positive training targets by default.
 
 ## Observation Status
 

@@ -4,12 +4,12 @@ Laeven-Valencia Systemic Banking Crisis Labels
 ==============================================================================
 CRISP-DM Phase: Data Preparation (Target Variable)
 
-This module provides crisis labels based on the Laeven-Valencia (2018) database,
-the gold standard for identifying systemic banking crises in academic literature.
+This module provides crisis labels based on the May 2026 Laeven-Valencia
+database, which covers systemic banking crises through 2025.
 
 Reference:
-    Laeven, L., & Valencia, F. (2018). Systemic Banking Crises Revisited.
-    IMF Working Paper WP/18/206.
+    Laeven, L., & Valencia, F. (2026). Systemic Banking Crises Database:
+    1970-2025. IMF Working Paper WP/26/94.
 
 Usage:
     labels = CrisisLabels()
@@ -28,13 +28,21 @@ from typing import Dict, List, Optional, Tuple
 
 class CrisisLabels:
     """
-    Laeven-Valencia (2018) systemic banking crisis database.
+    Laeven-Valencia (2026) systemic banking crisis database.
     
     Provides binary labels for supervised crisis prediction models.
     Target = 1 if country experiences systemic crisis within horizon years.
     """
     
-    # Systemic Banking Crises (Laeven-Valencia 2018)
+    SOURCE_TITLE = "Systemic Banking Crises Database: 1970-2025"
+    SOURCE_VERSION = "IMF WP/26/94 (May 2026)"
+    SOURCE_URL = (
+        "https://www.imf.org/en/publications/wp/issues/2026/05/14/"
+        "systemic-banking-crises-database-1970-2025-576036"
+    )
+    SOURCE_COVERAGE_END_YEAR = 2025
+
+    # Systemic Banking Crises (Laeven-Valencia 2026)
     # Format: country_code -> list of (start_year, end_year) tuples
     SYSTEMIC_CRISES = {
         # Advanced Economies
@@ -60,7 +68,7 @@ class CrisisLabels:
         'KOR': [(1997, 1998)],                    # Korea - Asian crisis
         
         # Emerging Europe
-        'TUR': [(2000, 2001), (2018, 2019)],      # Turkey - 2000 + Lira crisis
+        'TUR': [(1982, 1984), (2000, 2001)],
         'RUS': [(1998, 1999), (2008, 2009)],      # Russia - 98 default + GFC
         'UKR': [(1998, 1999), (2008, 2009), (2014, 2015)],  # Ukraine - multiple
         'HUN': [(2008, 2009)],                    # Hungary
@@ -74,7 +82,7 @@ class CrisisLabels:
         'BGR': [(2014, 2014)],                    # Bulgaria - KTB
         
         # Latin America
-        'ARG': [(1989, 1991), (1995, 1995), (2001, 2003), (2018, 2019)],  # Argentina - incl. 2018 peso crisis
+        'ARG': [(1980, 1982), (1989, 1991), (1995, 1995), (2001, 2003)],
         'BRA': [(1990, 1994), (1999, 1999)],      # Brazil
         'MEX': [(1994, 1996)],                    # Mexico - Tequila crisis
         'VEN': [(1994, 1995), (2009, 2010)],      # Venezuela
@@ -94,7 +102,7 @@ class CrisisLabels:
         'CHN': [(1998, 1998)],                    # China (minor, state banks)
         'PAK': [(2008, 2008)],                    # Pakistan
         'BGD': [(1987, 1987)],                    # Bangladesh
-        'LKA': [(1989, 1991), (2022, 2023)],      # Sri Lanka + 2022 sovereign default (IMF program)
+        'LKA': [(1989, 1991)],
         'VNM': [(1997, 1997)],                    # Vietnam
         'MNG': [(2008, 2009)],                    # Mongolia
         
@@ -102,7 +110,7 @@ class CrisisLabels:
         'NGA': [(1991, 1995), (2009, 2011)],      # Nigeria
         'ZAF': [(1985, 1985), (1989, 1989)],      # South Africa (minor)
         'KEN': [(1992, 1995)],                    # Kenya
-        'GHA': [(1997, 1997), (2017, 2018), (2022, 2024)],  # Ghana - incl. debt distress
+        'GHA': [(1982, 1983), (2017, 2021)],
         'EGY': [(1991, 1991)],                    # Egypt
         'TUN': [(1991, 1991)],                    # Tunisia
         'MAR': [(1980, 1984)],                    # Morocco
@@ -118,17 +126,45 @@ class CrisisLabels:
         'ARE': [(2008, 2009)],                    # UAE - Dubai World
         'KWT': [(1982, 1985)],                    # Kuwait - Souk Al-Manakh
         'JOR': [(1989, 1991)],                    # Jordan
-        'LBN': [(1990, 1990), (2019, 2024)],      # Lebanon - 2019 banking collapse (World Bank: worst in 150 years)
+        'LBN': [(1990, 1993), (2019, 2023)],
+
+        # Episodes added or revised in the 2026 update
+        'AGO': [(2016, 2020)],
+        'AZE': [(1995, 1995), (2015, 2019)],
+        'TCD': [(1983, 1983), (1992, 1996), (2015, 2019)],
+        'GNQ': [(1983, 1983), (2015, 2019)],
+        'KAZ': [(2008, 2008), (2014, 2018)],
+        'GNB': [(1995, 1998), (2014, 2016)],
+        'MDA': [(2014, 2018)],
+        'COG': [(1992, 1994), (2017, 2020)],
+        'STP': [(1992, 1992), (2016, 2020)],
+        'TJK': [(2016, 2018)],
     }
-    
-    def __init__(self):
+
+    # The source marks these as borderline: stress was significant, but the
+    # systemic-crisis definition was not met. They are excluded by default.
+    BORDERLINE_CRISES = {
+        'NIC': [(2018, 2020)],
+        'LKA': [(2023, 2023)],
+        'VNM': [(2022, 2022)],
+    }
+
+    def __init__(self, include_borderline: bool = False):
         """Initialize crisis labels database."""
+        self.include_borderline = include_borderline
+        self.crises = {
+            country: list(periods)
+            for country, periods in self.SYSTEMIC_CRISES.items()
+        }
+        if include_borderline:
+            for country, periods in self.BORDERLINE_CRISES.items():
+                self.crises.setdefault(country, []).extend(periods)
         self._build_crisis_df()
     
     def _build_crisis_df(self):
         """Build DataFrame of crisis events for efficient querying."""
         records = []
-        for country, periods in self.SYSTEMIC_CRISES.items():
+        for country, periods in self.crises.items():
             for start, end in periods:
                 for year in range(start, end + 1):
                     records.append({
@@ -140,14 +176,17 @@ class CrisisLabels:
                     })
         
         self.crisis_df = pd.DataFrame(records) if records else pd.DataFrame()
-        print(f"  Loaded {len(self.SYSTEMIC_CRISES)} countries with {len(records)} crisis-years")
+        print(
+            f"  Loaded {len(self.crises)} countries with {len(records)} "
+            f"crisis-years (borderline={self.include_borderline})"
+        )
     
     def is_crisis_year(self, country_code: str, year: int) -> bool:
         """Check if country was in crisis during specified year."""
-        if country_code not in self.SYSTEMIC_CRISES:
+        if country_code not in self.crises:
             return False
         
-        for start, end in self.SYSTEMIC_CRISES[country_code]:
+        for start, end in self.crises[country_code]:
             if start <= year <= end:
                 return True
         return False
@@ -210,12 +249,12 @@ class CrisisLabels:
     def get_crisis_countries(self, year_range: Tuple[int, int] = None) -> List[str]:
         """Get list of countries that had crises in specified range."""
         if year_range is None:
-            return list(self.SYSTEMIC_CRISES.keys())
+            return list(self.crises.keys())
         
         start, end = year_range
         crisis_countries = []
         
-        for country, periods in self.SYSTEMIC_CRISES.items():
+        for country, periods in self.crises.items():
             for crisis_start, crisis_end in periods:
                 if crisis_start <= end and crisis_end >= start:
                     crisis_countries.append(country)
@@ -226,7 +265,7 @@ class CrisisLabels:
     def get_crisis_summary(self) -> pd.DataFrame:
         """Get summary statistics of crisis database."""
         records = []
-        for country, periods in self.SYSTEMIC_CRISES.items():
+        for country, periods in self.crises.items():
             total_years = sum(end - start + 1 for start, end in periods)
             records.append({
                 'country_code': country,

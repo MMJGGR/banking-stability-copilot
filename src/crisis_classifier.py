@@ -757,7 +757,7 @@ def _compute_income_tier_weights(features_df, y):
     """
     Compute sample weights to correct for reporting bias by income tier.
     
-    Richer countries have better-documented crises in Laeven-Valencia (2018).
+    Richer countries have better-documented crises in Laeven-Valencia (2026).
     This re-weights so each income tier contributes equally to the loss.
     
     Ref: King & Zeng (2001) - "Logistic Regression in Rare Events Data"
@@ -1057,7 +1057,7 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     
     Academic references:
     - Drehmann & Juselius (2014): credit-to-GDP gap as best EWI
-    - Laeven & Valencia (2018): systemic banking crisis database
+    - Laeven & Valencia (2026): systemic banking crisis database through 2025
     - Borio & Lowe (2002): ratio-based indicators outperform levels
     - Schularick & Taylor (2012): credit growth predicts financial crises
     """
@@ -1097,7 +1097,7 @@ def train_crisis_model(weo_df=None, fsic_df=None):
         1995: ('Asian crisis (THA,IDN,KOR,MYS), LatAm (ARG,MEX)', 1994),
         2000: ('Argentina (2001), Turkey (2000)', 1999),
         2005: ('Global Financial Crisis (USA,GBR,ESP,ISL,GRC...)', 2004),
-        2015: ('Turkey (2018), Ghana (2017-2018), Lebanon (2019)', 2014),
+        2015: ('Ghana, Lebanon, and 2014-2018 systemic episodes', 2014),
     }
     
     use_panel = (weo_df is not None)  # Can we build temporal panel?
@@ -1376,8 +1376,8 @@ def train_crisis_model(weo_df=None, fsic_df=None):
         'KOR': ('Asian 1997-98', 'IMF program, chaebol restructuring'),
         'KEN': ('Africa 1992-95', 'Political banking, ethnic tensions'),
         'NGA': ('Africa 1991-95', 'SAP aftermath, bank distress'),
-        'GHA': ('Multi 1997,2017,2022', 'Repeated banking + sovereign stress'),
-        'TUR': ('2018-19', 'Lira crisis, policy credibility'),
+        'GHA': ('1982-83, 2017-21', 'Official systemic banking episodes'),
+        'TUR': ('2000-01', 'Official systemic banking episode'),
         'LBN': ('2019-24', 'Worst financial crisis in 150 years (World Bank)'),
         'CHE': ('Control', 'No systemic crisis in database'),
         'CAN': ('Control', 'No systemic crisis, strong regulation'),
