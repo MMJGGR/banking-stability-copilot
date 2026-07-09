@@ -54,6 +54,7 @@ jobs:
           --as-of "${{ inputs.as_of_date }}"
 
       - name: Upload candidate serving artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: banking-copilot-${{ inputs.as_of_date }}
@@ -61,6 +62,7 @@ jobs:
           retention-days: 30
           path: |
             artifacts/data_manifest.json
+            artifacts/model_policy_audit.json
             cache/*_cache.parquet
             cache/crisis_features.parquet
             cache/imputed_features.parquet

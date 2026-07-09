@@ -1,0 +1,46 @@
+{
+  "baseline": {
+    "absolute_coverage_score_correlation": 0.5050159772713415,
+    "countries": 201,
+    "coverage_score_correlation": -0.5050159772713415,
+    "risk_floor_count": 13
+  },
+  "crisis_labels": {
+    "borderline_episodes_excluded": 3,
+    "source_coverage_end_year": 2025,
+    "source_version": "IMF WP/26/94 (May 2026)",
+    "systemic_countries": 81,
+    "systemic_episodes": 103
+  },
+  "scenarios": {
+    "no_confidence_regression": {
+      "countries": 201,
+      "countries_moving_at_least_one_point": 23,
+      "maximum_absolute_score_change": 1.5,
+      "mean_absolute_score_change": 0.27562189054726366,
+      "rank_correlation": 0.9951565506374821
+    },
+    "no_gdp_orientation": {
+      "countries": 201,
+      "countries_moving_at_least_one_point": 140,
+      "maximum_absolute_score_change": 6.6000000000000005,
+      "mean_absolute_score_change": 1.9791044776119406,
+      "rank_correlation": 0.34791159189312265
+    },
+    "no_gdp_pca_input": {
+      "countries": 201,
+      "countries_moving_at_least_one_point": 14,
+      "maximum_absolute_score_change": 1.7000000000000002,
+      "mean_absolute_score_change": 0.3164179104477612,
+      "rank_correlation": 0.976407966026653
+    },
+    "no_risk_floors": {
+      "countries": 201,
+      "countries_moving_at_least_one_point": 11,
+      "maximum_absolute_score_change": 2.3,
+      "mean_absolute_score_change": 0.09701492537313433,
+      "rank_correlation": 0.9857950729084212
+    }
+  },
+  "schema_version": 1
+}

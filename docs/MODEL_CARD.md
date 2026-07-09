@@ -63,6 +63,13 @@ component. Scores are bounded from 1 to 10.
 - GDP per capita affects PCA construction and direction and requires bias
   sensitivity review.
 
+The current machine-readable sensitivity audit is
+`artifacts/model_policy_audit.json`. On the existing 201-country feature matrix,
+removing GDP from PCA inputs changes 14 countries by at least one risk point,
+while removing GDP-based PCA orientation changes 140. Confidence regression
+changes 23 countries by at least one point and risk floors change 11. These are
+material policy sensitivities and require approval before model promotion.
+
 ## Validation Standard
 
 Future approved releases must include:

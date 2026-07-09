@@ -6,6 +6,7 @@
 python -m pip install -r requirements-dev.txt
 python -m compileall -q app.py train_model.py src tests
 python -m pytest -q
+python -m src.scripts.audit_model_policy
 streamlit run app.py
 ```
 
@@ -50,6 +51,8 @@ Before promotion, verify:
 - Manifest status is `verified`.
 - No country appears across grouped train/holdout sets.
 - Coverage and imputation did not deteriorate materially.
+- The model-policy audit was reviewed and material sensitivity changes were
+  accepted or remediated.
 - Large score and tier changes have explanations.
 - Model and data cards are updated.
 - Streamlit loads the candidate artifacts successfully.

@@ -37,6 +37,8 @@ class PillarInferencePipeline:
 
     minimum_data_coverage: float = 0.20
     median_risk: float = 5.5
+    confidence_exponent: float = 0.5
+    apply_risk_floors: bool = True
     schema_version: int = 1
     numeric_columns_: list = field(default_factory=list)
     imputed_columns_: list = field(default_factory=list)
@@ -198,9 +200,10 @@ class PillarInferencePipeline:
 
         confidence = 1 - original_missing.mean(axis=1)
         score_raw = 1 + 9 * (1 - percentiles["risk"])
+        confidence_weight = confidence.pow(self.confidence_exponent)
         risk_scores = (
-            np.sqrt(confidence) * score_raw
-            + (1 - np.sqrt(confidence)) * self.median_risk
+            confidence_weight * score_raw
+            + (1 - confidence_weight) * self.median_risk
         )
 
         economic_coverage = (
@@ -210,15 +213,19 @@ class PillarInferencePipeline:
             1 - original_missing[self.industry_columns_].mean(axis=1)
         )
         risk_floor = pd.Series(1.0, index=eligible.index)
-        risk_floor.loc[confidence < 0.50] = 6.0
-        risk_floor.loc[
-            (confidence >= 0.50) & (confidence < 0.70)
-        ] = 4.0
-        weak_pillar = (economic_coverage < 0.30) | (industry_coverage < 0.30)
-        risk_floor.loc[weak_pillar] = np.maximum(
-            risk_floor.loc[weak_pillar],
-            5.0,
-        )
+        if self.apply_risk_floors:
+            risk_floor.loc[confidence < 0.50] = 6.0
+            risk_floor.loc[
+                (confidence >= 0.50) & (confidence < 0.70)
+            ] = 4.0
+            weak_pillar = (
+                (economic_coverage < 0.30)
+                | (industry_coverage < 0.30)
+            )
+            risk_floor.loc[weak_pillar] = np.maximum(
+                risk_floor.loc[weak_pillar],
+                5.0,
+            )
         before_floor = risk_scores.copy()
         risk_scores = np.maximum(risk_scores, risk_floor).round(1)
 

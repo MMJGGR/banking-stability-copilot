@@ -1017,7 +1017,9 @@ production.
    sensitivity. Full country-epoch sample preservation is complete. The
    training-relevant recent label window now uses the May 2026 IMF update
    through 2025 and excludes borderline cases by default; full historical
-   reconciliation plus GDP/confidence sensitivity remain outstanding.
+   reconciliation and policy approval remain outstanding. A reproducible audit
+   now quantifies GDP orientation/input, confidence regression, and risk-floor
+   sensitivity in `artifacts/model_policy_audit.json`.
 9. [x] Persist the complete fitted inference pipeline. New candidate artifacts
    preserve classifier fill values and calibration plus pillar imputation,
    scaling, PCA orientation, and fixed reference distributions. The legacy
@@ -1076,3 +1078,7 @@ production.
   - Verification: 28 tests passed. Unsupported recent currency/sovereign-stress
     labels were removed, official recent systemic episodes were added, and
     source-designated borderline cases are excluded from training by default.
+- [ ] Checkpoint 4: reproducible model-policy sensitivity audit covering GDP,
+  confidence regression, risk floors, coverage correlation, and crisis-label
+  composition. Local verification complete with 29 tests; mark checked after
+  publication to draft pull request #1.

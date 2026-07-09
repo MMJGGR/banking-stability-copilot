@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from src.pillar_pipeline import PillarInferencePipeline
+from src.scripts.audit_model_policy import build_policy_audit
 from train_model import BankingRiskModel
 
 
@@ -75,3 +76,16 @@ def test_banking_model_persists_pipeline_as_sidecar(tmp_path):
     loaded = BankingRiskModel.load(str(artifact_path))
     assert loaded.pillar_pipeline is not None
     assert loaded.pillar_pipeline.fitted_
+
+
+def test_policy_audit_reports_required_scenarios():
+    audit = build_policy_audit(_feature_matrix())
+
+    assert audit["baseline"]["countries"] == 20
+    assert set(audit["scenarios"]) == {
+        "no_confidence_regression",
+        "no_risk_floors",
+        "no_gdp_pca_input",
+        "no_gdp_orientation",
+    }
+    assert audit["crisis_labels"]["source_coverage_end_year"] == 2025

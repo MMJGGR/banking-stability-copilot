@@ -118,6 +118,7 @@ def build_snapshot_manifest(as_of_date, repository_root=None) -> dict:
         sources["WGI"] = summarize_wgi_cache(wgi_path, cutoff)
 
     artifact_paths = [
+        root / "artifacts" / "model_policy_audit.json",
         cache_dir / "risk_model.pkl",
         cache_dir / "inference_pipeline.pkl",
         cache_dir / "crisis_classifier.pkl",

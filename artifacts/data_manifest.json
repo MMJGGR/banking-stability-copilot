@@ -1,5 +1,9 @@
 {
   "artifacts": {
+    "artifacts/model_policy_audit.json": {
+      "bytes": 1535,
+      "sha256": "e1ceebaedfa4a267f1d1b10b21e2c925e833cfe9cc7e9ecfdbebc06c20365d87"
+    },
     "cache/FSIBSIS_cache.parquet": {
       "bytes": 10033984,
       "sha256": "0630fbb9a5f6e0365889e75e958580c681129f8db3e51c3695771e9260368c81"
@@ -26,7 +30,7 @@
     }
   },
   "as_of_date": "2025-12-31",
-  "generated_at": "2026-07-09T10:16:58.651579+00:00",
+  "generated_at": "2026-07-09T14:30:58.896786+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": false,
