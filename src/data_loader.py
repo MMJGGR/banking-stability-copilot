@@ -24,6 +24,7 @@ from src.config import (
     BASE_DIR, DATA_DIR, CACHE_DIR, DATASET_PATTERNS,
     FSIC_CORE_INDICATORS, WEO_CORE_INDICATORS, MFS_CORE_INDICATORS
 )
+from src.lfs_resolver import ensure_lfs_file
 
 TIME_PERIOD_PATTERN = re.compile(
     r"^((19|20)\d{2}|Q[1-4]\s*(19|20)\d{2}|(19|20)\d{2}[-_]?Q[1-4]|"
@@ -440,6 +441,7 @@ class IMFDataLoader:
             cache_path = os.path.join(self.cache_dir, f"{name}_cache.parquet")
             if os.path.exists(cache_path):
                 try:
+                    ensure_lfs_file(cache_path)
                     self._data_cache[name] = pd.read_parquet(cache_path)
                     print(f"Loaded {name} from cache: {len(self._data_cache[name])} records")
                     loaded = True
@@ -577,6 +579,7 @@ class FSIBSISLoader:
         path = file_path or self.file_path
 
         if path is None and os.path.exists(self.cache_path):
+            ensure_lfs_file(self.cache_path)
             self.bank_data = pd.read_parquet(self.cache_path)
             self.period_cols = [
                 col for col in self.bank_data.columns
@@ -915,6 +918,7 @@ class WGILoader:
     def load(self, force_refresh: bool = False) -> pd.DataFrame:
         """Load WGI data from all 6 sheets and merge into single DataFrame."""
         if not force_refresh and os.path.exists(self.cache_path):
+            ensure_lfs_file(self.cache_path)
             self.data = pd.read_parquet(self.cache_path)
             print(
                 f"Loaded WGI cache: {len(self.data)} records, "

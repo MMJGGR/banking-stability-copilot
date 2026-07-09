@@ -10,6 +10,7 @@ import json
 import pickle
 
 from src.config import CACHE_DIR
+from src.lfs_resolver import ensure_lfs_file
 
 
 MODEL_PATH = Path(CACHE_DIR) / "risk_model.pkl"
@@ -27,6 +28,7 @@ def load_model_artifact(path=None, verify_checksum: bool = True) -> dict:
     artifact_path = Path(path) if path is not None else MODEL_PATH
     if not artifact_path.exists():
         raise FileNotFoundError(f"Model not found: {artifact_path}")
+    ensure_lfs_file(artifact_path)
 
     if path is None and verify_checksum:
         manifest = load_data_manifest()
