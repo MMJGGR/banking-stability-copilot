@@ -1,0 +1,140 @@
+{
+  "artifacts": {
+    "artifacts/model_policy_audit.json": {
+      "bytes": 1504,
+      "sha256": "c68851384a0b00cd6d07fcf640ab8279e7659378b995e4b857b6a492fa0d4b62"
+    },
+    "cache/FSIBSIS_cache.parquet": {
+      "bytes": 9868181,
+      "sha256": "02850b1968a604bbfda8166ffc7a1eae5444cc3881f8265d44a9f526e225cae4"
+    },
+    "cache/WGI_cache.parquet": {
+      "bytes": 303861,
+      "sha256": "f1519cab22e67711e179366e3748908fa0f6db57dd41c9e0b3f4bfcd7499461a"
+    },
+    "cache/crisis_classifier.pkl": {
+      "bytes": 185373,
+      "sha256": "1f8acabdadabde718d7d2664ec2de0d972b52e348fb61ed0a679d031be7684f2"
+    },
+    "cache/crisis_features.parquet": {
+      "bytes": 119427,
+      "sha256": "355975d4f719605ec318e4258d631a44ce4c214eebba43b84d4df32d8eaa1571"
+    },
+    "cache/imputed_features.parquet": {
+      "bytes": 136860,
+      "sha256": "59dd767aaf981bb97f2e4baebaccffe3b2dff6c091517f965f5e380d9e2ef4c6"
+    },
+    "cache/inference_pipeline.pkl": {
+      "bytes": 138409,
+      "sha256": "2e482773e4c4e09cf516e4b6a27eb588ebbd7cadd5117d6cd5c131201d1e8df0"
+    },
+    "cache/risk_model.pkl": {
+      "bytes": 151817,
+      "sha256": "6d9ff5dca0f706a8fc14d8314b66d42208b59a2997a9356f61925f3b9c5885cd"
+    }
+  },
+  "as_of_date": "2026-06-30",
+  "generated_at": "2026-07-09T21:35:53.439556+00:00",
+  "model": {
+    "countries_trained": 201,
+    "cutoff_verified": true,
+    "snapshot_date": "2026-06-30",
+    "training_date": "2026-07-10T00:35:44.513187"
+  },
+  "retrieval": {
+    "FSIBSIS": {
+      "bytes": 136980774,
+      "path": "C:\\Users\\Richard\\Documents\\banking-stability-copilot\\data\\raw\\official_refresh_20260710_001908\\sdmx_FSIBSIS_full_2026-07-09T212505Z.csv",
+      "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
+      "retrieval_method": "reused_official_download",
+      "retrieved_at": "2026-07-09T21:33:24.716812+00:00",
+      "sha256": "c5aa6dc1394934517a3d5258690d09bf1a32d6682860b8fd6544afbcf48d8a32",
+      "source": "FSIBSIS"
+    },
+    "FSIC": {
+      "bytes": 145626208,
+      "path": "C:\\Users\\Richard\\Documents\\banking-stability-copilot\\data\\raw\\official_refresh_20260710_001908\\sdmx_FSIC_full_2026-07-09T211937Z.csv",
+      "remote_version": "IMF.STA:FSIC(13.0.1)",
+      "retrieval_method": "reused_official_download",
+      "retrieved_at": "2026-07-09T21:31:05.726310+00:00",
+      "sha256": "ae199c798ce9cd64ec7c725e6afd239e9c4c18d067336027f20942f4fafa24ca",
+      "source": "FSIC"
+    },
+    "MFS": {
+      "bytes": 478046242,
+      "path": "C:\\Users\\Richard\\Documents\\banking-stability-copilot\\data\\raw\\official_refresh_20260710_001908\\sdmx_MFS_full_2026-07-09T212157Z.csv",
+      "remote_version": "IMF.STA:MFS_DC(8.0.0)",
+      "retrieval_method": "reused_official_download",
+      "retrieved_at": "2026-07-09T21:32:23.746606+00:00",
+      "sha256": "c6a764697b6b000dfcd99436c1d93983a2bba7056c5014f8667e6023af695522",
+      "source": "MFS"
+    },
+    "WEO": {
+      "bytes": 36738338,
+      "path": "C:\\Users\\Richard\\Documents\\banking-stability-copilot\\data\\raw\\official_refresh_20260710_001908\\sdmx_WEO_full_2026-07-09T211921Z.csv",
+      "remote_version": "IMF.RES:WEO(9.0.0)",
+      "retrieval_method": "reused_official_download",
+      "retrieved_at": "2026-07-09T21:30:56.943065+00:00",
+      "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
+      "source": "WEO"
+    },
+    "WGI": {
+      "bytes": 2060170,
+      "path": "C:\\Users\\Richard\\Documents\\banking-stability-copilot\\data\\raw\\official_refresh_20260710_001908\\worldbank_WGI_2026-07-09T212632Z.csv",
+      "remote_version": null,
+      "retrieval_method": "reused_official_download",
+      "retrieved_at": "2026-07-09T21:33:43.338429+00:00",
+      "sha256": "f69df5978649612597245434ecde6331fda0face4c96090b696aaa4d4585f6e4",
+      "source": "WGI"
+    }
+  },
+  "schema_version": 1,
+  "snapshot_id": "2026-06-30",
+  "snapshot_status": "verified",
+  "source_mode": "official_api_sdmx_worldbank",
+  "sources": {
+    "FSIBSIS": {
+      "countries": 141,
+      "latest_observation": "2026-04-30",
+      "latest_period_label": "2026-M04",
+      "rows": 11459
+    },
+    "FSIC": {
+      "countries": 155,
+      "indicators": 398,
+      "latest_observation": "2026-04-30",
+      "observation_status_counts": {
+        "unknown": 1258107
+      },
+      "rows": 1258107
+    },
+    "MFS": {
+      "countries": 180,
+      "indicators": 91,
+      "latest_observation": "2026-05-31",
+      "observation_status_counts": {
+        "unknown": 4509993
+      },
+      "rows": 4509993
+    },
+    "WEO": {
+      "countries": 208,
+      "indicators": 145,
+      "latest_observation": "2025-12-31",
+      "observation_status_counts": {
+        "actual": 293008,
+        "unknown": 22337
+      },
+      "rows": 315345
+    },
+    "WGI": {
+      "countries": 207,
+      "latest_observation": "2024-12-31",
+      "rows": 5301
+    }
+  },
+  "validation": {
+    "model_checks_failed": 0,
+    "model_checks_passed": 3
+  }
+}

@@ -1,6 +1,15 @@
 # Methodology
 ## Banking System Stability Model
 
+> **Current release status:** The committed February 2026 model is a legacy
+> artifact whose snapshot cutoff cannot be verified from its metadata. It
+> remains available for continuity, but it must not be represented as an
+> approved YE2025 or mid-2026 snapshot. The remediation work introduces
+> explicit cutoffs, observation statuses, grouped validation, artifact
+> checksums, and candidate-release controls. See
+> `BANKING_COPILOT_COMPREHENSIVE_REMEDIATION_AND_IMPLEMENTATION_PLAN.md`,
+> `docs/MODEL_CARD.md`, and `docs/DATA_CARD.md`.
+
 ### Overview
 This package provides everything needed to replicate and validate the Banking Risk Model.
 
@@ -129,13 +138,17 @@ The model employs a **Hybrid Architecture** combining unsupervised structure wit
 *   **Significance**: Economic PC1 explains **87%** of variance; Industry PC1 explains **72%**.
 
 #### 2. Supervised Crisis Classifier (XGBoost)
-*   **Algorithm**: XGBoost (Gradient Boosted Trees) trained on the Laeven-Valencia Systemic Banking Crisis dataset.
+*   **Algorithm**: XGBoost (Gradient Boosted Trees) trained on the Laeven-Valencia Systemic Banking Crisis dataset, updated in May 2026 through 2025.
 *   **Objective**: Predict crisis probability (0-1) over a 3-year horizon.
 *   **Validation**:
     *   **5-Fold Stratified Cross-Validation** to prevent overfitting on small crisis samples (n=27).
     *   **Metric**: Area Under ROC Curve (AUC).
 
 #### Validation Results
+The figures below are retained as historical project claims. They have not yet
+been reproduced under the new country-grouped and out-of-time validation
+standard and are not approved production performance metrics.
+
 | Metric | Score | Interpretation |
 |--------|-------|----------------|
 | **Mean CV AUC** | **0.840** | Strong predictive power (Baseline: 0.70) |
@@ -180,5 +193,5 @@ python replication/scripts/generate_outputs.py
 
 ### References
 *   BIS (2010): Credit-to-GDP gap methodology
-*   Laeven & Valencia (2018): Crisis definitions
+*   Laeven & Valencia (2026): Systemic Banking Crises Database, 1970-2025
 *   S&P BICRA: Two-pillar framework

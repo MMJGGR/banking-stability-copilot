@@ -8,7 +8,12 @@ venv/
 env/
 .venv/
 .env
+.env.*
+!.env.example
 .conda/
+
+# Downloaded source snapshots are stored as workflow/release artifacts.
+data/raw/
 
 # IDE
 .vscode/

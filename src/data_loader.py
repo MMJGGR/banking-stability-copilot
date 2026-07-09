@@ -25,6 +25,50 @@ from src.config import (
     FSIC_CORE_INDICATORS, WEO_CORE_INDICATORS, MFS_CORE_INDICATORS
 )
 
+TIME_PERIOD_PATTERN = re.compile(
+    r"^((19|20)\d{2}|Q[1-4]\s*(19|20)\d{2}|(19|20)\d{2}[-_]?Q[1-4]|"
+    r"M(0[1-9]|1[0-2])\s*(19|20)\d{2}|(19|20)\d{2}[-_]?M?(0[1-9]|1[0-2]))$",
+    re.IGNORECASE,
+)
+
+
+def parse_period_label(value) -> pd.Timestamp:
+    """Parse IMF annual, quarterly, and monthly column labels."""
+    label = str(value).strip().upper()
+
+    if re.fullmatch(r"(19|20)\d{2}", label):
+        return pd.Timestamp(f"{label}-12-31")
+
+    match = re.fullmatch(r"Q([1-4])\s*((19|20)\d{2})", label)
+    if match:
+        return pd.Period(
+            year=int(match.group(2)), quarter=int(match.group(1)), freq="Q"
+        ).end_time.normalize()
+
+    match = re.fullmatch(r"((19|20)\d{2})[-_]?Q([1-4])", label)
+    if match:
+        return pd.Period(
+            year=int(match.group(1)), quarter=int(match.group(3)), freq="Q"
+        ).end_time.normalize()
+
+    match = re.fullmatch(r"M(0[1-9]|1[0-2])\s*((19|20)\d{2})", label)
+    if match:
+        return pd.Period(
+            year=int(match.group(2)), month=int(match.group(1)), freq="M"
+        ).end_time.normalize()
+
+    match = re.fullmatch(r"((19|20)\d{2})[-_]?M?(0[1-9]|1[0-2])", label)
+    if match:
+        return pd.Period(
+            year=int(match.group(1)), month=int(match.group(3)), freq="M"
+        ).end_time.normalize()
+
+    return pd.NaT
+
+
+def is_time_period_column(value) -> bool:
+    return bool(TIME_PERIOD_PATTERN.fullmatch(str(value).strip()))
+
 
 
 class IMFDataLoader:
@@ -63,14 +107,8 @@ class IMFDataLoader:
         time_cols = []
         meta_cols = []
         
-        # Pre-compile regex patterns
-        year_pattern = re.compile(r'^(19|20)\d{2}$')
-        quarter_pattern = re.compile(r'^(Q[1-4]\s*\d{4}|\d{4}[-_]?Q[1-4])$', re.I)
-        month_pattern = re.compile(r'^(M\d{2}\s*\d{4}|\d{4}[-_]?\d{2})$', re.I)
-        
         for col in columns:
-            col_str = str(col).strip()
-            if year_pattern.match(col_str) or quarter_pattern.match(col_str) or month_pattern.match(col_str):
+            if is_time_period_column(col):
                 time_cols.append(col)
             else:
                 meta_cols.append(col)
@@ -80,37 +118,11 @@ class IMFDataLoader:
     def _vectorized_parse_periods(self, period_series: pd.Series) -> pd.Series:
         """Vectorized period parsing."""
         periods = period_series.astype(str).str.strip()
-        
-        # Initialize result
-        result = pd.Series(pd.NaT, index=periods.index)
-        
-        # Annual: 1980, 2024, etc.
-        annual_mask = periods.str.match(r'^(19|20)\d{2}$', na=False)
-        if annual_mask.any():
-            years = periods[annual_mask].astype(int)
-            result[annual_mask] = pd.to_datetime(years.astype(str) + '-12-31')
-        
-        # Quarterly: Q1 2020
-        q1_mask = periods.str.match(r'^Q([1-4])\s*(\d{4})$', case=False, na=False)
-        if q1_mask.any():
-            q_extract = periods[q1_mask].str.extract(r'^Q([1-4])\s*(\d{4})$', flags=re.I)
-            q_extract.columns = ['q', 'year']
-            months = q_extract['q'].astype(int) * 3
-            result[q1_mask] = pd.to_datetime(
-                q_extract['year'] + '-' + months.astype(str).str.zfill(2) + '-01'
-            )
-        
-        # Quarterly: 2020-Q1
-        q2_mask = periods.str.match(r'^(\d{4})[-_]?Q([1-4])$', case=False, na=False)
-        if q2_mask.any():
-            q_extract = periods[q2_mask].str.extract(r'^(\d{4})[-_]?Q([1-4])$', flags=re.I)
-            q_extract.columns = ['year', 'q']
-            months = q_extract['q'].astype(int) * 3
-            result[q2_mask] = pd.to_datetime(
-                q_extract['year'] + '-' + months.astype(str).str.zfill(2) + '-01'
-            )
-        
-        return result
+        mapping = {
+            label: parse_period_label(label)
+            for label in periods.dropna().drop_duplicates()
+        }
+        return periods.map(mapping)
     
     def _load_and_melt(self, filepath: str, dataset_name: str) -> pd.DataFrame:
         """
@@ -146,6 +158,7 @@ class IMFDataLoader:
         indicator_name_col = None
         freq_col = None
         unit_col = None
+        latest_actual_col = None
         
         for col in df.columns:
             col_lower = str(col).lower()
@@ -164,6 +177,8 @@ class IMFDataLoader:
                 freq_col = col
             elif 'unit' in col_lower and 'date' not in col_lower:
                 unit_col = col
+            elif col_lower == 'latest_actual_annual_data':
+                latest_actual_col = col
         
         # Extract country/indicator from SERIES_KEY (vectorized)
         if series_key_col and series_key_col in df.columns:
@@ -197,9 +212,19 @@ class IMFDataLoader:
             df['_unit'] = df[unit_col].fillna('')
         else:
             df['_unit'] = ''
+
+        if latest_actual_col and latest_actual_col in df.columns:
+            df['_latest_actual_year'] = pd.to_numeric(
+                df[latest_actual_col], errors='coerce'
+            )
+        else:
+            df['_latest_actual_year'] = np.nan
         
         # Identify columns to keep for ID
-        id_vars = ['_country_code', '_country_name', '_indicator_code', '_indicator_name', '_frequency', '_unit']
+        id_vars = [
+            '_country_code', '_country_name', '_indicator_code',
+            '_indicator_name', '_frequency', '_unit', '_latest_actual_year'
+        ]
         
         # MELT: Convert wide to long format (vectorized, fast!)
         print(f"  Melting {len(df)} rows × {len(time_cols)} periods...")
@@ -229,6 +254,14 @@ class IMFDataLoader:
         
         # Parse periods (vectorized)
         melted['period'] = self._vectorized_parse_periods(melted['period_str'])
+        invalid_periods = int(melted['period'].isna().sum())
+        if invalid_periods:
+            logger.warning(
+                "Dropping %s %s observations with unrecognized periods",
+                invalid_periods,
+                dataset_name,
+            )
+            melted = melted.dropna(subset=['period'])
         
         # Rename columns
         melted = melted.rename(columns={
@@ -237,8 +270,28 @@ class IMFDataLoader:
             '_indicator_code': 'indicator_code',
             '_indicator_name': 'indicator_name',
             '_frequency': 'frequency',
-            '_unit': 'unit'
+            '_unit': 'unit',
+            '_latest_actual_year': 'latest_actual_year',
         })
+
+        observation_year = melted['period'].dt.year
+        melted['observation_status'] = 'unknown'
+        has_actual_cutoff = melted['latest_actual_year'].notna()
+        melted.loc[
+            has_actual_cutoff
+            & (observation_year <= melted['latest_actual_year']),
+            'observation_status',
+        ] = 'actual'
+        melted.loc[
+            has_actual_cutoff
+            & (observation_year == melted['latest_actual_year'] + 1),
+            'observation_status',
+        ] = 'estimate'
+        melted.loc[
+            has_actual_cutoff
+            & (observation_year > melted['latest_actual_year'] + 1),
+            'observation_status',
+        ] = 'projection'
         
         # Add dataset identifier
         melted['dataset'] = dataset_name
@@ -513,13 +566,35 @@ class FSIBSISLoader:
     
     def __init__(self, file_path: str = None):
         self.file_path = file_path
+        self.cache_path = os.path.join(CACHE_DIR, 'FSIBSIS_cache.parquet')
         self.data = None
         self.bank_data = None
         self.year_cols = []
+        self.period_cols = []
         
     def load(self, file_path: str = None) -> pd.DataFrame:
         """Load and parse FSIBSIS dataset."""
         path = file_path or self.file_path
+
+        if path is None and os.path.exists(self.cache_path):
+            self.bank_data = pd.read_parquet(self.cache_path)
+            self.period_cols = [
+                col for col in self.bank_data.columns
+                if is_time_period_column(col)
+            ]
+            self.period_cols = sorted(
+                self.period_cols, key=lambda col: parse_period_label(col)
+            )
+            self.year_cols = [
+                col for col in self.period_cols
+                if re.fullmatch(r'(19|20)\d{2}', str(col))
+            ]
+            logger.info(
+                "Loaded FSIBSIS cache: %s rows, %s countries",
+                len(self.bank_data),
+                self.bank_data['country_code'].nunique(),
+            )
+            return self.bank_data
         
         if path is None:
             pattern = os.path.join(BASE_DIR, '*FSIBSIS*.csv')
@@ -535,8 +610,8 @@ class FSIBSISLoader:
         chunk_size = 50000
         first_chunk = pd.read_csv(path, nrows=5)
         all_cols = first_chunk.columns.tolist()
-        year_cols = [c for c in all_cols if len(str(c)) == 4 and str(c).startswith('20')]
-        cols_to_use = ['COUNTRY', 'SECTOR', 'INDICATOR'] + year_cols
+        period_cols = [c for c in all_cols if is_time_period_column(c)]
+        cols_to_use = ['COUNTRY', 'SECTOR', 'INDICATOR'] + period_cols
         
         for chunk in pd.read_csv(path, usecols=cols_to_use, chunksize=chunk_size, low_memory=False):
             bank_chunk = chunk[chunk['SECTOR'] == 'Deposit takers']
@@ -544,8 +619,14 @@ class FSIBSISLoader:
                 chunks.append(bank_chunk)
         
         self.bank_data = pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame(columns=cols_to_use)
-        self.year_cols = sorted(year_cols)
+        self.period_cols = sorted(
+            period_cols, key=lambda col: parse_period_label(col)
+        )
+        self.year_cols = [
+            col for col in self.period_cols if re.fullmatch(r'(19|20)\d{2}', str(col))
+        ]
         self.bank_data['country_code'] = self.bank_data['COUNTRY'].map(COUNTRY_NAME_TO_ISO)
+        self.bank_data.to_parquet(self.cache_path, index=False)
         
         logger.info(f"FSIBSIS: {len(self.bank_data)} rows, {self.bank_data['country_code'].nunique()} countries")
         return self.bank_data
@@ -557,13 +638,28 @@ class FSIBSISLoader:
         country_data = self.bank_data[self.bank_data['country_code'] == country_code].copy()
         if len(country_data) == 0:
             return pd.DataFrame()
-        cols_to_keep = ['INDICATOR'] + self.year_cols
+        cols_to_keep = ['INDICATOR'] + self.period_cols
         result = country_data[cols_to_keep].copy()
         result['INDICATOR'] = result['INDICATOR'].apply(lambda x: f"[BIS] {x}" if pd.notna(x) else x)
         return result
     
     def get_indicator_data(self, country_code: str, indicator_key: str, year: str = None) -> Tuple[Optional[float], Optional[str]]:
         """Get (value, year) for an indicator."""
+        return self.get_indicator_data_as_of(
+            country_code=country_code,
+            indicator_key=indicator_key,
+            year=year,
+            as_of_date=None,
+        )
+
+    def get_indicator_data_as_of(
+        self,
+        country_code: str,
+        indicator_key: str,
+        year: str = None,
+        as_of_date=None,
+    ) -> Tuple[Optional[float], Optional[str]]:
+        """Get (value, period label) for an indicator at or before a cutoff."""
         if self.bank_data is None:
             self.load()
         patterns = self._get_indicator_patterns(indicator_key)
@@ -572,13 +668,20 @@ class FSIBSISLoader:
         country_data = self.bank_data[self.bank_data['country_code'] == country_code]
         if len(country_data) == 0:
             return None, None
+        period_cols = self.period_cols
+        if as_of_date is not None:
+            cutoff = pd.Timestamp(as_of_date).normalize()
+            period_cols = [
+                col for col in period_cols
+                if parse_period_label(col) <= cutoff
+            ]
         for pattern in patterns:
             mask = country_data['INDICATOR'] == pattern
             if not mask.any():
                 mask = country_data['INDICATOR'].str.contains(pattern, case=False, na=False, regex=False)
             rows = country_data[mask]
             if len(rows) > 0:
-                for yr in reversed(self.year_cols):
+                for yr in reversed(period_cols):
                     for _, row in rows.iterrows():
                         val = row.get(yr)
                         if pd.notnull(val):
@@ -618,18 +721,91 @@ class FSIBSISLoader:
                 expanded.append(f"{base}, {suffix}")
         return expanded
     
-    def extract_features(self) -> pd.DataFrame:
-        """Extract all new features from FSIBSIS for all countries."""
+    def extract_features(self, as_of_date=None) -> pd.DataFrame:
+        """Extract all new features from FSIBSIS for all countries as of a cutoff."""
         if self.bank_data is None:
             self.load()
-        countries = self.bank_data['country_code'].dropna().unique()
+        period_cols = self.period_cols
+        if as_of_date is not None:
+            cutoff = pd.Timestamp(as_of_date).normalize()
+            period_cols = [
+                col for col in period_cols
+                if parse_period_label(col) <= cutoff
+            ]
+        if not period_cols:
+            return pd.DataFrame()
+
+        bank_data = self.bank_data[
+            ['country_code', 'INDICATOR'] + period_cols
+        ].dropna(subset=['country_code']).copy()
+        period_values = bank_data[period_cols].apply(
+            pd.to_numeric,
+            errors='coerce',
+        )
+        present = period_values.notna().to_numpy()
+        has_value = present.any(axis=1)
+        if not has_value.any():
+            return pd.DataFrame()
+        reversed_present = present[:, ::-1]
+        latest_positions = (
+            len(period_cols) - 1 - reversed_present.argmax(axis=1)
+        )
+        latest_positions[~has_value] = -1
+        row_positions = np.arange(len(bank_data))
+        latest_value_array = np.full(len(bank_data), np.nan, dtype=float)
+        valid_positions = latest_positions >= 0
+        latest_value_array[valid_positions] = period_values.to_numpy()[
+            row_positions[valid_positions],
+            latest_positions[valid_positions],
+        ]
+        bank_data['_latest_value'] = latest_value_array
+        period_labels = np.array(period_cols, dtype=object)
+        latest_period_array = np.full(len(bank_data), None, dtype=object)
+        latest_period_array[valid_positions] = period_labels[
+            latest_positions[valid_positions]
+        ]
+        bank_data['_latest_period'] = latest_period_array
+        period_order = {period: idx for idx, period in enumerate(period_cols)}
+        bank_data = bank_data.dropna(subset=['_latest_value', '_latest_period'])
+        bank_data['_period_order'] = bank_data['_latest_period'].map(period_order)
+
+        values_by_key = {}
+        years_by_key = {}
+        for key in self.INDICATOR_MAPPINGS:
+            patterns = self._get_indicator_patterns(key)
+            if not patterns:
+                continue
+            mask = pd.Series(False, index=bank_data.index)
+            for pattern in patterns:
+                mask = mask | bank_data['INDICATOR'].eq(pattern)
+            if not mask.any():
+                for pattern in patterns:
+                    mask = mask | bank_data['INDICATOR'].str.contains(
+                        pattern,
+                        case=False,
+                        na=False,
+                        regex=False,
+                    )
+            matched = bank_data.loc[mask]
+            if len(matched) == 0:
+                continue
+            matched = (
+                matched
+                .sort_values(['country_code', '_period_order'])
+                .drop_duplicates(subset='country_code', keep='last')
+            )
+            values_by_key[key] = matched.set_index('country_code')['_latest_value']
+            years_by_key[key] = matched.set_index('country_code')['_latest_period']
+
+        countries = bank_data['country_code'].dropna().unique()
         features_list = []
         
         for country in countries:
             features = {'country_code': country}
             values, years = {}, {}
             for key in self.INDICATOR_MAPPINGS:
-                val, yr = self.get_indicator_data(country, key)
+                val = values_by_key.get(key, pd.Series(dtype=float)).get(country)
+                yr = years_by_key.get(key, pd.Series(dtype=object)).get(country)
                 values[key] = val
                 years[key] = yr
             
@@ -688,11 +864,11 @@ class FSIBSISLoader:
         return pd.DataFrame(features_list)
 
 
-def load_fsibsis_features(file_path: str = None) -> pd.DataFrame:
+def load_fsibsis_features(file_path: str = None, as_of_date=None) -> pd.DataFrame:
     """Convenience function to load and extract FSIBSIS features."""
     loader = FSIBSISLoader(file_path)
     loader.load()
-    return loader.extract_features()
+    return loader.extract_features(as_of_date=as_of_date)
 
 
 # =============================================================================
@@ -720,6 +896,7 @@ class WGILoader:
     
     def __init__(self, wgi_path: str = None):
         self.wgi_path = wgi_path or self._find_wgi_file()
+        self.cache_path = os.path.join(CACHE_DIR, 'WGI_cache.parquet')
         self.data: Optional[pd.DataFrame] = None
         
     def _find_wgi_file(self) -> str:
@@ -735,8 +912,16 @@ class WGILoader:
                 return path
         raise FileNotFoundError(f"WGI dataset not found. Searched for: {candidates} in {BASE_DIR}")
     
-    def load(self) -> pd.DataFrame:
+    def load(self, force_refresh: bool = False) -> pd.DataFrame:
         """Load WGI data from all 6 sheets and merge into single DataFrame."""
+        if not force_refresh and os.path.exists(self.cache_path):
+            self.data = pd.read_parquet(self.cache_path)
+            print(
+                f"Loaded WGI cache: {len(self.data)} records, "
+                f"{self.data['country_code'].nunique()} countries"
+            )
+            return self.data
+
         print("\n" + "="*70)
         print("LOADING WORLD GOVERNANCE INDICATORS")
         print("="*70)
@@ -762,14 +947,19 @@ class WGILoader:
             merged = merged.merge(df, on=['country_code', 'year'], how='outer')
         
         self.data = merged
+        self.data.to_parquet(self.cache_path, index=False)
         print(f"\n  Total: {len(merged)} country-year records, {merged['country_code'].nunique()} countries")
         return merged
     
-    def get_latest_scores(self) -> pd.DataFrame:
-        """Get the most recent governance scores for each country."""
+    def get_latest_scores(self, as_of_date=None) -> pd.DataFrame:
+        """Get the most recent governance scores for each country as of a cutoff."""
         if self.data is None:
             self.load()
-        latest = self.data.sort_values('year').groupby('country_code').last().reset_index()
+        data = self.data.copy()
+        if as_of_date is not None:
+            cutoff_year = pd.Timestamp(as_of_date).year
+            data = data[pd.to_numeric(data['year'], errors='coerce') <= cutoff_year]
+        latest = data.sort_values('year').groupby('country_code').last().reset_index()
         
         # Add year columns for each feature so dashboard can display it
         feature_cols = ['country_code']

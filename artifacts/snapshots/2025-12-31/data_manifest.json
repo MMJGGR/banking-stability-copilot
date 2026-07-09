@@ -1,0 +1,83 @@
+{
+  "artifacts": {
+    "artifacts/model_policy_audit.json": {
+      "bytes": 1485,
+      "sha256": "490a5a2e7789d27aa837095eafe053ff7d7b091c9388641f8fee88e51b95b217"
+    },
+    "cache/FSIBSIS_cache.parquet": {
+      "bytes": 10033984,
+      "sha256": "0630fbb9a5f6e0365889e75e958580c681129f8db3e51c3695771e9260368c81"
+    },
+    "cache/WGI_cache.parquet": {
+      "bytes": 310825,
+      "sha256": "fb66adcd48a0d640d961497cb1bc3b3a04ad813e39f3e82f8a18864fb28d391c"
+    },
+    "cache/crisis_classifier.pkl": {
+      "bytes": 185373,
+      "sha256": "1f8acabdadabde718d7d2664ec2de0d972b52e348fb61ed0a679d031be7684f2"
+    },
+    "cache/crisis_features.parquet": {
+      "bytes": 134551,
+      "sha256": "5f389029e6b903189da1106c476c0e9473fe90c5518b52915eb5e8f5e11dff7f"
+    },
+    "cache/imputed_features.parquet": {
+      "bytes": 136860,
+      "sha256": "59dd767aaf981bb97f2e4baebaccffe3b2dff6c091517f965f5e380d9e2ef4c6"
+    },
+    "cache/inference_pipeline.pkl": {
+      "bytes": 157856,
+      "sha256": "ff4a03ccce63897ba24332e70af82ecf790b059fc5166d8c2326e8072613aa2f"
+    },
+    "cache/risk_model.pkl": {
+      "bytes": 183303,
+      "sha256": "cbda2f0937b41eb9f767921613d43516f834ed2959cab4232079fbc88307e222"
+    }
+  },
+  "as_of_date": "2025-12-31",
+  "generated_at": "2026-07-09T16:14:01.405613+00:00",
+  "model": {
+    "countries_trained": 201,
+    "cutoff_verified": true,
+    "snapshot_date": "2025-12-31",
+    "training_date": "2026-07-09T19:13:50.589017"
+  },
+  "schema_version": 1,
+  "snapshot_id": "2025-12-31",
+  "snapshot_status": "verified",
+  "source_mode": "local_cached_sources",
+  "sources": {
+    "FSIBSIS": {
+      "countries": 110,
+      "latest_observation": "2025-11-30",
+      "latest_period_label": "2025-M11",
+      "rows": 25636
+    },
+    "FSIC": {
+      "countries": 155,
+      "indicators": 11,
+      "latest_observation": "2025-09-01",
+      "rows": 859227
+    },
+    "MFS": {
+      "countries": 178,
+      "indicators": 91,
+      "latest_observation": "2025-09-01",
+      "rows": 1326510
+    },
+    "WEO": {
+      "countries": 208,
+      "indicators": 145,
+      "latest_observation": "2025-12-31",
+      "rows": 315731
+    },
+    "WGI": {
+      "countries": 216,
+      "latest_observation": "2024-12-31",
+      "rows": 5481
+    }
+  },
+  "validation": {
+    "model_checks_failed": 0,
+    "model_checks_passed": 3
+  }
+}

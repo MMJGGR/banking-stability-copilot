@@ -32,11 +32,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.data_loader import IMFDataLoader
 from src.config import CACHE_DIR
 from src.feature_engineering import CrisisFeatureEngineer
-from src.crisis_classifier import CrisisClassifier, HybridRiskScorer, train_crisis_model
+from src.crisis_classifier import (
+    CrisisClassifier,
+    HybridRiskScorer,
+    train_crisis_model,
+    _compute_lag_features,
+)
 from src.imputation import GapImputer
 from src.data_loader import WGILoader
+from src.pillar_pipeline import PillarInferencePipeline
 
 MODEL_PATH = os.path.join(CACHE_DIR, "risk_model.pkl")
+INFERENCE_PIPELINE_PATH = os.path.join(CACHE_DIR, "inference_pipeline.pkl")
 
 
 def explore_all_indicators(fsic_df, weo_df, mfs_df):
@@ -206,7 +213,7 @@ def identify_anchor_indicator(features_df, weo_df):
     return None
 
 
-def build_two_pillar_model(features_df, anchor_series, country_names):
+def build_two_pillar_model_legacy(features_df, anchor_series, country_names):
     """
     Build the two-pillar risk model:
     1. Economic Risk Pillar - macro fundamentals
@@ -618,6 +625,20 @@ def build_two_pillar_model(features_df, anchor_series, country_names):
     return results.sort_values('risk_score'), {'economic_loadings': econ_loadings, 'industry_loadings': ind_loadings}
 
 
+def build_two_pillar_model(
+    features_df,
+    anchor_series,
+    country_names,
+    return_pipeline=False,
+):
+    """Fit the persisted pillar pipeline and score the training snapshot."""
+    pipeline = PillarInferencePipeline().fit(features_df, anchor_series)
+    results = pipeline.transform(features_df, country_names)
+    if return_pipeline:
+        return results, pipeline.loadings(), pipeline
+    return results, pipeline.loadings()
+
+
 def validate_model(results_df):
     """
     Validate model produces logically sound results.
@@ -684,8 +705,16 @@ class BankingRiskModel:
         self.countries_trained = 0
         self.feature_values = None  # Raw feature values per country for comparison
         self.pca_info = {}  # PCA loadings for explainability
+        self.pillar_pipeline = None
         
-    def train(self, fsic_df, weo_df, mfs_df):
+    def train(
+        self,
+        fsic_df,
+        weo_df,
+        mfs_df,
+        as_of_date=None,
+        retrain_classifier=True,
+    ):
         """
         Train the hybrid risk model.
         
@@ -699,6 +728,21 @@ class BankingRiskModel:
         print("TRAINING HYBRID BANKING RISK MODEL")
         print("="*70)
         print(f"  Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        cutoff = pd.Timestamp(
+            as_of_date or f"{pd.Timestamp.today().year - 1}-12-31"
+        )
+
+        def filter_to_cutoff(df):
+            if df is None or len(df) == 0 or 'period' not in df.columns:
+                return df
+            periods = pd.to_datetime(df['period'], errors='coerce')
+            return df.loc[periods.notna() & (periods <= cutoff)].copy()
+
+        fsic_df = filter_to_cutoff(fsic_df)
+        weo_df = filter_to_cutoff(weo_df)
+        mfs_df = filter_to_cutoff(mfs_df)
+
+        print(f"  Snapshot cutoff: {cutoff.date()}")
         print(f"  Input data: FSIC ({len(fsic_df):,} records), WEO ({len(weo_df):,} records), MFS ({len(mfs_df):,} records)")
         
         # --- 1. FEATURE ENGINEERING ---
@@ -716,7 +760,12 @@ class BankingRiskModel:
         )
         # Extract features from each dataset
         print("  [1a] Extracting core IMF features (WEO, FSIC, MFS)...")
-        weo_features = engineer.extract_weo_features(weo_df)
+        weo_features = engineer.extract_weo_features(
+            weo_df,
+            as_of_date=cutoff,
+            include_estimates=True,
+            include_projections=False,
+        )
         fsic_features = engineer.extract_fsic_features(fsic_df)
         credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
         sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
@@ -731,7 +780,7 @@ class BankingRiskModel:
         print("\n  [1b] Loading WGI governance indicators...")
         try:
             wgi_loader = WGILoader()
-            wgi_features = wgi_loader.get_latest_scores()
+            wgi_features = wgi_loader.get_latest_scores(as_of_date=cutoff)
             
             # Print WGI feature summary
             if wgi_features is not None and len(wgi_features) > 0:
@@ -749,7 +798,7 @@ class BankingRiskModel:
         print("\n  [1c] Loading FSIBSIS balance sheet indicators...")
         try:
             from src.data_loader import load_fsibsis_features
-            fsibsis_features = load_fsibsis_features()
+            fsibsis_features = load_fsibsis_features(as_of_date=cutoff)
             if fsibsis_features is not None and len(fsibsis_features) > 0:
                 fsibsis_cols = [c for c in fsibsis_features.columns if c != 'country_code' and not c.endswith('_year')]
                 print(f"        Countries: {len(fsibsis_features)}")
@@ -780,6 +829,39 @@ class BankingRiskModel:
         
         if len(features) == 0:
             raise ValueError("Feature engineering failed: No data produced")
+
+        if (
+            'fiscal_space' not in features.columns
+            and 'fiscal_balance_gdp' in features.columns
+            and 'govt_debt_gdp' in features.columns
+        ):
+            features['fiscal_space'] = (
+                features['fiscal_balance_gdp'] - features['govt_debt_gdp'] / 100
+            )
+
+        lag_feature_cols = [
+            'gdp_growth_3yr_avg',
+            'inflation_acceleration',
+            'debt_buildup_3yr',
+            'ca_deterioration_3yr',
+        ]
+        missing_lag_cols = [
+            column for column in lag_feature_cols
+            if column not in features.columns
+        ]
+        if missing_lag_cols and weo_df is not None and len(weo_df) > 0:
+            latest_weo_year = int(pd.to_datetime(weo_df['period']).dt.year.max())
+            latest_lags = _compute_lag_features(
+                weo_df,
+                latest_weo_year,
+                features['country_code'].tolist(),
+            )
+            if len(latest_lags) > 0:
+                features = features.merge(
+                    latest_lags,
+                    on='country_code',
+                    how='left',
+                )
         
         # Print organized feature summary matching README structure
         print("\n  " + "-"*50)
@@ -852,7 +934,7 @@ class BankingRiskModel:
              import matplotlib.pyplot as plt
              
              # Select pillars cols
-             cols_to_plot = economic_cols + industry_cols
+             cols_to_plot = econ_present + ind_present + fsib_present
              cols_available = [c for c in cols_to_plot if c in features.columns]
              
              if len(cols_available) > 1:
@@ -876,15 +958,29 @@ class BankingRiskModel:
                  plt.close()
                  print(f"  Saved Correlation Plot: {corr_path}")
         except Exception as e:
-            print(f"  Could not save correlation plot: {e}")
+            print(f"  WARNING: Could not save correlation plot: {e}")
 
         
         # --- 2. SUPERVISED CRISIS CLASSIFIER ---
         print("\n" + "-"*70)
         print("[Step 2/4] CRISIS CLASSIFIER")
         print("-"*70)
-        # Train classifier (or load if already trained and cached)
-        classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
+        if retrain_classifier:
+            classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
+        else:
+            try:
+                classifier = CrisisClassifier.load()
+                metrics = {"cached_classifier": True}
+                print("  Loaded cached crisis classifier for snapshot scoring.")
+            except Exception as e:
+                print(
+                    "  Cached crisis classifier unavailable; retraining "
+                    f"for this snapshot: {e}"
+                )
+                classifier, metrics = train_crisis_model(
+                    weo_df=weo_df,
+                    fsic_df=fsic_df,
+                )
         
         # Get crisis probabilities
         print("  Generating crisis probabilities...")
@@ -897,6 +993,28 @@ class BankingRiskModel:
         for col in classifier.feature_names_:
             if col not in X.columns:
                 X[col] = np.nan
+        if not retrain_classifier:
+            all_null_classifier_inputs = [
+                col for col in classifier.feature_names_
+                if X[col].isna().all()
+            ]
+            if all_null_classifier_inputs:
+                fill_values = getattr(classifier, 'feature_fill_values_', None)
+                fallback_fills = {}
+                for col in all_null_classifier_inputs:
+                    trained_fill = (
+                        fill_values.get(col)
+                        if fill_values is not None and col in fill_values
+                        else np.nan
+                    )
+                    fallback_fills[col] = (
+                        trained_fill if pd.notna(trained_fill) else 0.0
+                    )
+                    X[col] = fallback_fills[col]
+                print(
+                    "  Cached classifier fallback fills for all-null "
+                    f"features: {fallback_fills}"
+                )
         
         # Predict probability of crisis within 3 years
         # Note: input columns must match classifier training columns
@@ -920,7 +1038,16 @@ class BankingRiskModel:
         # Build two-pillar model (PCA-based)
         # Build two-pillar model (PCA-based)
         # We pass the engineered features directly
-        pillar_scores, pca_loadings = build_two_pillar_model(features, anchor, country_names)
+        (
+            pillar_scores,
+            pca_loadings,
+            self.pillar_pipeline,
+        ) = build_two_pillar_model(
+            features,
+            anchor,
+            country_names,
+            return_pipeline=True,
+        )
         
         # --- 4. HYBRID RISK SCORE ---
         print("\n" + "-"*70)
@@ -973,6 +1100,8 @@ class BankingRiskModel:
         
         # Store PCA explanation (weights are 50% Economic + 50% Industry)
         self.pca_info = {
+            'training_date': self.training_date,
+            'snapshot_date': cutoff.date().isoformat(),
             'economic_weight': 0.50,
             'industry_weight': 0.50,
             'note': 'PCA reduces features to principal components. First PC captures most variance.',
@@ -981,6 +1110,59 @@ class BankingRiskModel:
         }
         
         return self.country_scores
+
+    def score_engineered_features(
+        self,
+        features,
+        crisis_classifier,
+        country_names=None,
+    ):
+        """Score a future engineered snapshot with fitted transforms only."""
+        if self.pillar_pipeline is None:
+            raise ValueError(
+                "Persisted pillar pipeline is unavailable; retraining is "
+                "required before comparable inference"
+            )
+        if country_names is None:
+            country_names = pd.Series(dtype=object)
+
+        classifier_input = features.copy()
+        for column in crisis_classifier.feature_names_:
+            if column not in classifier_input.columns:
+                classifier_input[column] = np.nan
+        probabilities = crisis_classifier.predict_proba(
+            classifier_input[crisis_classifier.feature_names_]
+        )
+        probability_frame = pd.DataFrame(
+            {
+                "country_code": features["country_code"].values,
+                "crisis_prob": probabilities,
+            }
+        )
+
+        pillars = self.pillar_pipeline.transform(features, country_names)
+        scored = pillars.merge(
+            probability_frame,
+            on="country_code",
+            how="left",
+            validate="one_to_one",
+        )
+        scored["crisis_adjustment"] = scored["crisis_prob"] * 3
+        scored["hybrid_risk_score"] = (
+            0.9 * scored["risk_score"]
+            + 0.1 * (1 + 9 * scored["crisis_prob"])
+        ).clip(1, 10)
+        scored["risk_score"] = scored["hybrid_risk_score"]
+        scored["risk_category"] = scored["risk_score"].apply(
+            lambda score: (
+                "1-2: Very Low Risk" if score <= 2 else
+                "3-4: Low Risk" if score <= 4 else
+                "5-6: Moderate Risk" if score <= 6 else
+                "7-8: High Risk" if score <= 8 else
+                "9-10: Very High Risk"
+            )
+        )
+        return scored.sort_values("risk_score")
     
     def get_score(self, country_code):
         """Get risk score for a country."""
@@ -1012,8 +1194,29 @@ class BankingRiskModel:
                 'training_date': self.training_date,
                 'countries_trained': self.countries_trained,
                 'feature_values': self.feature_values,
-                'pca_info': self.pca_info
+                'pca_info': self.pca_info,
             }, f)
+
+        if self.pillar_pipeline is not None:
+            pipeline_path = (
+                INFERENCE_PIPELINE_PATH
+                if path == MODEL_PATH
+                else os.path.join(
+                    os.path.dirname(path),
+                    f"{os.path.splitext(os.path.basename(path))[0]}"
+                    "_inference_pipeline.pkl",
+                )
+            )
+            with open(pipeline_path, "wb") as pipeline_file:
+                pickle.dump(
+                    {
+                        "schema_version": 1,
+                        "snapshot_date": self.pca_info.get("snapshot_date"),
+                        "pillar_pipeline": self.pillar_pipeline,
+                    },
+                    pipeline_file,
+                )
+            print(f"Inference pipeline saved to: {pipeline_path}")
         
         print(f"\nModel saved to: {path}")
     
@@ -1036,6 +1239,19 @@ class BankingRiskModel:
         model.countries_trained = data['countries_trained']
         model.feature_values = data.get('feature_values')  # New: for comparison
         model.pca_info = data.get('pca_info', {})  # New: for explainability
+        pipeline_path = (
+            INFERENCE_PIPELINE_PATH
+            if path == MODEL_PATH
+            else os.path.join(
+                os.path.dirname(path),
+                f"{os.path.splitext(os.path.basename(path))[0]}"
+                "_inference_pipeline.pkl",
+            )
+        )
+        if os.path.exists(pipeline_path):
+            with open(pipeline_path, "rb") as pipeline_file:
+                pipeline_artifact = pickle.load(pipeline_file)
+            model.pillar_pipeline = pipeline_artifact.get("pillar_pipeline")
         
         return model
 
@@ -1108,7 +1324,8 @@ def main():
     
     # Train model
     model = BankingRiskModel()
-    results = model.train(fsic_df, weo_df, mfs_df)
+    as_of_date = os.getenv("MODEL_AS_OF_DATE")
+    results = model.train(fsic_df, weo_df, mfs_df, as_of_date=as_of_date)
     
     # Validate
     validate_model(results)
