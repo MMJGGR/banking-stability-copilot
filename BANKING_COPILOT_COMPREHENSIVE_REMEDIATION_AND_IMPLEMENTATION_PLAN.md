@@ -1042,7 +1042,12 @@ production.
 
 ### 21.1 GitHub Checkpoints
 
-- [ ] Checkpoint 1: priority stabilization, data correctness foundation,
+- [x] Checkpoint 1: priority stabilization, data correctness foundation,
   grouped validation, source-adapter framework, candidate workflow, serving
-  manifest, documentation baseline, and tests. Local verification complete;
-  mark checked after the branch and draft pull request are published.
+  manifest, documentation baseline, and tests.
+  - Published branch: `agent/priority-remediation`
+  - Initial checkpoint commit: `197ce58`
+  - Draft pull request:
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Verification: 22 tests passed, compile and diff checks passed, and the
+    Streamlit browser smoke test completed without console errors.
