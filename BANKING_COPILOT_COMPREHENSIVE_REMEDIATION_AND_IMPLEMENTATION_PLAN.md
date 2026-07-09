@@ -1053,6 +1053,15 @@ production.
     [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
   - Verification: 22 tests passed, compile and diff checks passed, and the
     Streamlit browser smoke test completed without console errors.
-- [ ] Checkpoint 2: deterministic inference transforms and calibrated classifier
-  persistence. Local verification complete with 26 tests; mark checked after
-  the changes are pushed to draft pull request #1.
+- [x] Checkpoint 2: deterministic inference transforms and calibrated classifier
+  persistence.
+  - Published commit: `4c4d7ca`
+  - Pull request: draft
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Verification: 26 tests passed; the persisted pillar pipeline is
+    batch-invariant and exactly reproduces legacy pillar scores on the current
+    201-country engineered feature matrix.
+  - Open methodology gate: absolute score correlation with data coverage is
+    `0.51`, above the current `0.40` threshold. The legacy and persisted
+    implementations produce the identical failure, so this remains an explicit
+    confidence-policy audit item rather than being waived.
