@@ -1078,7 +1078,12 @@ production.
   - Verification: 28 tests passed. Unsupported recent currency/sovereign-stress
     labels were removed, official recent systemic episodes were added, and
     source-designated borderline cases are excluded from training by default.
-- [ ] Checkpoint 4: reproducible model-policy sensitivity audit covering GDP,
+- [x] Checkpoint 4: reproducible model-policy sensitivity audit covering GDP,
   confidence regression, risk floors, coverage correlation, and crisis-label
-  composition. Local verification complete with 29 tests; mark checked after
-  publication to draft pull request #1.
+  composition.
+  - Published commit: `8ad21c2`
+  - Pull request: draft
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Verification: 29 tests passed. Candidate refreshes now fail when model
+    validation gates fail while still uploading diagnostic artifacts for
+    review.
