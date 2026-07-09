@@ -32,7 +32,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.data_loader import IMFDataLoader
 from src.config import CACHE_DIR
 from src.feature_engineering import CrisisFeatureEngineer
-from src.crisis_classifier import CrisisClassifier, HybridRiskScorer, train_crisis_model
+from src.crisis_classifier import (
+    CrisisClassifier,
+    HybridRiskScorer,
+    train_crisis_model,
+    _compute_lag_features,
+)
 from src.imputation import GapImputer
 from src.data_loader import WGILoader
 from src.pillar_pipeline import PillarInferencePipeline
@@ -702,7 +707,14 @@ class BankingRiskModel:
         self.pca_info = {}  # PCA loadings for explainability
         self.pillar_pipeline = None
         
-    def train(self, fsic_df, weo_df, mfs_df, as_of_date=None):
+    def train(
+        self,
+        fsic_df,
+        weo_df,
+        mfs_df,
+        as_of_date=None,
+        retrain_classifier=True,
+    ):
         """
         Train the hybrid risk model.
         
@@ -768,7 +780,7 @@ class BankingRiskModel:
         print("\n  [1b] Loading WGI governance indicators...")
         try:
             wgi_loader = WGILoader()
-            wgi_features = wgi_loader.get_latest_scores()
+            wgi_features = wgi_loader.get_latest_scores(as_of_date=cutoff)
             
             # Print WGI feature summary
             if wgi_features is not None and len(wgi_features) > 0:
@@ -786,7 +798,7 @@ class BankingRiskModel:
         print("\n  [1c] Loading FSIBSIS balance sheet indicators...")
         try:
             from src.data_loader import load_fsibsis_features
-            fsibsis_features = load_fsibsis_features()
+            fsibsis_features = load_fsibsis_features(as_of_date=cutoff)
             if fsibsis_features is not None and len(fsibsis_features) > 0:
                 fsibsis_cols = [c for c in fsibsis_features.columns if c != 'country_code' and not c.endswith('_year')]
                 print(f"        Countries: {len(fsibsis_features)}")
@@ -817,6 +829,39 @@ class BankingRiskModel:
         
         if len(features) == 0:
             raise ValueError("Feature engineering failed: No data produced")
+
+        if (
+            'fiscal_space' not in features.columns
+            and 'fiscal_balance_gdp' in features.columns
+            and 'govt_debt_gdp' in features.columns
+        ):
+            features['fiscal_space'] = (
+                features['fiscal_balance_gdp'] - features['govt_debt_gdp'] / 100
+            )
+
+        lag_feature_cols = [
+            'gdp_growth_3yr_avg',
+            'inflation_acceleration',
+            'debt_buildup_3yr',
+            'ca_deterioration_3yr',
+        ]
+        missing_lag_cols = [
+            column for column in lag_feature_cols
+            if column not in features.columns
+        ]
+        if missing_lag_cols and weo_df is not None and len(weo_df) > 0:
+            latest_weo_year = int(pd.to_datetime(weo_df['period']).dt.year.max())
+            latest_lags = _compute_lag_features(
+                weo_df,
+                latest_weo_year,
+                features['country_code'].tolist(),
+            )
+            if len(latest_lags) > 0:
+                features = features.merge(
+                    latest_lags,
+                    on='country_code',
+                    how='left',
+                )
         
         # Print organized feature summary matching README structure
         print("\n  " + "-"*50)
@@ -920,8 +965,22 @@ class BankingRiskModel:
         print("\n" + "-"*70)
         print("[Step 2/4] CRISIS CLASSIFIER")
         print("-"*70)
-        # Train classifier (or load if already trained and cached)
-        classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
+        if retrain_classifier:
+            classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
+        else:
+            try:
+                classifier = CrisisClassifier.load()
+                metrics = {"cached_classifier": True}
+                print("  Loaded cached crisis classifier for snapshot scoring.")
+            except Exception as e:
+                print(
+                    "  Cached crisis classifier unavailable; retraining "
+                    f"for this snapshot: {e}"
+                )
+                classifier, metrics = train_crisis_model(
+                    weo_df=weo_df,
+                    fsic_df=fsic_df,
+                )
         
         # Get crisis probabilities
         print("  Generating crisis probabilities...")
@@ -934,6 +993,28 @@ class BankingRiskModel:
         for col in classifier.feature_names_:
             if col not in X.columns:
                 X[col] = np.nan
+        if not retrain_classifier:
+            all_null_classifier_inputs = [
+                col for col in classifier.feature_names_
+                if X[col].isna().all()
+            ]
+            if all_null_classifier_inputs:
+                fill_values = getattr(classifier, 'feature_fill_values_', None)
+                fallback_fills = {}
+                for col in all_null_classifier_inputs:
+                    trained_fill = (
+                        fill_values.get(col)
+                        if fill_values is not None and col in fill_values
+                        else np.nan
+                    )
+                    fallback_fills[col] = (
+                        trained_fill if pd.notna(trained_fill) else 0.0
+                    )
+                    X[col] = fallback_fills[col]
+                print(
+                    "  Cached classifier fallback fills for all-null "
+                    f"features: {fallback_fills}"
+                )
         
         # Predict probability of crisis within 3 years
         # Note: input columns must match classifier training columns

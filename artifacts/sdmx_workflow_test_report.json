@@ -1,0 +1,298 @@
+{
+  "finished_at": "2026-07-09T20:56:15.971400+00:00",
+  "integration": {
+    ".github/workflows/refresh-data.yml": {
+      "exists": true,
+      "references_build_sdmx_sources": false,
+      "references_sdmx": false
+    },
+    ".github/workflows/source-check.yml": {
+      "exists": true,
+      "references_build_sdmx_sources": false,
+      "references_sdmx": false
+    },
+    "src/scripts/check_sources.py": {
+      "exists": true,
+      "references_build_sdmx_sources": false,
+      "references_sdmx": false
+    },
+    "src/scripts/refresh_data.py": {
+      "exists": true,
+      "references_build_sdmx_sources": false,
+      "references_sdmx": false
+    }
+  },
+  "sources": {
+    "FSIBSIS": {
+      "fetch": {
+        "bytes": 136980774,
+        "path": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683\\sdmx_FSIBSIS_from_2026_2026-07-09T205532Z.csv",
+        "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
+        "retrieval_method": "sdmx_api",
+        "retrieved_at": "2026-07-09T20:56:04.745200+00:00",
+        "sha256": "c5aa6dc1394934517a3d5258690d09bf1a32d6682860b8fd6544afbcf48d8a32",
+        "source": "FSIBSIS"
+      },
+      "filter_respected_in_sample": false,
+      "sample": {
+        "columns": [
+          "STRUCTURE[;]",
+          "STRUCTURE_ID",
+          "ACTION",
+          "COUNTRY",
+          "SECTOR",
+          "INDICATOR",
+          "FREQUENCY",
+          "TIME_PERIOD",
+          "OBS_VALUE",
+          "SCALE",
+          "PRECISION",
+          "DECIMALS_DISPLAYED",
+          "FSI_STO",
+          "COUNTERPARTY_SECTOR",
+          "ACCOUNTING_ENTRY",
+          "ACCOUNTS",
+          "UNIT",
+          "DERIVATION_TYPE",
+          "OVERLAP",
+          "STATUS",
+          "DEFINITION",
+          "CONSOLIDATION_BASIS",
+          "INTRAGROUP_ADJUSTMENTS",
+          "ACCOUNTING_STANDARDS"
+        ],
+        "country_count_sample": 12,
+        "has_required_long_columns": true,
+        "indicator_count_sample": 317,
+        "rows_sampled": 100000,
+        "time_period_max_sample": "2026-Q1",
+        "time_period_min_sample": "2005"
+      },
+      "version_check": {
+        "agency": "IMF.STA",
+        "checked_at": "2026-07-09T20:55:30.428081+00:00",
+        "dataflow_id": "FSIBSIS",
+        "dataflow_version": "18.0.0",
+        "source": "FSIBSIS",
+        "structure_version": null
+      }
+    },
+    "FSIC": {
+      "fetch": {
+        "bytes": 145626208,
+        "path": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683\\sdmx_FSIC_from_2025_2026-07-09T205225Z.csv",
+        "remote_version": "IMF.STA:FSIC(13.0.1)",
+        "retrieval_method": "sdmx_api",
+        "retrieved_at": "2026-07-09T20:52:59.713387+00:00",
+        "sha256": "ae199c798ce9cd64ec7c725e6afd239e9c4c18d067336027f20942f4fafa24ca",
+        "source": "FSIC"
+      },
+      "filter_respected_in_sample": false,
+      "sample": {
+        "columns": [
+          "STRUCTURE[;]",
+          "STRUCTURE_ID",
+          "ACTION",
+          "COUNTRY",
+          "SECTOR",
+          "INDICATOR",
+          "FREQUENCY",
+          "TIME_PERIOD",
+          "OBS_VALUE",
+          "SCALE",
+          "PRECISION",
+          "DECIMALS_DISPLAYED",
+          "FSI",
+          "FSI_STO",
+          "FSI_COMPONENT",
+          "COUNTERPARTY_SECTOR",
+          "NA_STO",
+          "PRICES",
+          "UNIT",
+          "DERIVATION_TYPE",
+          "OVERLAP",
+          "STATUS",
+          "DEFINITION",
+          "CONSOLIDATION_BASIS",
+          "INTRAGROUP_ADJUSTMENTS",
+          "ACCOUNTING_STANDARDS"
+        ],
+        "country_count_sample": 12,
+        "has_required_long_columns": true,
+        "indicator_count_sample": 262,
+        "rows_sampled": 100000,
+        "time_period_max_sample": "2026-Q1",
+        "time_period_min_sample": "2005"
+      },
+      "version_check": {
+        "agency": "IMF.STA",
+        "checked_at": "2026-07-09T20:52:22.937001+00:00",
+        "dataflow_id": "FSIC",
+        "dataflow_version": "13.0.1",
+        "source": "FSIC",
+        "structure_version": null
+      }
+    },
+    "MFS": {
+      "fetch": {
+        "bytes": 478046242,
+        "path": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683\\sdmx_MFS_from_2026_2026-07-09T205305Z.csv",
+        "remote_version": "IMF.STA:MFS_DC(8.0.0)",
+        "retrieval_method": "sdmx_api",
+        "retrieved_at": "2026-07-09T20:55:27.916878+00:00",
+        "sha256": "c6a764697b6b000dfcd99436c1d93983a2bba7056c5014f8667e6023af695522",
+        "source": "MFS"
+      },
+      "filter_respected_in_sample": false,
+      "sample": {
+        "columns": [
+          "STRUCTURE[;]",
+          "STRUCTURE_ID",
+          "ACTION",
+          "COUNTRY",
+          "INDICATOR",
+          "TYPE_OF_TRANSFORMATION",
+          "FREQUENCY",
+          "TIME_PERIOD",
+          "OBS_VALUE",
+          "SCALE",
+          "PRECISION",
+          "DECIMALS_DISPLAYED",
+          "SECTOR",
+          "MFS_COLTN",
+          "COUNTERPART_SECTOR",
+          "MFS_INSTRL",
+          "MFS_RA",
+          "MFS_AGGREGATES",
+          "ACCOUNTING_ENTRY",
+          "MFS_SRF",
+          "MFS_COMPONENT",
+          "S_ADJUSTMENT",
+          "TRANSFORMATION",
+          "UNIT",
+          "DERIVATION_TYPE",
+          "OVERLAP",
+          "MFS_EAWR",
+          "IFS_FLAG",
+          "STATUS"
+        ],
+        "country_count_sample": 4,
+        "has_required_long_columns": true,
+        "indicator_count_sample": 67,
+        "rows_sampled": 100000,
+        "time_period_max_sample": "2026-Q1",
+        "time_period_min_sample": "2001"
+      },
+      "version_check": {
+        "agency": "IMF.STA",
+        "checked_at": "2026-07-09T20:53:02.298880+00:00",
+        "dataflow_id": "MFS_DC",
+        "dataflow_version": "8.0.0",
+        "source": "MFS",
+        "structure_version": null
+      }
+    },
+    "WEO": {
+      "fetch": {
+        "bytes": 36738338,
+        "path": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683\\sdmx_WEO_from_2025_2026-07-09T205207Z.csv",
+        "remote_version": "IMF.RES:WEO(9.0.0)",
+        "retrieval_method": "sdmx_api",
+        "retrieved_at": "2026-07-09T20:52:19.942048+00:00",
+        "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
+        "source": "WEO"
+      },
+      "filter_respected_in_sample": false,
+      "sample": {
+        "columns": [
+          "STRUCTURE[;]",
+          "STRUCTURE_ID",
+          "ACTION",
+          "COUNTRY",
+          "INDICATOR",
+          "FREQUENCY",
+          "TIME_PERIOD",
+          "OBS_VALUE",
+          "SCALE",
+          "PRECISION",
+          "DECIMALS_DISPLAYED",
+          "FUNCTIONAL_CAT",
+          "INT_ACC_ITEM",
+          "NA_STO",
+          "GFS_STO",
+          "COICOP_1999",
+          "TRADE_FLOW",
+          "COMMODITY",
+          "SOC_CONCEPTS",
+          "SECTOR",
+          "ACCOUNTING_ENTRY",
+          "INDEX_TYPE",
+          "PRICES",
+          "STATISTICAL_MEASURES",
+          "EXRATE",
+          "TRANSFORMATION",
+          "UNIT",
+          "REPORTING_PERIOD_TYPE",
+          "DERIVATION_TYPE",
+          "OVERLAP",
+          "COUNTRY_UPDATE_DATE"
+        ],
+        "country_count_sample": 56,
+        "has_required_long_columns": true,
+        "indicator_count_sample": 44,
+        "rows_sampled": 100000,
+        "time_period_max_sample": "2031",
+        "time_period_min_sample": "1980"
+      },
+      "version_check": {
+        "agency": "IMF.RES",
+        "checked_at": "2026-07-09T20:52:04.988175+00:00",
+        "dataflow_id": "WEO",
+        "dataflow_version": "9.0.0",
+        "source": "WEO",
+        "structure_version": null
+      }
+    },
+    "WGI": {
+      "fetch": {
+        "bytes": 81493,
+        "path": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683\\worldbank_WGI_2026-07-09T205615Z.csv",
+        "remote_version": null,
+        "retrieval_method": "worldbank_api",
+        "retrieved_at": "2026-07-09T20:56:15.945543+00:00",
+        "sha256": "6f61232bf5f7f30ba742cb0348846599e162466dd4e64225255ff9e27a6547ee",
+        "source": "WGI"
+      },
+      "filter_respected": true,
+      "sample": {
+        "columns": [
+          "indicator_code",
+          "feature_name",
+          "country_code",
+          "country_name",
+          "year",
+          "value"
+        ],
+        "country_count": 207,
+        "indicators": {
+          "GOV_WGI_CC.SC": 215,
+          "GOV_WGI_GE.SC": 213,
+          "GOV_WGI_PV.SC": 215,
+          "GOV_WGI_RL.SC": 215,
+          "GOV_WGI_RQ.SC": 213,
+          "GOV_WGI_VA.SC": 210
+        },
+        "rows": 1281,
+        "year_max": 2024,
+        "year_min": 2024
+      },
+      "version_check": {
+        "checked_at": "2026-07-09T20:56:06.810559+00:00",
+        "latest_year_with_data": "2017",
+        "source": "WGI"
+      }
+    }
+  },
+  "started_at": "2026-07-09T20:52:02.898247+00:00",
+  "temp_dir": "C:\\Users\\Richard\\AppData\\Local\\Temp\\sdmx_workflow_test_c3192e5867a0411e8edf0cf04ce6e683"
+}

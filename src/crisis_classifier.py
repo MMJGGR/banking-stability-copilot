@@ -818,7 +818,8 @@ def _extract_weo_at_year(weo_df, target_year, countries):
         'primary_balance_gdp': 'GGXONLB_NGDP',
         'unemployment': 'LUR',
         'gdp_per_capita': 'NGDPDPC',
-        'external_debt_gdp': 'D_NGDPD',
+        # external_debt_gdp (D_NGDPD) removed 2026-07-09: aggregate-only
+        # coverage in the current WEO vintage (no real-country observations).
     }
     
     df = weo_df.copy()
@@ -1349,9 +1350,16 @@ def train_crisis_model(weo_df=None, fsic_df=None):
         latest_year = datetime.now().year - 1
         latest_lags = _compute_lag_features(weo_df, latest_year, all_countries)
         if len(latest_lags) > 0:
+            lag_cols = ['gdp_growth_3yr_avg', 'inflation_acceleration',
+                        'debt_buildup_3yr', 'ca_deterioration_3yr']
+            # The loaded feature parquet may already carry lag columns; drop
+            # them before merging so pandas does not suffix both copies and
+            # orphan the original names.
+            existing = [c for c in lag_cols if c in features.columns]
+            if existing:
+                features = features.drop(columns=existing)
             features = features.merge(latest_lags, on='country_code', how='left')
-            for lag_col in ['gdp_growth_3yr_avg', 'inflation_acceleration', 
-                           'debt_buildup_3yr', 'ca_deterioration_3yr']:
+            for lag_col in lag_cols:
                 if lag_col in features.columns and lag_col not in deploy_feature_cols:
                     deploy_feature_cols.append(lag_col)
     

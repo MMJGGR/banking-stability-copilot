@@ -10,17 +10,15 @@ python -m src.scripts.audit_model_policy
 streamlit run app.py
 ```
 
-## Check Source Configuration
-
-Copy `.env.example` to a local untracked `.env` or configure the equivalent
-GitHub Actions secrets.
+## Check Official Source Availability
 
 ```bash
 python -m src.scripts.check_sources
 ```
 
-Use `--require-configured` in controlled environments where every official
-source must be configured.
+This checks the official IMF SDMX dataflows and the World Bank WGI API by
+default. Use `--mode legacy --require-configured` only when testing the older
+configured-URL/local-fallback adapter path.
 
 ## Build a Candidate Snapshot
 
@@ -35,12 +33,37 @@ Supply the explicit cutoff, for example `2025-12-31`.
 For a local build:
 
 ```bash
-python -m src.scripts.refresh_data --as-of 2025-12-31
+python -m src.scripts.refresh_data --as-of 2026-06-30
 ```
 
-This command fetches sources, validates and normalizes them, trains to the
-cutoff, runs model validation, saves artifacts, and creates the serving
-manifest.
+This command fetches official IMF SDMX and World Bank source data, normalizes
+the app caches, scores through the model pipeline to the cutoff, runs model
+validation, saves artifacts, and creates the serving manifest. It reuses the
+existing validated crisis-classifier artifact by default; pass
+`--retrain-classifier` only when a full supervised classifier refresh is
+intended.
+
+If a download succeeds but a downstream normalization/model step needs to be
+rerun, reuse the retained raw files:
+
+```bash
+python -m src.scripts.refresh_data --as-of 2026-06-30 \
+  --download-dir data/raw/<official_refresh_dir> \
+  --reuse-downloads
+```
+
+When the current Parquet caches are the approved source input and no official
+refresh is intended, build and archive a local cached-source snapshot instead:
+
+```bash
+python -m src.scripts.build_local_snapshot --as-of 2025-12-31
+python -m src.scripts.build_local_snapshot --as-of 2026-06-30
+```
+
+By default this reuses the existing validated crisis-classifier artifact and
+rebuilds cutoff-aware feature, pillar, manifest, and serving artifacts. Pass
+`--retrain-classifier` only when a full classifier refresh is intended and the
+longer runtime is acceptable.
 
 ## Candidate Review
 

@@ -28,16 +28,5 @@ jobs:
       - name: Install source-check dependencies
         run: python -m pip install pandas openpyxl requests
 
-      - name: Check configured official exports
-        env:
-          WEO_API_EXPORT_URL: ${{ secrets.WEO_API_EXPORT_URL }}
-          WEO_BULK_DOWNLOAD_URL: ${{ secrets.WEO_BULK_DOWNLOAD_URL }}
-          FSIC_API_EXPORT_URL: ${{ secrets.FSIC_API_EXPORT_URL }}
-          FSIC_BULK_DOWNLOAD_URL: ${{ secrets.FSIC_BULK_DOWNLOAD_URL }}
-          MFS_API_EXPORT_URL: ${{ secrets.MFS_API_EXPORT_URL }}
-          MFS_BULK_DOWNLOAD_URL: ${{ secrets.MFS_BULK_DOWNLOAD_URL }}
-          FSIBSIS_API_EXPORT_URL: ${{ secrets.FSIBSIS_API_EXPORT_URL }}
-          FSIBSIS_BULK_DOWNLOAD_URL: ${{ secrets.FSIBSIS_BULK_DOWNLOAD_URL }}
-          WGI_API_EXPORT_URL: ${{ secrets.WGI_API_EXPORT_URL }}
-          WGI_BULK_DOWNLOAD_URL: ${{ secrets.WGI_BULK_DOWNLOAD_URL }}
+      - name: Check official IMF SDMX and World Bank sources
         run: python -m src.scripts.check_sources

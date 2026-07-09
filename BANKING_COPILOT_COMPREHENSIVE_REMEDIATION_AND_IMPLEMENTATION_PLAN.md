@@ -44,13 +44,17 @@ Completed in the initial priority tranche:
 
 Checkpoint evidence:
 
-- Local validation: 22 tests passed; Python compile check and `git diff --check` passed.
+- Local validation: 31 tests passed; Python compile check passed.
 - Browser validation: application rendered the snapshot status, initially deferred
   FSIBSIS loading, and loaded 83 United States balance-sheet indicators on demand
   without browser console errors.
-- Current artifact status: the February 2026 model remains explicitly marked
-  `legacy_model_unverified_cutoff`; it has not been relabelled as a verified
-  YE2025 or mid-2026 release.
+- Current artifact status: the active local serving artifact is verified for
+  snapshot cutoff `2026-06-30`; `2025-12-31` and `2026-06-30` checkpoint
+  bundles are archived under `artifacts/snapshots/`.
+- Current data caveat: the mid-2026 cutoff snapshot uses the latest available
+  local cache observations, not 2026 observations. The active manifest records
+  WEO through 2025-12-31, FSIBSIS through 2025-11-30, FSIC and MFS through
+  2025-09-01, and WGI through 2024-12-31.
 
 Remaining work is tracked in the delivery plan and immediate next actions below.
 
@@ -146,6 +150,34 @@ Remaining work is tracked in the delivery plan and immediate next actions below.
 | Model limitations and intended use are not clearly stated | Risk of inappropriate decision use | High |
 | No model card, data card, change log, or release process exists | Governance and auditability are insufficient | High |
 | No named owners or review requirements are encoded in repository controls | Updates and model promotions lack accountability | High |
+
+### 2.8 Findings from the July 2026 Independent Code Review
+
+An independent full-repository review (2026-07-09) verified the checked items in
+this plan against the code and identified the following additional issues. They
+are registered here and folded into the immediate next actions in section 21.
+
+| Issue | Impact | Priority |
+|---|---|---:|
+| Crisis-label epoch windows (1990/1995/2000/2005/2015 with a 3-year horizon) never produce positive labels for crises confined to 2009–2015 (Cyprus, Slovenia, Ukraine 2014, Bulgaria) or starting 2019+ (Lebanon 2019–2023) | Part of the May 2026 label update is structurally invisible to training; the small positive class is smaller than it needs to be | Critical |
+| Cutoff and observation-status filtering is enforced only in `extract_weo_features`; `compute_literature_gap_features`, `compute_credit_to_gdp_gap`, `compute_sovereign_bank_nexus`, and `compute_external_risk_metrics` ignore `observation_status`, and the literature-gap and deployment lag features use `datetime.now()` instead of the snapshot cutoff | WEO estimates/projections dated within the cutoff can enter roughly half the engineered feature set | Critical |
+| The `credit_to_gdp_gap` feature is a cross-country median deviation, not the BIS one-sided HP-filter trend gap the README and docstrings claim | The flagship "literature-validated" feature is misdescribed; documentation overstates methodology | High |
+| Hybrid-weight documentation mismatch: module docstring and unused `HybridRiskScorer` state 0.4/0.4/0.2 while the implemented blend is 0.9 pillar / 0.1 classifier | Reviewers and users are misled about model structure; the unused class invites accidental reuse | High |
+| Silent data heuristics are untracked: countries dropped when credit/GDP falls outside 5–500% (unit-mismatch guess), `sovereign_exposure_ratio` values below 2% overwritten with `securities_to_assets`, `replace(0, 1.0)` denominators clipped to ±100, FX exposure hard-imputed to 0 for a hand-picked currency list | Country scores can move or vanish without any flag, log record, or sensitivity coverage | High |
+| Crisis labels are a hand-transcribed dictionary citing IMF WP/26/94; the transcription cannot be verified from the repository | Label provenance is unauditable; transcription errors are undetectable | High |
+| Path normalization incomplete: `app.py` still opens `README.md` and `cache/eda/...` via relative paths | Alternate execution contexts break the Methodology tab | Medium |
+| No dependency lock file and no interpreter guard; the suite fails collection on Python 3.8 with an unrelated `TypeError` | Wrong-environment failures are confusing; builds are not deterministic | High |
+| Approximately 1,900 lines of dead modules (`risk_scorer`, `insight_generator`, `report_generator`, `trend_analyzer`, `explainability`, `ui_components`, `src/styles`) plus duplicated `replication/outputs` trees and 24 ad-hoc diagnostic scripts | Two competing risk-scoring and styling implementations confuse review and maintenance | Medium |
+| The Methodology tab renders the README, including the unapproved historical AUC table, directly into the product UI | End users see disclaimed metrics presented as current documentation | Medium |
+| Data Explorer time series do not display WEO actual/estimate/projection status | Research users cannot distinguish observed from forecast values in the browsing surface | Medium |
+
+The review also confirmed strengths worth preserving: the persisted pillar
+inference pipeline with fixed reference distributions, grouped and out-of-time
+validation with explicit leakage assertions, checksum-validated serving
+artifacts, the source-adapter fallback chain, and the candour of the model and
+data cards. It further confirmed that the silent feature heuristics above do
+not contaminate the raw Data Explorer views, which serve unmodified melted
+observations.
 
 ## 3. Program Scope
 
@@ -249,10 +281,25 @@ The UI and documentation must distinguish:
 
 ### 6.1 Required Product Decision
 
-Choose one of two explicit product directions:
+**Owner clarification (2026-07-09):** the product serves two purposes and both
+are in scope:
 
-1. **Banking Stability Analytics Dashboard**
-   Rename the product and focus on transparent risk analytics, comparisons, reports, and monitoring.
+1. **Predictive screening** — the hybrid risk model producing cross-country
+   risk scores and crisis probabilities.
+2. **Research data utility** — the Data Explorer, cached IMF/WGI panels, and
+   replication package used directly for the owner's research.
+
+Readiness is therefore assessed per purpose. The research-utility surface is
+usable now (raw explorer views are unmodified by model heuristics; serving
+artifacts are checksum-validated). The predictive surface remains a candidate,
+not production, until the section 2.8 critical items and the validation
+standard in the model card are satisfied.
+
+The naming decision remains open, now between:
+
+1. **Banking Stability Analytics Dashboard / Research Workbench**
+   Rename to reflect the dual analytics-plus-research-utility scope without
+   implying conversational capability.
 
 2. **Banking Stability Copilot**
    Retain the name and add a governed conversational layer that answers questions using model outputs, source metadata, methodology, and citations.
@@ -434,6 +481,197 @@ The last known-good production snapshot must remain available when a source fail
 | WEO | Weekly metadata check | April and October | January/July updates are partial |
 | WGI | Monthly metadata check | Annual | Structural annual input |
 | Crisis labels | Quarterly review | Annual/model release | Requires controlled governance |
+
+### 9.5 Official Retrieval Pipeline (SDMX 3.0) — Design Added 2026-07-09
+
+Verified facts (probed 2026-07-09):
+
+- The IMF Data portal exposes a public SDMX 3.0 REST API at
+  `https://api.imf.org/external/sdmx/3.0` with no API key required.
+- Data URL pattern:
+  `/data/dataflow/{agency}/{dataflow}/{version}/{key}` with
+  `Accept: application/vnd.sdmx.data+csv` returning CSV. `+` selects the
+  latest dataflow version.
+- The repository's existing exports map exactly to official dataflows:
+  `IMF.RES:WEO(9.0.0)`, `IMF.STA:FSIC(13.0.1)`, `IMF.STA:MFS_DC(8.0.0)`,
+  `IMF.STA:FSIBSIS(18.0.0)`. The returned `STRUCTURE_ID` column carries the
+  dataflow version, which satisfies the manifest's source-version requirement
+  automatically.
+- Probe example (returns data):
+  `https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/USA.NGDP_RPCH.A`
+- Vintage caveat: as of 2026-07-09 the live WEO dataflow still resolves to
+  version 9.0.0 (October 2025 vintage, country update 2025-09-30, horizon
+  2031). FSIC, MFS, and FSIBSIS are updated continuously and are expected to
+  carry 2026 observations. The pipeline must therefore record and compare
+  dataflow versions rather than assume freshness.
+- The API returns long-format observations (one row per
+  country-indicator-period), which maps directly onto the normalized
+  observation table in section 10.1 — cleaner than reproducing the wide
+  portal-export shape and melting it.
+- WGI: retrieve from the World Bank API
+  (`https://api.worldbank.org/v2/country/all/indicator/{code}`; percentile-rank
+  codes such as `VA.PER.RNK` correspond to the 0–100 governance scores used by
+  the model) or fall back to the published `wgidataset` workbook. Exact
+  indicator codes to be confirmed during implementation.
+
+Efficiency and cadence decisions (2026-07-09, revised same day after live
+API testing):
+
+- **API-first transport (revised after full workflow test).** Live testing
+  reversed the earlier bulk-first assumption on two facts. First,
+  `data.imf.org` returns 403 to every non-browser client, so portal bulk
+  downloads cannot be automated at all — they remain a manual/local path
+  only. Second, the current SDMX 3.0 client reaches the official IMF API and
+  returns long-format CSV for every required IMF source, but the
+  `c[TIME_PERIOD]=ge:` filter was not respected in the full workflow test.
+  WEO, FSIC, MFS, and FSIBSIS probes requested recent slices but sampled
+  historical periods as old as 1980, 2005, 2001, and 2005 respectively.
+  Automated refreshes must therefore fix period filtering or use explicit
+  source/country/indicator chunking before this path is trusted for scheduled
+  app refreshes. Wildcard syntax is `*` per dimension (SDMX 3.0), not empty
+  segments.
+- **Discovered key structures (action 29 complete).**
+  - `IMF.RES/WEO`: `COUNTRY.INDICATOR.FREQUENCY`
+  - `IMF.STA/FSIC` (DSD_FSIC 13.0.0): `COUNTRY.SECTOR.INDICATOR.FREQUENCY`
+  - `IMF.STA/MFS_DC` (DSD_MFS_DCS 8.0.0):
+    `COUNTRY.INDICATOR.TYPE_OF_TRANSFORMATION.FREQUENCY`
+  - `IMF.STA/FSIBSIS` (DSD_FSIBSIS 18.0.0):
+    `COUNTRY.SECTOR.INDICATOR.FREQUENCY`
+- **Upstream freshness confirmed (2026-07-09).** FSIC carries 2025-Q4,
+  2026-Q1, and monthly observations through April 2026; MFS_DC through May
+  2026; FSIBSIS through April 2026. The local January 2026 caches lag by
+  roughly two to three quarters of banking data. WEO still resolves to the
+  October 2025 vintage (9.0.0) upstream.
+- **Change detection is poll-and-diff.** The API does not advertise an update
+  schedule in machine-readable form. Available signals: dataflow version in
+  `STRUCTURE_ID` (bumps on new vintages), WEO's per-country
+  `COUNTRY_UPDATE_DATE` attribute, and self-computed content checksums. The
+  weekly source check polls these and flags changes; the section 9.4 cadence
+  table (WEO April/October with January/July partials; FSIC, FSIBSIS, and MFS
+  rolling roughly monthly; WGI annual) remains the authoritative expectation
+  for when changes should appear.
+- **Refresh triggers.** Current state: `refresh-data.yml` is manual-dispatch
+  only (candidate artifacts uploaded for review, never auto-committed);
+  `source-check.yml` runs weekly but no-ops while the source URL secrets are
+  empty. Target state: weekly source check detects a version or checksum
+  change and opens an issue; a monthly scheduled refresh (plus manual
+  dispatch) builds a candidate snapshot; publication remains a reviewed,
+  manual step per section 14.
+
+Implementation phases:
+
+1. **Key discovery.** For each dataflow, fetch the data structure definition
+   from `/structure/dataflow/{agency}/{dataflow}/+` and record the dimension
+   order and codelists (the FSIC key structure differs from WEO's
+   `COUNTRY.INDICATOR.FREQUENCY`; a naive filter probe returned 404).
+   Persist the discovered key template per source in configuration, not code.
+2. **SDMX fetch mode in the adapter.** Extend `SourceAdapter` with a
+   `fetch_sdmx()` method: chunked requests (by country block or indicator
+   block for MFS-scale flows), explicit timeouts, bounded retries with
+   backoff, `ETag`/`Last-Modified` comparison, and raw CSV retention under
+   `data/raw/{source}/{retrieved_date}/` for audit and replay. Retrieval
+   order becomes SDMX API → configured bulk URL → validated local fallback,
+   preserving the existing chain.
+3. **Long-format normalization.** Add a loader path that consumes the SDMX
+   long CSV directly into the section 10.1 observation table (source,
+   dataset_version from `STRUCTURE_ID`, country, indicator, period,
+   frequency, value, observation_status, retrieved_at), bypassing the
+   wide-to-long melt. Map WEO estimate/projection boundaries from the
+   dataflow's estimates-start attribute so observation status is populated at
+   ingestion rather than inferred later.
+4. **Version-check integration.** Point the existing `source-check.yml`
+   workflow at the structure endpoints to detect dataflow version bumps
+   (e.g., WEO 9.0.0 → next vintage) and open an issue when a source changes,
+   without downloading data.
+5. **Refresh integration.** Wire `refresh_data.py` to the SDMX fetch mode so
+   `python -m src.scripts.refresh_data --as-of <cutoff>` performs genuine
+   retrieval; record per-source dataflow version, retrieval timestamp, and
+   checksums in the snapshot manifest. The quality gates in section 14 apply
+   unchanged before any candidate is published.
+6. **Equivalence test.** Before switching the model to API-sourced data,
+   reproduce the current cached feature matrix from an API pull restricted to
+   the same vintage where possible, and quantify any differences as a
+   reviewed data-revision report rather than a silent swap.
+
+### 9.6 SDMX Workflow Test — 2026-07-09
+
+Test artifact: `artifacts/sdmx_workflow_test_report.json`.
+
+Scope: live `check_version()` calls and live fetch probes for WEO, FSIC, MFS,
+FSIBSIS, and WGI into a temporary directory. Raw temporary downloads were
+removed after the test; the repository retains only the compact JSON report.
+After the workflow probe, the local repository test suite passed:
+`python -m pytest -q` → 31 passed, 1 warning.
+
+| Source | Version/freshness result | Fetch probe result | App-ready status |
+|---|---|---|---|
+| WEO | `IMF.RES:WEO(9.0.0)` | 36.7 MB CSV; required long columns present; sample includes 1980–2031 despite requesting 2025+ | Not app-ready; period filtering must be fixed and estimate/projection status must be mapped |
+| FSIC | `IMF.STA:FSIC(13.0.1)` | 145.6 MB CSV; required long columns present; sample includes 2005–2026-Q1 despite requesting 2025+ | Not app-ready; current fetch is too broad for scheduled refresh |
+| MFS | `IMF.STA:MFS_DC(8.0.0)` | 478.0 MB CSV; required long columns present; sample includes 2001–2026-Q1 despite requesting 2026+ | Not app-ready; must be chunked and filtered before workflow use |
+| FSIBSIS | `IMF.STA:FSIBSIS(18.0.0)` | 137.0 MB CSV; required long columns present; sample includes 2005–2026-Q1 despite requesting 2026+ | Not app-ready; must be chunked and filtered before workflow use |
+| WGI | World Bank API returned 2024 data, but `check_version()` incorrectly reports latest year as 2017 | 81 KB CSV; 1,281 rows; 207 countries; six governance indicators; 2024-only filter respected | Partially app-ready; freshness detection bug must be fixed |
+
+Workflow integration check:
+
+- `src/scripts/refresh_data.py` exists but does not reference SDMX or
+  `build_sdmx_sources()`.
+- `src/scripts/check_sources.py` exists but does not reference SDMX or
+  `build_sdmx_sources()`.
+- `.github/workflows/refresh-data.yml` exists but does not call the SDMX
+  client.
+- `.github/workflows/source-check.yml` exists but does not call the SDMX
+  version/structure checks.
+
+Conclusion: the raw retrieval clients are a useful foundation, but the full
+data workflow does **not** yet retrieve and rebuild the complete app dataset.
+The workflow currently passes official-source connectivity and raw-format
+tests, and fails end-to-end automation, period filtering, normalization, and
+GitHub workflow integration.
+
+### 9.7 Official API End-to-End Refresh — 2026-07-10
+
+Status: completed locally and active in the serving artifacts.
+
+Command path tested:
+
+```bash
+python -m src.scripts.refresh_data --as-of 2026-06-30
+python -m src.scripts.refresh_data --as-of 2026-06-30 \
+  --download-dir data/raw/official_refresh_20260710_001908 \
+  --reuse-downloads
+```
+
+The first command downloaded all official source files. The initial
+normalization run exposed a WEO period-parsing defect (`TIME_PERIOD` was read
+as `1999.0`, causing all WEO rows to be dropped). The parser was fixed and the
+second command reused the retained raw downloads, rebuilt caches, ran the model
+pipeline, wrote the manifest, and passed validation.
+
+Official retrievals used for the active snapshot:
+
+| Source | Version/freshness | Raw bytes | Normalized rows | Coverage endpoint |
+|---|---:|---:|---:|---|
+| WEO | `IMF.RES:WEO(9.0.0)` | 36,738,338 | 361,733 | 208 countries; 1980–2031 horizon |
+| FSIC | `IMF.STA:FSIC(13.0.1)` | 145,626,208 | 1,258,107 | 155 countries; through 2026-04 |
+| MFS | `IMF.STA:MFS_DC(8.0.0)` | 478,046,242 | 4,509,993 | 180 countries; through 2026-05 |
+| FSIBSIS | `IMF.STA:FSIBSIS(18.0.0)` | 136,980,774 | 11,459 | 141 countries; through 2026-M04 |
+| WGI | World Bank API, latest year 2024 | 2,060,170 | 5,301 | 207 countries; 1996–2024 |
+
+Model/app output:
+
+- Active manifest: `snapshot_id=2026-06-30`,
+  `snapshot_status=verified`, `source_mode=official_api_sdmx_worldbank`.
+- Model artifact: `model.cutoff_verified=true`, `countries_trained=201`.
+- Feature matrix: 214 countries, 73 columns.
+- Model validation: 3 passed, 0 failed.
+- Test suite: `python -m pytest -q` → 34 passed, 1 warning.
+- Local Streamlit smoke: restarted on port 8514 and returned HTTP 200.
+- Archived bundle: `artifacts/snapshots/2026-06-30-official-api`.
+
+Remaining caveat: this updates the local repo and branch artifacts. The public
+Streamlit app updates only after the committed changes are pushed to the branch
+that Streamlit Cloud deploys, or after PR merge if the deployment tracks
+`main`.
 
 ## 10. Data Model
 
@@ -1010,8 +1248,9 @@ production.
 3. [x] Add the minimum automated test suite and pull-request CI.
 4. [ ] Approve snapshot definitions and provisional/final rules.
 5. [x] Implement period parsing and actual/estimate/projection controls.
-6. [ ] Rebuild `2025-YE` as the verified baseline. Blocked until official source
-   endpoints or approved source files are configured.
+6. [x] Rebuild `2025-YE` as the verified local cached-source baseline.
+   Archived bundle: `artifacts/snapshots/2025-12-31`. Official endpoint-based
+   reproduction remains pending source configuration.
 7. [x] Redesign validation around country-grouped and out-of-time tests.
 8. [ ] Audit crisis labels, GDP anchoring, confidence floors, and associated
    sensitivity. Full country-epoch sample preservation is complete. The
@@ -1022,13 +1261,16 @@ production.
    sensitivity in `artifacts/model_policy_audit.json`.
 9. [x] Persist the complete fitted inference pipeline. New candidate artifacts
    preserve classifier fill values and calibration plus pillar imputation,
-   scaling, PCA orientation, and fixed reference distributions. The legacy
-   committed model predates this contract and still requires a verified rebuild.
+   scaling, PCA orientation, and fixed reference distributions. The active
+   `2026-06-30` artifact now includes the sidecar inference pipeline and a
+   verified manifest.
 10. [x] Implement WEO, FSIBSIS, FSIC, MFS, and WGI source adapters.
 11. [ ] Define and approve freshness, coverage, imputation, and score-change
     thresholds.
-12. [ ] Produce `2026-Q1` and provisional `2026-H1` snapshots. Blocked by items
-    4, 6, 9, and 11.
+12. [x] Produce a provisional `2026-H1`/mid-2026 local cached-source snapshot.
+    Archived bundle: `artifacts/snapshots/2026-06-30`; active Streamlit
+    manifest now displays `Snapshot 2026-06-30 | verified`. `2026-Q1` remains
+    optional if a separate quarter-end checkpoint is required.
 13. [ ] Move raw datasets out of routine Git LFS versioning. Candidate workflow
     artifacts and `data/raw/` exclusion are implemented; migration of existing
     repository history is a separate controlled operation.
@@ -1037,15 +1279,131 @@ production.
     implemented; promotion and release automation remain outstanding.
 15. [ ] Complete the Streamlit serving-only refactor. Lightweight model loading,
     derived caches, manifest display, and on-demand FSIBSIS loading are complete;
-    snapshot selection, health/freshness UI, and last-known-good fallback remain.
+    active verified snapshot display is confirmed in browser; snapshot selection,
+    health/freshness UI, and last-known-good fallback remain.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
     future approved candidate.
 17. [ ] Decide whether to rename the dashboard or complete the governed copilot
-    capability. Product-owner decision required.
+    capability. Product-owner decision required. Owner has confirmed the
+    product is dual-purpose (predictive screening plus research data utility);
+    see section 6.1.
 18. [ ] Complete monitoring, rollback, ownership, and release procedures. The
     initial operations runbook is present; named ownership and automated health
     controls remain outstanding.
+
+### 21.1a Refresh-Workflow Test Results (2026-07-09)
+
+An end-to-end test of the refresh workflow produced these findings:
+
+- **Cloud trigger blocked.** `refresh-data.yml` and `source-check.yml` exist
+  only on `agent/priority-remediation`; GitHub returns 404 on dispatch until
+  they reach the default branch. The refresh workflow is untriggerable until
+  PR #1 merges.
+- **No repository secrets configured.** All ten source-URL secrets are empty,
+  so the weekly source check is currently a no-op.
+- **Cloud fallback would fail anyway.** The workflow checks out with
+  `lfs: false`, so the local-fallback path would find LFS pointer stubs, not
+  data. Additionally, `data.imf.org` returns 403 to all non-browser clients
+  (verified), so portal URLs cannot be fetched from Actions; only
+  `api.imf.org` accepts plain clients. This confirms the section 9.5
+  bulk-vs-API split must treat portal downloads as a manual/local path.
+- **Full retrain path defect (fixed).** `refresh_data.py` with full
+  retraining aborted: `external_debt_gdp` mapped to WEO `D_NGDPD`, which has
+  aggregate-only coverage (G20, G40, G50, G60, G90 — zero real countries) in
+  the current vintage. Committed snapshots never hit this because
+  `build_local_snapshot.py` defaults to `retrain_classifier=False`, meaning
+  the full-retrain path had likely never been executed end to end. Fix
+  applied 2026-07-09: the `D_NGDPD` mapping was removed from both WEO
+  extraction paths; the cached classifier remains loadable via its persisted
+  fill values.
+- **Pickle portability risk demonstrated.** Loading the cached classifier in
+  a scikit-learn 1.8 environment raises `InconsistentVersionWarning`
+  (artifact trained under 1.5.2) and an XGBoost serialization warning,
+  confirming the issue-register entry on Python/library-version-sensitive
+  pickles.
+- **Positive side effect.** Rebuilding caches from raw CSVs populated the
+  previously missing `observation_status` column in the WEO cache
+  (actual/estimate/projection now distinguishable; action 35).
+- Local rerun after the fix is in progress; results to be recorded here.
+
+### 21.2 Actions Added by the July 2026 Independent Review
+
+Ordered by leverage; items 19–21 block any production approval of the
+predictive surface. See section 2.8 for full detail.
+
+19. [ ] Add 2010 and 2020 (or 2021) epochs to the crisis-classifier temporal
+    panel so 2009–2015 and post-2019 systemic episodes become positive labels,
+    and re-run grouped plus out-of-time validation.
+20. [ ] Replace the hand-transcribed crisis-label dictionary with labels loaded
+    from the published Laeven-Valencia dataset file, verified by checksum.
+21. [ ] Enforce snapshot-cutoff and observation-status filtering in every
+    feature computation (`compute_literature_gap_features`,
+    `compute_credit_to_gdp_gap`, `compute_sovereign_bank_nexus`,
+    `compute_external_risk_metrics`, deployment lag features); remove all
+    `datetime.now()` usage from feature paths.
+22. [ ] Either rename `credit_to_gdp_gap` to reflect the implemented
+    median-deviation computation or implement the genuine BIS one-sided
+    HP-filter gap from the MFS credit time series; reconcile README and
+    docstrings either way.
+23. [ ] Correct the hybrid-weight documentation (0.9 pillar / 0.1 classifier),
+    remove the unused `HybridRiskScorer`, and record the classifier-weight
+    choice as an explicit policy decision in the model card.
+24. [ ] Surface and log the silent data heuristics (unit-mismatch country
+    drops, sovereign-exposure overwrites, denominator floors, reserve-currency
+    FX imputation) as flagged, per-country records, and add them to the
+    model-policy sensitivity audit.
+25. [ ] Add a reproducible lock/constraints file and an early Python-version
+    guard so wrong-interpreter runs fail with a clear message.
+26. [ ] Remove or archive dead modules (`risk_scorer`, `insight_generator`,
+    `report_generator`, `trend_analyzer`, `explainability`, `ui_components`,
+    `src/styles`), deduplicate `replication/outputs`, and triage the
+    diagnostic scripts.
+27. [ ] Fix remaining relative paths in `app.py` (README and image loads) and
+    stop rendering unapproved historical metrics in the Methodology tab.
+28. [ ] Display WEO actual/estimate/projection status in the Data Explorer
+    time series to support research use.
+
+### 21.3 Retrieval Pipeline Actions (Section 9.5, Added 2026-07-09)
+
+29. [x] Discover and persist the SDMX key structure (dimension order and
+    codelists) for WEO, FSIC, MFS_DC, and FSIBSIS from the structure
+    endpoints. Completed 2026-07-09; results recorded in section 9.5.
+    Codelist retrieval remains part of action 30 implementation.
+30. [x] Implement `fetch_sdmx()` as the primary automated transport
+    (API-first per revised section 9.5): time-filtered incremental pulls,
+    period-chunked backfills, retries, and raw-response retention; retrieval
+    order becomes SDMX API → validated local fallback, with portal bulk
+    downloads as a manual-only path (data.imf.org blocks non-browser
+    clients). Completed 2026-07-10 for direct official API retrieval; period
+    filtering is enforced client-side because IMF ignored tested server-side
+    period parameters.
+31. [x] Add the long-format SDMX loader path that populates the normalized
+    observation table directly, including observation status at ingestion.
+    Completed 2026-07-10 via `src/sources/sdmx_normalize.py`.
+31a. [x] Add the monthly scheduled trigger to `refresh-data.yml` (keeping
+    manual dispatch and reviewed publication) and make the weekly source
+    check diff dataflow versions and checksums so refreshes are triggered by
+    detected change, not blind schedule alone. Completed 2026-07-10; monthly
+    scheduled candidate refresh now resolves a dynamic cutoff and the weekly
+    source check uses official SDMX/WGI freshness checks.
+32. [x] Confirm World Bank WGI retrieval codes (percentile-rank series) and
+    add the WGI adapter's API mode. Completed 2026-07-10; freshness detection
+    now reports latest year 2024.
+33. [x] Point `source-check.yml` at the SDMX structure endpoints for
+    version-bump detection. Completed through `src/scripts/check_sources.py`;
+    workflow command defaults to official mode.
+34. [x] Wire `refresh_data.py` to SDMX retrieval and record dataflow
+    versions in the snapshot manifest; run the first genuine API-sourced
+    refresh and compare against the January 2026 cached baseline as a
+    reviewed revision report. Completed 2026-07-10; see section 9.7.
+35. [x] Rebuild the WEO cache with observation status populated (fixes the
+    committed cache's missing `observation_status` column noted in section
+    2.8). Completed 2026-07-10.
+36. [x] Fix the SDMX period filter/chunking defect identified in the
+    2026-07-09 workflow test before enabling scheduled data refreshes.
+    Completed 2026-07-10 by enforcing client-side period filtering and adding
+    raw-download reuse for downstream reruns.
 
 ### 21.1 GitHub Checkpoints
 
@@ -1087,3 +1445,41 @@ production.
   - Verification: 29 tests passed. Candidate refreshes now fail when model
     validation gates fail while still uploading diagnostic artifacts for
     review.
+- [x] Checkpoint 5: cutoff-aware local cached-source model snapshots for
+  YE2025 and mid-2026.
+  - Pending commit: `build verified local snapshots`
+  - Pull request: draft
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Artifacts:
+    - Active serving manifest: `artifacts/data_manifest.json` with
+      `snapshot_id=2026-06-30`, `snapshot_status=verified`, and
+      `model.cutoff_verified=true`.
+    - Archived YE2025 bundle: `artifacts/snapshots/2025-12-31`.
+    - Archived mid-2026 bundle: `artifacts/snapshots/2026-06-30`.
+  - Verification: 31 tests passed; compile check passed; Streamlit browser
+    smoke test rendered `Snapshot 2026-06-30 | verified`, 201 countries, and no
+    browser console errors.
+  - Caveat: official source endpoints are still not configured; both snapshots
+    are built from approved local caches. The mid-2026 cutoff has no 2026 source
+    observations in the current cache set.
+- [x] Checkpoint 6: official API retrieval, cache normalization, and active
+  mid-2026 serving artifact.
+  - Pending commit: `wire official api refresh`
+  - Pull request: draft
+    [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
+  - Artifacts:
+    - Active serving manifest: `artifacts/data_manifest.json` with
+      `snapshot_id=2026-06-30`, `snapshot_status=verified`,
+      `source_mode=official_api_sdmx_worldbank`, and
+      `model.cutoff_verified=true`.
+    - Archived official API bundle:
+      `artifacts/snapshots/2026-06-30-official-api`.
+    - Raw official downloads retained locally under ignored
+      `data/raw/official_refresh_20260710_001908`.
+  - Verification: official source check passed; full official refresh passed;
+    model validation 3 passed / 0 failed; 34 tests passed; compile check
+    passed; local Streamlit returned HTTP 200 on port 8514.
+  - Source coverage: WEO `IMF.RES:WEO(9.0.0)`, FSIC
+    `IMF.STA:FSIC(13.0.1)` through 2026-04, MFS
+    `IMF.STA:MFS_DC(8.0.0)` through 2026-05, FSIBSIS
+    `IMF.STA:FSIBSIS(18.0.0)` through 2026-M04, WGI through 2024.

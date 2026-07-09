@@ -161,6 +161,9 @@ class CrisisFeatureEngineer:
             'primary_balance_gdp': ('GGXONLB_NGDP', True), # Primary balance % GDP (ex-interest)
             'unemployment': ('LUR', False),               # Unemployment rate
             'nominal_gdp': ('NGDPD', True),              # Nominal GDP (for credit/GDP)
+            # external_debt_gdp (D_NGDPD) removed 2026-07-09: the indicator only
+            # exists for regional aggregates in the current WEO vintage, so it
+            # produced an all-NaN feature that aborted full retraining.
         }
         
         # Vectorized extraction: get latest value per country-indicator
@@ -742,12 +745,69 @@ class CrisisFeatureEngineer:
         countries = weo['country_code'].unique()
         gap_data = []
         
-        # Pre-extract time series for key indicators
+        # Pre-extract time series for key indicators once. Re-filtering the full
+        # WEO/MFS tables inside the country loop is prohibitively slow for
+        # snapshot builds.
+        required_weo_codes = {
+            'PCPIPCH',
+            'GGXCNL_NGDP',
+            'GGXONLB_NGDP',
+            'BCA_NGDPD',
+            'TTPCH',
+        }
+        weo_series = {}
+        weo_required = weo[weo['indicator_code'].isin(required_weo_codes)].copy()
+        if len(weo_required) > 0:
+            weo_required = (
+                weo_required
+                .sort_values('period')
+                .drop_duplicates(
+                    subset=['indicator_code', 'country_code', 'year'],
+                    keep='last',
+                )
+            )
+            for (indicator_code, country), group in weo_required.groupby(
+                ['indicator_code', 'country_code'],
+                sort=False,
+            ):
+                weo_series[(indicator_code, country)] = (
+                    group.sort_values('year').set_index('year')['value']
+                )
+
         def get_ts(indicator_code, country):
             """Get time series (year, value) for a country-indicator pair."""
-            mask = (weo['indicator_code'] == indicator_code) & (weo['country_code'] == country)
-            ts = weo[mask][['year', 'value']].sort_values('year').drop_duplicates(subset='year')
-            return ts.set_index('year')['value']
+            return weo_series.get((indicator_code, country), pd.Series(dtype=float))
+
+        credit_growth_by_country = {}
+        if mfs_df is not None and len(mfs_df) > 0:
+            credit_data = mfs_df[
+                mfs_df['indicator_code'].str.contains(
+                    'DCORP_A_ACO_PS',
+                    case=False,
+                    na=False,
+                    regex=False,
+                )
+            ].copy()
+            if len(credit_data) > 0:
+                credit_data['year'] = pd.to_datetime(credit_data['period']).dt.year
+                credit_data = (
+                    credit_data
+                    .sort_values('period')
+                    .drop_duplicates(subset=['country_code', 'year'], keep='last')
+                )
+                for cc, cc_data in credit_data.groupby('country_code', sort=False):
+                    cc_data = cc_data.sort_values('year')
+                    if len(cc_data) < 2:
+                        continue
+                    credit_latest = cc_data['value'].iloc[-1]
+                    target_year = cc_data['year'].iloc[-1] - 3
+                    older = cc_data[cc_data['year'] <= target_year]
+                    if len(older) > 0 and credit_latest > 0:
+                        credit_old = older['value'].iloc[-1]
+                        if credit_old > 0:
+                            credit_growth_by_country[cc] = (
+                                (credit_latest / credit_old) - 1
+                            ) * 100
         
         # --- WORLD INFLATION BASELINE (for REER proxy) ---
         # Use USA inflation as proxy for advanced economy baseline
@@ -805,22 +865,8 @@ class CrisisFeatureEngineer:
             
             # --- 4. CREDIT GROWTH 3YR ---
             # Schularick & Taylor (2012): Credit growth = most powerful crisis predictor
-            # Use MFS private credit time series
-            if mfs_df is not None and len(mfs_df) > 0:
-                credit_mask = (mfs_df['indicator_code'].str.contains('DCORP_A_ACO_PS', case=False, na=False, regex=False)) & \
-                              (mfs_df['country_code'] == country)
-                credit_ts = mfs_df[credit_mask].copy()
-                if len(credit_ts) >= 2:
-                    credit_ts['year'] = pd.to_datetime(credit_ts['period']).dt.year
-                    credit_ts = credit_ts.sort_values('year').drop_duplicates(subset='year')
-                    credit_latest = credit_ts['value'].iloc[-1]
-                    # Find value 3 years ago (or nearest)
-                    target_year = credit_ts['year'].iloc[-1] - 3
-                    older = credit_ts[credit_ts['year'] <= target_year]
-                    if len(older) > 0 and credit_latest > 0:
-                        credit_old = older['value'].iloc[-1]
-                        if credit_old > 0:
-                            row['credit_growth_3yr'] = ((credit_latest / credit_old) - 1) * 100
+            if country in credit_growth_by_country:
+                row['credit_growth_3yr'] = credit_growth_by_country[country]
             
             # --- 5. CA DEFICIT SEVERITY ---
             # Reinhart & Rogoff: Large CA deficits = capital inflow surge proxy

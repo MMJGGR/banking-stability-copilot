@@ -645,6 +645,21 @@ class FSIBSISLoader:
     
     def get_indicator_data(self, country_code: str, indicator_key: str, year: str = None) -> Tuple[Optional[float], Optional[str]]:
         """Get (value, year) for an indicator."""
+        return self.get_indicator_data_as_of(
+            country_code=country_code,
+            indicator_key=indicator_key,
+            year=year,
+            as_of_date=None,
+        )
+
+    def get_indicator_data_as_of(
+        self,
+        country_code: str,
+        indicator_key: str,
+        year: str = None,
+        as_of_date=None,
+    ) -> Tuple[Optional[float], Optional[str]]:
+        """Get (value, period label) for an indicator at or before a cutoff."""
         if self.bank_data is None:
             self.load()
         patterns = self._get_indicator_patterns(indicator_key)
@@ -653,13 +668,20 @@ class FSIBSISLoader:
         country_data = self.bank_data[self.bank_data['country_code'] == country_code]
         if len(country_data) == 0:
             return None, None
+        period_cols = self.period_cols
+        if as_of_date is not None:
+            cutoff = pd.Timestamp(as_of_date).normalize()
+            period_cols = [
+                col for col in period_cols
+                if parse_period_label(col) <= cutoff
+            ]
         for pattern in patterns:
             mask = country_data['INDICATOR'] == pattern
             if not mask.any():
                 mask = country_data['INDICATOR'].str.contains(pattern, case=False, na=False, regex=False)
             rows = country_data[mask]
             if len(rows) > 0:
-                for yr in reversed(self.period_cols):
+                for yr in reversed(period_cols):
                     for _, row in rows.iterrows():
                         val = row.get(yr)
                         if pd.notnull(val):
@@ -699,18 +721,91 @@ class FSIBSISLoader:
                 expanded.append(f"{base}, {suffix}")
         return expanded
     
-    def extract_features(self) -> pd.DataFrame:
-        """Extract all new features from FSIBSIS for all countries."""
+    def extract_features(self, as_of_date=None) -> pd.DataFrame:
+        """Extract all new features from FSIBSIS for all countries as of a cutoff."""
         if self.bank_data is None:
             self.load()
-        countries = self.bank_data['country_code'].dropna().unique()
+        period_cols = self.period_cols
+        if as_of_date is not None:
+            cutoff = pd.Timestamp(as_of_date).normalize()
+            period_cols = [
+                col for col in period_cols
+                if parse_period_label(col) <= cutoff
+            ]
+        if not period_cols:
+            return pd.DataFrame()
+
+        bank_data = self.bank_data[
+            ['country_code', 'INDICATOR'] + period_cols
+        ].dropna(subset=['country_code']).copy()
+        period_values = bank_data[period_cols].apply(
+            pd.to_numeric,
+            errors='coerce',
+        )
+        present = period_values.notna().to_numpy()
+        has_value = present.any(axis=1)
+        if not has_value.any():
+            return pd.DataFrame()
+        reversed_present = present[:, ::-1]
+        latest_positions = (
+            len(period_cols) - 1 - reversed_present.argmax(axis=1)
+        )
+        latest_positions[~has_value] = -1
+        row_positions = np.arange(len(bank_data))
+        latest_value_array = np.full(len(bank_data), np.nan, dtype=float)
+        valid_positions = latest_positions >= 0
+        latest_value_array[valid_positions] = period_values.to_numpy()[
+            row_positions[valid_positions],
+            latest_positions[valid_positions],
+        ]
+        bank_data['_latest_value'] = latest_value_array
+        period_labels = np.array(period_cols, dtype=object)
+        latest_period_array = np.full(len(bank_data), None, dtype=object)
+        latest_period_array[valid_positions] = period_labels[
+            latest_positions[valid_positions]
+        ]
+        bank_data['_latest_period'] = latest_period_array
+        period_order = {period: idx for idx, period in enumerate(period_cols)}
+        bank_data = bank_data.dropna(subset=['_latest_value', '_latest_period'])
+        bank_data['_period_order'] = bank_data['_latest_period'].map(period_order)
+
+        values_by_key = {}
+        years_by_key = {}
+        for key in self.INDICATOR_MAPPINGS:
+            patterns = self._get_indicator_patterns(key)
+            if not patterns:
+                continue
+            mask = pd.Series(False, index=bank_data.index)
+            for pattern in patterns:
+                mask = mask | bank_data['INDICATOR'].eq(pattern)
+            if not mask.any():
+                for pattern in patterns:
+                    mask = mask | bank_data['INDICATOR'].str.contains(
+                        pattern,
+                        case=False,
+                        na=False,
+                        regex=False,
+                    )
+            matched = bank_data.loc[mask]
+            if len(matched) == 0:
+                continue
+            matched = (
+                matched
+                .sort_values(['country_code', '_period_order'])
+                .drop_duplicates(subset='country_code', keep='last')
+            )
+            values_by_key[key] = matched.set_index('country_code')['_latest_value']
+            years_by_key[key] = matched.set_index('country_code')['_latest_period']
+
+        countries = bank_data['country_code'].dropna().unique()
         features_list = []
         
         for country in countries:
             features = {'country_code': country}
             values, years = {}, {}
             for key in self.INDICATOR_MAPPINGS:
-                val, yr = self.get_indicator_data(country, key)
+                val = values_by_key.get(key, pd.Series(dtype=float)).get(country)
+                yr = years_by_key.get(key, pd.Series(dtype=object)).get(country)
                 values[key] = val
                 years[key] = yr
             
@@ -769,11 +864,11 @@ class FSIBSISLoader:
         return pd.DataFrame(features_list)
 
 
-def load_fsibsis_features(file_path: str = None) -> pd.DataFrame:
+def load_fsibsis_features(file_path: str = None, as_of_date=None) -> pd.DataFrame:
     """Convenience function to load and extract FSIBSIS features."""
     loader = FSIBSISLoader(file_path)
     loader.load()
-    return loader.extract_features()
+    return loader.extract_features(as_of_date=as_of_date)
 
 
 # =============================================================================
@@ -856,11 +951,15 @@ class WGILoader:
         print(f"\n  Total: {len(merged)} country-year records, {merged['country_code'].nunique()} countries")
         return merged
     
-    def get_latest_scores(self) -> pd.DataFrame:
-        """Get the most recent governance scores for each country."""
+    def get_latest_scores(self, as_of_date=None) -> pd.DataFrame:
+        """Get the most recent governance scores for each country as of a cutoff."""
         if self.data is None:
             self.load()
-        latest = self.data.sort_values('year').groupby('country_code').last().reset_index()
+        data = self.data.copy()
+        if as_of_date is not None:
+            cutoff_year = pd.Timestamp(as_of_date).year
+            data = data[pd.to_numeric(data['year'], errors='coerce') <= cutoff_year]
+        latest = data.sort_values('year').groupby('country_code').last().reset_index()
         
         # Add year columns for each feature so dashboard can display it
         feature_cols = ['country_code']

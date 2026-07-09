@@ -4,21 +4,26 @@
 
 | Field | Value |
 |---|---|
-| Current committed artifact | February 2026 legacy model |
+| Current committed artifact | Official API-sourced snapshot dated `2026-06-30` |
 | Countries scored | 201 |
-| Artifact status | `legacy_model_unverified_cutoff` |
-| Approved snapshot cutoff | Not available in the legacy artifact |
-| Production-validation status | Pending retraining under grouped and out-of-time validation |
+| Artifact status | `verified` manifest status; policy approval still pending |
+| Active snapshot cutoff | `2026-06-30` |
+| Archived checkpoints | `artifacts/snapshots/2025-12-31`, `artifacts/snapshots/2026-06-30`, `artifacts/snapshots/2026-06-30-official-api` |
+| Production-validation status | Local model checks passed; final promotion requires governance approval |
 
-The legacy artifact is retained for application continuity. It is not an
-approved YE2025 or mid-2026 model release.
+The active artifact was rebuilt from official IMF SDMX and World Bank API
+retrievals on 2026-07-10. It is a serving-ready candidate, not a formal
+production approval. The mid-2026 snapshot uses WEO dataflow
+`IMF.RES:WEO(9.0.0)`, FSIC `IMF.STA:FSIC(13.0.1)`, MFS
+`IMF.STA:MFS_DC(8.0.0)`, FSIBSIS `IMF.STA:FSIBSIS(18.0.0)`, and WGI through
+2024. The active manifest records official retrieval checksums and source
+versions.
 
 New candidate models persist a separate inference-pipeline artifact containing
 training-time imputation values, scaling, PCA transforms and orientation, and
 the reference distributions used for comparable percentile scoring. The crisis
 classifier artifact likewise persists training-time fill values and its
-calibrated estimator. These controls do not retroactively make the legacy model
-comparable; a verified candidate rebuild is still required.
+calibrated estimator.
 
 ## Intended Use
 
@@ -50,7 +55,7 @@ The supervised target uses the May 2026 Laeven-Valencia systemic banking crisis
 database through 2025. Events explicitly classified as borderline by the source
 are excluded from primary training and reserved for sensitivity analysis.
 
-The legacy final score uses a 90% pillar component and a 10% crisis-probability
+The current final score uses a 90% pillar component and a 10% crisis-probability
 component. Scores are bounded from 1 to 10.
 
 ## Interpretation Limitations
@@ -64,11 +69,10 @@ component. Scores are bounded from 1 to 10.
   sensitivity review.
 
 The current machine-readable sensitivity audit is
-`artifacts/model_policy_audit.json`. On the existing 201-country feature matrix,
-removing GDP from PCA inputs changes 14 countries by at least one risk point,
-while removing GDP-based PCA orientation changes 140. Confidence regression
-changes 23 countries by at least one point and risk floors change 11. These are
-material policy sensitivities and require approval before model promotion.
+`artifacts/model_policy_audit.json`. GDP orientation remains a material policy
+choice because it determines whether higher GDP per capita anchors lower risk
+or whether the PCA sign is allowed to drift. This must remain explicitly
+reviewed before production promotion.
 
 ## Validation Standard
 
@@ -88,10 +92,7 @@ standard.
 
 ## Known Open Risks
 
-- The current production artifact predates explicit snapshot metadata.
 - Crisis-label completeness requires independent review.
-- The complete preprocessing and PCA inference objects are not yet preserved
-  in the legacy artifact.
 - Relative percentile scoring can change when the country universe changes.
 - Some banking-sector features have less than 50% direct coverage.
 - The model has not completed a formal external validation.

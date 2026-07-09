@@ -1,12 +1,14 @@
 name: Build candidate data snapshot
 
 on:
+  schedule:
+    - cron: "17 7 12 * *"
   workflow_dispatch:
     inputs:
       as_of_date:
         description: Snapshot cutoff in YYYY-MM-DD format
         required: true
-        default: "2025-12-31"
+        default: "2026-06-30"
 
 permissions:
   contents: read
@@ -37,27 +39,27 @@ jobs:
       - name: Run unit tests
         run: python -m pytest -q
 
+      - name: Resolve snapshot cutoff
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SNAPSHOT_DATE="${{ inputs.as_of_date }}"
+          else
+            SNAPSHOT_DATE="$(date -u +%Y-%m-%d)"
+          fi
+          echo "SNAPSHOT_DATE=${SNAPSHOT_DATE}" >> "$GITHUB_ENV"
+          echo "Snapshot cutoff: ${SNAPSHOT_DATE}"
+
       - name: Fetch sources and build candidate snapshot
-        env:
-          WEO_API_EXPORT_URL: ${{ secrets.WEO_API_EXPORT_URL }}
-          WEO_BULK_DOWNLOAD_URL: ${{ secrets.WEO_BULK_DOWNLOAD_URL }}
-          FSIC_API_EXPORT_URL: ${{ secrets.FSIC_API_EXPORT_URL }}
-          FSIC_BULK_DOWNLOAD_URL: ${{ secrets.FSIC_BULK_DOWNLOAD_URL }}
-          MFS_API_EXPORT_URL: ${{ secrets.MFS_API_EXPORT_URL }}
-          MFS_BULK_DOWNLOAD_URL: ${{ secrets.MFS_BULK_DOWNLOAD_URL }}
-          FSIBSIS_API_EXPORT_URL: ${{ secrets.FSIBSIS_API_EXPORT_URL }}
-          FSIBSIS_BULK_DOWNLOAD_URL: ${{ secrets.FSIBSIS_BULK_DOWNLOAD_URL }}
-          WGI_API_EXPORT_URL: ${{ secrets.WGI_API_EXPORT_URL }}
-          WGI_BULK_DOWNLOAD_URL: ${{ secrets.WGI_BULK_DOWNLOAD_URL }}
         run: >-
           python -m src.scripts.refresh_data
-          --as-of "${{ inputs.as_of_date }}"
+          --as-of "$SNAPSHOT_DATE"
 
       - name: Upload candidate serving artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: banking-copilot-${{ inputs.as_of_date }}
+          name: banking-copilot-${{ env.SNAPSHOT_DATE }}
           if-no-files-found: error
           retention-days: 30
           path: |
