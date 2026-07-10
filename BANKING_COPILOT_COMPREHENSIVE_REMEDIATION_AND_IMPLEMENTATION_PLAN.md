@@ -1385,8 +1385,9 @@ predictive surface. See section 2.8 for full detail.
     script triage remain outstanding.
 27. [x] Done 2026-07-10: README and architecture-diagram loads resolve from
     the app directory; the unapproved historical AUC block in the README is
-    fenced with UNAPPROVED-METRICS markers and stripped from the Methodology
-    tab.
+    fenced with UNAPPROVED-METRICS markers; the Methodology tab now renders
+    current manifest-backed model/data-card content instead of the stale README
+    narrative.
 28. [x] Display WEO actual/estimate/projection status in the Data Explorer
     time series to support research use. Implemented 2026-07-10: charts plot
     at native periodicity and mark the last reported actual with a dashed
@@ -1579,3 +1580,13 @@ artifacts requires owner review under items 4, 8, and 11.
   - Verification: compile check passed; `40 passed`; local Streamlit rendered
     the Country Profile peer selector and Data Explorer comparison panel
     without a browser error.
+- [x] Checkpoint 9: current Methodology tab and README status refresh.
+  - Pending commit: `refresh methodology tab`
+  - Scope:
+    - Replaced README-rendered Methodology tab with a manifest-backed current
+      methodology view tied to the active snapshot, model card, and data card.
+    - Updated stale README release-status, source-count, and output-artifact
+      claims to match the verified `2026-06-30` serving manifest.
+  - Verification: compile check passed; unit suite passed; local Streamlit
+    Methodology tab rendered current snapshot metadata without the old
+    February 2026 legacy-artifact warning.

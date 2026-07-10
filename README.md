@@ -1,12 +1,12 @@
 # Methodology
 ## Banking System Stability Model
 
-> **Current release status:** The committed February 2026 model is a legacy
-> artifact whose snapshot cutoff cannot be verified from its metadata. It
-> remains available for continuity, but it must not be represented as an
-> approved YE2025 or mid-2026 snapshot. The remediation work introduces
-> explicit cutoffs, observation statuses, grouped validation, artifact
-> checksums, and candidate-release controls. See
+> **Current release status:** The committed serving artifact is an official
+> API-sourced `2026-06-30` snapshot with a verified manifest and recorded
+> source/model checksums. It is serving-ready but still requires formal
+> governance approval before being represented as a promoted production model.
+> The remediation work introduced explicit cutoffs, observation statuses,
+> grouped validation, artifact checksums, and candidate-release controls. See
 > `BANKING_COPILOT_COMPREHENSIVE_REMEDIATION_AND_IMPLEMENTATION_PLAN.md`,
 > `docs/MODEL_CARD.md`, and `docs/DATA_CARD.md`.
 
@@ -67,12 +67,12 @@ graph TD
 ### Data Sources
 | Source | Records | Countries | Description |
 |--------|---------|-----------|-------------|
-| FSIC | 859,227 | 155 | IMF Financial Soundness Indicators |
-| WEO | 354,240 | 208 | IMF World Economic Outlook |
-| MFS | 1,326,510 | 178 | IMF Monetary & Financial Statistics |
-| FSIBSIS | 25,636 | 111 | IMF Balance Sheet Data |
-| WGI | 5,481 | 216 | World Bank Governance Indicators |
-| **TOTAL** | **2,571,094** | **-** | **-** |
+| FSIC | 1,258,107 | 155 | IMF Financial Soundness Indicators |
+| WEO | 315,345 | 208 | IMF World Economic Outlook |
+| MFS | 4,509,993 | 180 | IMF Monetary & Financial Statistics |
+| FSIBSIS | 11,459 | 141 | IMF Balance Sheet Data |
+| WGI | 5,301 | 207 | World Bank Governance Indicators |
+| **TOTAL** | **6,099,205** | **-** | Active verified `2026-06-30` serving manifest |
 
 ### Features Used in Model (33 After Correlation Filtering)
 
@@ -188,10 +188,10 @@ python replication/scripts/generate_outputs.py
 ### Outputs
 | File | Content |
 |------|---------|
-| outputs/model_scores.csv | Risk scores for 212 countries |
-| outputs/feature_matrix.csv | 234 countries × 40 features |
-| outputs/pca_loadings.json | PCA component weights |
-| sample_data/ | 1000-row samples from each dataset |
+| cache/risk_model.pkl | Active serving model dictionary with risk scores for 201 countries |
+| cache/crisis_features.parquet | Raw feature artifact with 214 countries x 74 columns |
+| artifacts/data_manifest.json | Active source, model, and checksum manifest |
+| artifacts/snapshots/ | Archived YE2025, mid-2026, and official API snapshot bundles |
 
 ### References
 *   BIS (2010): Credit-to-GDP gap methodology

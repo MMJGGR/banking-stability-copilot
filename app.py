@@ -349,6 +349,126 @@ def render_indicator_comparison(
     )
 
 
+def render_current_methodology(
+    scores: pd.DataFrame,
+    features: pd.DataFrame | None,
+    manifest: dict,
+    pca: dict | None,
+):
+    """Render current, manifest-backed methodology instead of stale README text."""
+    st.markdown("## Methodology")
+
+    snapshot_id = manifest.get('snapshot_id', 'unversioned')
+    snapshot_status = manifest.get('snapshot_status', 'manifest unavailable')
+    source_mode = manifest.get('source_mode', 'not recorded')
+    training_date = (pca or {}).get('training_date', 'not recorded')
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Snapshot", snapshot_id)
+    with c2:
+        st.metric("Status", str(snapshot_status).replace('_', ' ').title())
+    with c3:
+        st.metric("Countries", f"{len(scores):,}")
+    with c4:
+        st.metric("Source Mode", str(source_mode).replace('_', ' '))
+
+    st.caption(f"Model training timestamp: {training_date}")
+
+    st.markdown("### Current Model Logic")
+    st.markdown(
+        """
+The app serves a dated country-level snapshot. Source observations are filtered
+to the active cutoff, then each feature uses the latest allowed observation
+available for each country and indicator. Monthly, quarterly, and annual source
+data are preserved in the Data Explorer, but the risk model scores one
+cross-section per snapshot.
+
+The final score combines two PCA pillars with a supervised systemic-crisis
+classifier. The current policy weighting is 90% pillar score and 10%
+crisis-probability adjustment. The crisis classifier is trained on annual
+historical epochs and produces a forward-looking three-year risk signal, not a
+monthly or quarterly crisis probability.
+"""
+    )
+
+    st.markdown("### Active Sources")
+    source_rows = []
+    for source_name, details in sorted(manifest.get('sources', {}).items()):
+        source_rows.append({
+            "Source": source_name,
+            "Rows": details.get("rows"),
+            "Countries": details.get("countries"),
+            "Latest Observation": details.get("latest_observation"),
+            "Indicators": details.get("indicators"),
+        })
+    if source_rows:
+        st.dataframe(
+            pd.DataFrame(source_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No source manifest is available.")
+
+    st.markdown("### Feature Set")
+    if features is not None and len(features) > 0:
+        feature_cols = [
+            c for c in features.columns
+            if c != 'country_code' and not c.endswith('_year') and not c.endswith('_period')
+        ]
+        coverage_rows = []
+        for column in feature_cols:
+            coverage = features[column].notna().mean()
+            coverage_rows.append({
+                "Feature": column,
+                "Coverage": f"{coverage:.0%}",
+                "Countries": int(features[column].notna().sum()),
+            })
+        coverage_df = pd.DataFrame(coverage_rows).sort_values(
+            ["Coverage", "Feature"],
+            ascending=[True, True],
+        )
+        st.caption(
+            f"{len(feature_cols)} model/input features tracked across "
+            f"{features['country_code'].nunique():,} countries in the feature artifact."
+        )
+        st.dataframe(
+            coverage_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("Feature artifact is unavailable.")
+
+    st.markdown("### Validation And Governance")
+    st.markdown(
+        """
+Historical README performance claims are not rendered here. Approved releases
+must use country-grouped and out-of-time validation, include material
+score-movement review, and record source/model checksums. The current active
+artifact is verified by manifest, but formal policy approval and release
+promotion remain separate governance steps.
+"""
+    )
+
+    with st.expander("Model Card"):
+        model_card = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "MODEL_CARD.md")
+        if os.path.exists(model_card):
+            with open(model_card, "r", encoding="utf-8") as source:
+                st.markdown(source.read())
+        else:
+            st.info("Model card not found.")
+
+    with st.expander("Data Card"):
+        data_card = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "DATA_CARD.md")
+        if os.path.exists(data_card):
+            with open(data_card, "r", encoding="utf-8") as source:
+                st.markdown(source.read())
+        else:
+            st.info("Data card not found.")
+
+
 scores_df, loader, wgi_data, model_features, pca_info = load_all_data()
 data_manifest = load_data_manifest()
 
@@ -777,39 +897,10 @@ with tab_explorer:
 # TAB: Methodology
 # ==============================================================================
 with tab_methodology:
-    st.markdown("## Methodology")
-
-    _app_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(_app_dir, 'README.md'), 'r', encoding='utf-8') as f:
-        readme_content = f.read()
-
-    # Historical, unapproved metrics stay in the README for provenance but
-    # are not rendered into the product UI.
-    import re as _re
-    readme_content = _re.sub(
-        r'<!-- UNAPPROVED-METRICS:START.*?UNAPPROVED-METRICS:END -->',
-        '',
-        readme_content,
-        flags=_re.DOTALL,
+    render_current_methodology(
+        scores=scores_df,
+        features=model_features,
+        manifest=data_manifest,
+        pca=pca_info,
     )
-
-    # Render content, but skip the mermaid block if it exists
-    parts = readme_content.split('```mermaid')
-    
-    # Render first part (text before diagram)
-    render_markdown_with_images(parts[0])
-    
-    # Render static Architecture Diagram
-    st.markdown("### Process Architecture")
-    arch_img_path = os.path.join(_app_dir, "cache", "eda", "architecture_diagram.png")
-    if os.path.exists(arch_img_path):
-         st.image(arch_img_path, caption="Banking System Stability Model Architecture", use_column_width=True)
-    else:
-         st.warning("Architecture diagram not found.")
-
-    # Render rest (if any, skipping the code block itself)
-    if len(parts) > 1:
-        # Find end of code block
-        after_diagram = parts[1].split('```', 1)[-1]
-        render_markdown_with_images(after_diagram)
 
