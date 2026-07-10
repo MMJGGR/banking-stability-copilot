@@ -70,6 +70,17 @@ def test_fallback_skips_checksum_mismatched_bundle(tmp_path, monkeypatch):
     assert artifact["training_date"] != "tampered"
 
 
+def test_fallback_never_serves_challenger_bundles(tmp_path, monkeypatch):
+    archive = tmp_path / "snapshots"
+    _write_bundle(archive / "2025-12-31")
+    _write_bundle(archive / "2026-06-30-challenger-directional")
+    monkeypatch.setattr(model_store, "MODEL_PATH", tmp_path / "missing.pkl")
+    monkeypatch.setattr(model_store, "SNAPSHOT_ARCHIVE", archive)
+
+    _, _, status = model_store.load_model_artifact_with_fallback()
+    assert status["fallback_snapshot"] == "2025-12-31"
+
+
 def test_all_paths_failing_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(model_store, "MODEL_PATH", tmp_path / "missing.pkl")
     monkeypatch.setattr(model_store, "SNAPSHOT_ARCHIVE", tmp_path / "none")

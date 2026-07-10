@@ -91,7 +91,11 @@ def load_model_artifact_with_fallback() -> tuple:
         candidates = sorted(
             (
                 bundle for bundle in SNAPSHOT_ARCHIVE.iterdir()
-                if bundle.is_dir() and (bundle / "risk_model.pkl").exists()
+                if bundle.is_dir()
+                and (bundle / "risk_model.pkl").exists()
+                # Challenger bundles are archived for review, not approved
+                # for serving; they must never be picked up as a fallback.
+                and "challenger" not in bundle.name
             ),
             key=lambda bundle: bundle.name,
             reverse=True,
