@@ -1537,27 +1537,43 @@ whether users can safely consume the improved model and dataset.
 | Rank | Open issue | Why it matters | Priority | Sprint deliverable |
 |---:|---|---|---:|---|
 | 22 | Country-level score explanation remains limited | Suspicious outputs require manual artifact inspection | High | Add model-driver table with raw value, imputed value, source period, direction, and peer percentile |
-| 23 | Last-known-good rollback process is not implemented end to end | A bad artifact or broken deployment can still take down the public app | Critical | Add app fallback to previous verified artifact and document rollback command/runbook |
-| 24 | App health/freshness/degraded-mode status is incomplete | Users cannot tell whether data are stale, app is using fallback, or a refresh failed | Critical | Add visible health panel using manifest, source freshness, last refresh status, and fallback status |
-| 25 | Public Streamlit live deployment is not re-verified after every push | GitHub pushes should auto-deploy, but live app state can lag or fail silently | High | Add post-push live health check and deployment-status evidence to each UI/data checkpoint |
-| 26 | Candidate workflow and promotion workflow do not prove live publication | Automation builds candidates but does not by itself prove the public app updated | High | Add deployment verification and explicit release notes after promotion |
-| 27 | Snapshot selection is not implemented in the app | Users cannot inspect YE2025 versus mid-2026 artifacts from the hosted UI | High | Add controlled snapshot selector backed by archived verified artifacts |
-| 28 | Methodology tab is improved but needs user review | The new UI-native cards are clearer, but content should be reviewed after live deployment | Medium | Review the live Methodology tab and tune copy/layout based on product-owner feedback |
-| 29 | Accessibility and responsive QA are not formalized | Light-mode fixes were made, but systematic UI QA is still informal | Medium | Add browser smoke coverage for light/dark mode, small screens, and key tabs |
+| 23 | Data Explorer cannot compare multiple indicators or compute ratios/shares/changes | Users need to combine two or more data points to answer practical questions such as share of GDP/assets/reserves, cross-country shares, and changes over time | High | Add a bounded calculated-series builder: numerator/denominator selectors, unit checks, cross-sectional share mode, temporal change/index mode, and small multi-chart panels |
+| 24 | Last-known-good rollback process is not implemented end to end | A bad artifact or broken deployment can still take down the public app | Critical | Add app fallback to previous verified artifact and document rollback command/runbook |
+| 25 | App health/freshness/degraded-mode status is incomplete | Users cannot tell whether data are stale, app is using fallback, or a refresh failed | Critical | Add visible health panel using manifest, source freshness, last refresh status, and fallback status |
+| 26 | Public Streamlit live deployment is not re-verified after every push | GitHub pushes should auto-deploy, but live app state can lag or fail silently | High | Add post-push live health check and deployment-status evidence to each UI/data checkpoint |
+| 27 | Candidate workflow and promotion workflow do not prove live publication | Automation builds candidates but does not by itself prove the public app updated | High | Add deployment verification and explicit release notes after promotion |
+| 28 | Snapshot selection is not implemented in the app | Users cannot inspect YE2025 versus mid-2026 artifacts from the hosted UI | High | Add controlled snapshot selector backed by archived verified artifacts |
+| 29 | Methodology tab is improved but needs user review | The new UI-native cards are clearer, but content should be reviewed after live deployment | Medium | Review the live Methodology tab and tune copy/layout based on product-owner feedback |
+| 30 | Accessibility and responsive QA are not formalized | Light-mode fixes were made, but systematic UI QA is still informal | Medium | Add browser smoke coverage for light/dark mode, small screens, and key tabs |
+
+Calculated-series builder acceptance criteria:
+
+- Support raw multi-indicator panels for up to a small bounded number of
+  selected features from the same source and country set.
+- Support ratio mode: numerator indicator divided by denominator indicator
+  with explicit unit and denominator-zero checks.
+- Support cross-sectional share mode: country value divided by selected peer
+  group total for the same period.
+- Support temporal change mode: period-over-period percent change, change from
+  selected base period, and rebased index where first common observation = 100.
+- Preserve source frequency and observation-status labels; do not silently mix
+  annual, quarterly, and monthly series in one calculated line.
+- Show the formula, source periods, and missing-data treatment next to each
+  calculated chart.
 
 #### 21.5.3 Sprint 3: Release Governance and Repository Hygiene
 
 | Rank | Open issue | Why it matters | Priority | Sprint deliverable |
 |---:|---|---|---:|---|
-| 30 | Freshness, coverage, imputation, and score-change thresholds are not approved | The app can show data and scores, but users need reliable promotion gates behind them | Critical | Set thresholds for source staleness, minimum direct coverage, imputation share, and material score/rank/tier changes |
-| 31 | Snapshot definitions and provisional/final rules are not approved | Users need to know whether a snapshot is preliminary, final, backfilled, or replaced by a later source vintage | Critical | Define snapshot lifecycle, naming, approval states, and replacement rules |
-| 32 | Named model owner, data owner, and release approver are not encoded | Promotion remains dependent on informal review | High | Add CODEOWNERS/release checklist or equivalent governance control |
-| 33 | Raw datasets remain in Git/LFS history | Repo/deploy size and LFS bandwidth remain higher than necessary | High | Move raw data to release/object-storage assets and plan any history rewrite as a separate controlled operation |
-| 34 | Repository privacy/access-control decision is unresolved | Moving the repo private may affect Streamlit Cloud access and app visibility settings | Medium | Decide public/private repo and public/private app sharing model before adding licensed/private data |
-| 35 | Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
-| 36 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
-| 37 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
-| 38 | Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
+| 31 | Freshness, coverage, imputation, and score-change thresholds are not approved | The app can show data and scores, but users need reliable promotion gates behind them | Critical | Set thresholds for source staleness, minimum direct coverage, imputation share, and material score/rank/tier changes |
+| 32 | Snapshot definitions and provisional/final rules are not approved | Users need to know whether a snapshot is preliminary, final, backfilled, or replaced by a later source vintage | Critical | Define snapshot lifecycle, naming, approval states, and replacement rules |
+| 33 | Named model owner, data owner, and release approver are not encoded | Promotion remains dependent on informal review | High | Add CODEOWNERS/release checklist or equivalent governance control |
+| 34 | Raw datasets remain in Git/LFS history | Repo/deploy size and LFS bandwidth remain higher than necessary | High | Move raw data to release/object-storage assets and plan any history rewrite as a separate controlled operation |
+| 35 | Repository privacy/access-control decision is unresolved | Moving the repo private may affect Streamlit Cloud access and app visibility settings | Medium | Decide public/private repo and public/private app sharing model before adding licensed/private data |
+| 36 | Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
+| 37 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
+| 38 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
+| 39 | Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
 
 ### 21.1 GitHub Checkpoints
 
