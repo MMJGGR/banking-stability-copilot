@@ -1714,4 +1714,8 @@ whether users can safely consume the improved model and dataset.
       frequency and time window are applied.
   - Verification: compile check passed; `tests/test_calculated_series.py`
     passed; full suite passed (`48 passed`); local Streamlit returned HTTP
-    200 on port 8532 with no stderr.
+    200 on port 8532 with no stderr. Follow-up hotfix added explicit
+    Streamlit element keys for calculated-series Plotly charts and latest-value
+    tables after hosted Streamlit exposed duplicate auto-generated IDs in the
+    raw multi-indicator loop; compile check, calculated-series tests, full
+    suite (`48 passed`), and local Streamlit HTTP 200 on port 8533 passed.

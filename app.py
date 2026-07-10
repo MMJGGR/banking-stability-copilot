@@ -427,6 +427,7 @@ def _render_calculated_chart(
     title: str,
     country_formatter,
     y_title: str = None,
+    chart_key: str = None,
 ):
     """Render a standard calculated-series line chart and latest table."""
     if chart_df is None or len(chart_df) == 0:
@@ -452,7 +453,12 @@ def _render_calculated_chart(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
-    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        theme="streamlit",
+        key=chart_key,
+    )
 
     latest = (
         chart_df.sort_values('date')
@@ -467,6 +473,7 @@ def _render_calculated_chart(
         latest[['Country', 'Latest Period', 'Latest Value']],
         use_container_width=True,
         hide_index=True,
+        key=f"{chart_key}_latest" if chart_key else None,
     )
 
 
@@ -576,7 +583,7 @@ def render_calculated_series_builder(
             )
         elif freq_options:
             selected_freq = freq_options[0]
-        for indicator in selected_indicators:
+        for idx, indicator in enumerate(selected_indicators):
             panel = normalize_observation_frame(
                 source_df,
                 indicator,
@@ -588,6 +595,7 @@ def render_calculated_series_builder(
                 panel,
                 title=display_map[indicator],
                 country_formatter=country_formatter,
+                chart_key=f"calc_raw_chart_{dataset}_{idx}",
             )
         st.caption("Formula: raw source value. Missing periods are not filled.")
         return
@@ -653,6 +661,7 @@ def render_calculated_series_builder(
             title=title,
             country_formatter=country_formatter,
             y_title=scale_label,
+            chart_key=f"calc_ratio_chart_{dataset}_{numerator_key}_{denominator_key}",
         )
         st.caption(
             f"Formula: {display_map[numerator_key]} ÷ {display_map[denominator_key]}"
@@ -692,6 +701,7 @@ def render_calculated_series_builder(
             title=f"Share of selected-country total: {display_map[indicator_key]}",
             country_formatter=country_formatter,
             y_title="Percent of selected group",
+            chart_key=f"calc_share_chart_{dataset}_{indicator_key}",
         )
         st.caption(
             "Formula: country value ÷ sum of selected countries for the same period × 100. "
@@ -740,6 +750,7 @@ def render_calculated_series_builder(
         title=f"{display_map[indicator_key]} — {temporal_mode.replace('_', ' ')}",
         country_formatter=country_formatter,
         y_title="Percent" if temporal_mode != "index_100" else "Index",
+        chart_key=f"calc_temporal_chart_{dataset}_{indicator_key}_{temporal_mode}",
     )
     st.caption(
         "Formula: period change, first-period change, or rebased index calculated "
