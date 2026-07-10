@@ -610,7 +610,6 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
             title=f"{indicator_name_clean} - Historical Trend"
         )
         fig.update_layout(
-            template="plotly_dark",
             height=350,
             margin=dict(l=20, r=20, t=40, b=20),
             plot_bgcolor='rgba(0,0,0,0)',
@@ -636,7 +635,7 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
                     x=actual_dates.max(), line_dash='dash', line_color='#9CA3AF'
                 )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
         if shows_forward_values:
             st.caption(
                 "The dashed line marks the last reported actual; later values "
@@ -812,12 +811,11 @@ def render_drivers_chart(drivers: list):
         yaxis_title=None,
         height=300,
         margin=dict(l=0, r=0, t=30, b=0),
-        template="plotly_dark",
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
 
 
 def render_comparison_table(main_country: str, peers_df: pd.DataFrame, use_full_names: bool = False):
@@ -900,10 +898,9 @@ def render_spider_chart(country_data: str, labels: List[str], values: List[float
                 range=[0, 100]
             )),
         showlegend=False,
-        template="plotly_dark",
         height=300,
         margin=dict(t=20, b=20, l=40, r=40),
         paper_bgcolor='rgba(0,0,0,0)',
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, theme="streamlit")

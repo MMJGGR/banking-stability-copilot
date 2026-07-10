@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import plotly.graph_objects as go
 import time
 import os
@@ -128,6 +129,226 @@ def load_country_history(country_code: str, dataset: str) -> pd.DataFrame:
     return IMFDataLoader().get_country_data(country_code, dataset)
 
 
+@st.cache_data(show_spinner=False, max_entries=24)
+def load_multi_country_history(country_codes: tuple[str, ...], dataset: str) -> pd.DataFrame:
+    """Load selected-country history slices for cross-country comparison."""
+    loader = IMFDataLoader()
+    frames = []
+    for country_code in country_codes:
+        country_data = loader.get_country_data(country_code, dataset)
+        if country_data is not None and len(country_data) > 0:
+            frames.append(country_data)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
+def render_indicator_comparison(
+    scores: pd.DataFrame,
+    selected_country: str,
+    default_peer_codes: list[str],
+    country_formatter,
+    wgi_panel: pd.DataFrame | None,
+):
+    """Render one indicator across multiple countries at source periodicity."""
+    st.markdown("### Cross-Country Indicator Comparison")
+
+    available_codes = scores.sort_values('country_name')['country_code'].tolist()
+    default_countries = []
+    for code in [selected_country] + default_peer_codes:
+        if code in available_codes and code not in default_countries:
+            default_countries.append(code)
+    default_countries = default_countries[:5]
+
+    control_col1, control_col2 = st.columns([1, 3])
+    with control_col1:
+        source_choice = st.selectbox(
+            "Source",
+            ["Economic (WEO)", "Banking (FSIC)", "Monetary (MFS)", "Governance (WGI)"],
+            key="compare_source",
+        )
+    with control_col2:
+        compare_countries = st.multiselect(
+            "Countries",
+            options=available_codes,
+            default=default_countries,
+            format_func=country_formatter,
+            key="compare_countries",
+            help="Compare one indicator across the selected country and peers. Keep the set small for hosted performance.",
+        )
+
+    if not compare_countries:
+        st.info("Select at least one country to compare.")
+        return
+
+    if len(compare_countries) > 8:
+        st.warning("Showing the first 8 selected countries to keep the hosted app responsive.")
+        compare_countries = compare_countries[:8]
+
+    source_to_dataset = {
+        "Economic (WEO)": "WEO",
+        "Banking (FSIC)": "FSIC",
+        "Monetary (MFS)": "MFS",
+        "Governance (WGI)": "WGI",
+    }
+    dataset = source_to_dataset[source_choice]
+
+    if dataset == "WGI":
+        if wgi_panel is None or len(wgi_panel) == 0:
+            st.info("WGI data is not available.")
+            return
+        governance_cols = [
+            'voice_accountability', 'political_stability', 'govt_effectiveness',
+            'regulatory_quality', 'rule_of_law', 'control_corruption'
+        ]
+        available_cols = [c for c in governance_cols if c in wgi_panel.columns]
+        source_df = wgi_panel[wgi_panel['country_code'].isin(compare_countries)].copy()
+        if len(source_df) == 0 or not available_cols:
+            st.info("No WGI data is available for the selected countries.")
+            return
+        source_df = source_df.melt(
+            id_vars=['country_code', 'year'],
+            value_vars=available_cols,
+            var_name='indicator_code',
+            value_name='value',
+        )
+        source_df['indicator_name'] = source_df['indicator_code'].str.replace('_', ' ').str.title()
+        source_df['period'] = pd.to_datetime(source_df['year'].astype(str) + '-12-31')
+        source_df['frequency'] = 'A'
+    else:
+        with st.spinner(f"Loading {dataset} history for selected countries..."):
+            source_df = load_multi_country_history(tuple(compare_countries), dataset)
+        if source_df is None or len(source_df) == 0:
+            st.info(f"No {dataset} data is available for the selected countries.")
+            return
+
+    source_df = source_df.copy()
+    source_df['country_name'] = source_df['country_code'].map(country_formatter)
+
+    use_name_as_key = dataset in ("FSIC", "FSIBSIS") and 'indicator_name' in source_df.columns
+    if use_name_as_key:
+        indicator_options = source_df['indicator_name'].dropna().unique().tolist()
+        indicator_options = sorted(indicator_options, key=lambda x: x.lower())
+        display_map = {name: name[:90] + "..." if len(name) > 90 else name for name in indicator_options}
+        indicator_col = 'indicator_name'
+    else:
+        mapping = (
+            source_df[['indicator_code', 'indicator_name']]
+            .dropna()
+            .drop_duplicates('indicator_code')
+            if 'indicator_name' in source_df.columns
+            else pd.DataFrame(columns=['indicator_code', 'indicator_name'])
+        )
+        name_map = dict(zip(mapping['indicator_code'], mapping['indicator_name']))
+
+        def display_indicator(code):
+            name = name_map.get(code)
+            if pd.notna(name) and str(name).strip() and str(name) != str(code):
+                return f"{name} ({code})"
+            return str(code).replace('_', ' ').title()
+
+        indicator_options = sorted(
+            source_df['indicator_code'].dropna().unique().tolist(),
+            key=display_indicator,
+        )
+        display_map = {code: display_indicator(code) for code in indicator_options}
+        indicator_col = 'indicator_code'
+
+    if not indicator_options:
+        st.info("No comparable indicators were found for the selected source.")
+        return
+
+    indicator_col1, indicator_col2, indicator_col3 = st.columns([3, 1, 1])
+    with indicator_col1:
+        selected_indicator = st.selectbox(
+            "Indicator",
+            options=indicator_options,
+            format_func=lambda x: display_map[x],
+            key=f"compare_indicator_{dataset}",
+        )
+    with indicator_col2:
+        time_range = st.selectbox(
+            "Range",
+            ["5 Years", "10 Years", "20 Years", "All Data"],
+            index=1,
+            key=f"compare_range_{dataset}",
+        )
+
+    chart_df = source_df[source_df[indicator_col] == selected_indicator].copy()
+    chart_df['date'] = pd.to_datetime(chart_df['period'].astype(str), errors='coerce')
+    chart_df = chart_df.dropna(subset=['date', 'value']).sort_values('date')
+
+    with indicator_col3:
+        selected_freq = None
+        if 'frequency' in chart_df.columns:
+            freq_labels = {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}
+            available_freqs = [
+                f for f in ('M', 'Q', 'A')
+                if f in set(chart_df['frequency'].dropna())
+            ]
+            if len(available_freqs) > 1:
+                selected_freq = st.selectbox(
+                    "Periodicity",
+                    available_freqs,
+                    format_func=lambda f: freq_labels.get(f, f),
+                    key=f"compare_frequency_{dataset}_{selected_indicator}",
+                )
+            elif available_freqs:
+                selected_freq = available_freqs[0]
+            if selected_freq:
+                chart_df = chart_df[chart_df['frequency'] == selected_freq]
+
+    if len(chart_df) == 0:
+        st.info("No observations found for that indicator/country set.")
+        return
+
+    chart_df = chart_df.drop_duplicates(
+        subset=['country_code', 'date'],
+        keep='last',
+    )
+    max_date = chart_df['date'].max()
+    if time_range == "5 Years":
+        chart_df = chart_df[chart_df['date'] >= max_date - pd.DateOffset(years=5)]
+    elif time_range == "10 Years":
+        chart_df = chart_df[chart_df['date'] >= max_date - pd.DateOffset(years=10)]
+    elif time_range == "20 Years":
+        chart_df = chart_df[chart_df['date'] >= max_date - pd.DateOffset(years=20)]
+
+    title = display_map[selected_indicator]
+    fig = px.line(
+        chart_df,
+        x='date',
+        y='value',
+        color='country_name',
+        markers=True,
+        title=title,
+    )
+    fig.update_layout(
+        height=420,
+        margin=dict(l=20, r=20, t=48, b=20),
+        xaxis_title=None,
+        yaxis_title=None,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+    )
+    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+
+    latest_table = (
+        chart_df.sort_values('date')
+        .groupby(['country_code', 'country_name'], as_index=False)
+        .last()[['country_name', 'date', 'value']]
+        .sort_values('country_name')
+    )
+    latest_table['Latest Period'] = latest_table['date'].dt.strftime('%Y-%m-%d')
+    latest_table['Latest Value'] = latest_table['value'].map(lambda x: f"{x:,.2f}")
+    latest_table = latest_table.rename(columns={'country_name': 'Country'})
+    st.dataframe(
+        latest_table[['Country', 'Latest Period', 'Latest Value']],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
 scores_df, loader, wgi_data, model_features, pca_info = load_all_data()
 data_manifest = load_data_manifest()
 
@@ -143,6 +364,18 @@ if scores_df is not None and model_features is not None:
 # ==============================================================================
 # HEADER: Country Selector + Model Info
 # ==============================================================================
+available_countries = scores_df.sort_values('country_name')[['country_code', 'country_name']].drop_duplicates()
+available_country_codes = available_countries['country_code'].tolist()
+country_name_lookup = dict(
+    zip(available_countries['country_code'], available_countries['country_name'])
+)
+
+
+def format_country_option(country_code: str) -> str:
+    name = country_name_lookup.get(country_code, country_code)
+    return f"{name} ({country_code})"
+
+
 header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
 
 with header_col1:
@@ -155,15 +388,14 @@ with header_col1:
     )
 
 with header_col2:
-    available_countries = scores_df.sort_values('country_name')[['country_code', 'country_name']].drop_duplicates()
     default_idx = 0
     if 'USA' in available_countries['country_code'].values:
         default_idx = list(available_countries['country_code'].values).index('USA')
         
     selected_country_code = st.selectbox(
         "Select Country",
-        options=available_countries['country_code'].tolist(),
-        format_func=lambda x: available_countries[available_countries['country_code'] == x]['country_name'].values[0],
+        options=available_country_codes,
+        format_func=format_country_option,
         index=default_idx,
         label_visibility="collapsed"
     )
@@ -284,9 +516,30 @@ with tab_profile:
     st.markdown("### Peer Countries")
     
     # Note: find_peers expects (target_country, scores_df, n_peers)
-    peers_df = find_peers(selected_country_code, scores_df, n_peers=4)
+    peers_df = find_peers(selected_country_code, scores_df, n_peers=6)
+    nearest_peer_codes = (
+        peers_df['country_code'].tolist()
+        if peers_df is not None and len(peers_df) > 0
+        else []
+    )
+    peer_options = [
+        code for code in available_country_codes
+        if code != selected_country_code
+    ]
+    custom_peer_codes = st.multiselect(
+        "Peer set",
+        options=peer_options,
+        default=nearest_peer_codes[:4],
+        format_func=format_country_option,
+        key="custom_peer_codes",
+        help=(
+            "Defaults to nearest-neighbor peers from the model feature space. "
+            "Edit this list to compare with a custom peer group."
+        ),
+    )
+    peer_codes = custom_peer_codes or nearest_peer_codes[:4]
     
-    if peers_df is not None and len(peers_df) > 0:
+    if peer_codes:
         # Comparison table with key proximity indicators
         comparison_cols = ['country_name', 'risk_score', 'economic_pillar', 'industry_pillar', 'data_coverage']
         display_names = {
@@ -299,8 +552,23 @@ with tab_profile:
         
         # Add selected country for comparison
         selected_row = country_score_row[comparison_cols].to_frame().T
-        peers_comparison = pd.concat([selected_row, peers_df[comparison_cols]], ignore_index=True)
+        peer_rows = scores_df[scores_df['country_code'].isin(peer_codes)].copy()
+        peer_rows['_peer_order'] = pd.Categorical(
+            peer_rows['country_code'],
+            categories=peer_codes,
+            ordered=True,
+        )
+        peer_rows = peer_rows.sort_values('_peer_order')
+        peers_comparison = pd.concat([selected_row, peer_rows[comparison_cols]], ignore_index=True)
         peers_comparison = peers_comparison.rename(columns=display_names)
+        peers_comparison.insert(
+            0,
+            'Role',
+            ['Selected'] + [
+                'Nearest' if code in nearest_peer_codes else 'Custom'
+                for code in peer_rows['country_code'].tolist()
+            ],
+        )
         
         # Format
         peers_comparison['Risk Score'] = peers_comparison['Risk Score'].apply(lambda x: f"{x:.1f}")
@@ -310,7 +578,7 @@ with tab_profile:
         
         st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
         
-        st.caption("Peers selected based on similar economic and industry risk profiles (Euclidean distance).")
+        st.caption("Nearest peers are selected from similar economic and industry risk profiles; the peer set can be edited above.")
     else:
         st.caption("Unable to find peer countries.")
 
@@ -333,6 +601,25 @@ with tab_explorer:
             "above to inspect WEO, FSI, MFS, and WGI histories for the "
             "selected country."
         )
+
+    explorer_peers_df = find_peers(selected_country_code, scores_df, n_peers=4)
+    explorer_nearest_peer_codes = (
+        explorer_peers_df['country_code'].tolist()
+        if explorer_peers_df is not None and len(explorer_peers_df) > 0
+        else []
+    )
+    explorer_default_peers = st.session_state.get(
+        "custom_peer_codes",
+        explorer_nearest_peer_codes[:4],
+    )
+    with st.expander("Compare one indicator across countries", expanded=False):
+        render_indicator_comparison(
+            scores=scores_df,
+            selected_country=selected_country_code,
+            default_peer_codes=explorer_default_peers,
+            country_formatter=format_country_option,
+            wgi_panel=wgi_data,
+        )
     
     # Tabs for each dataset
     de_tab_weo, de_tab_fsi, de_tab_mfs, de_tab_wgi = st.tabs(["Economic (WEO)", "Banking (FSI)", "Monetary (MFS)", "Governance (WGI)"])
@@ -347,7 +634,10 @@ with tab_explorer:
             except Exception as e:
                 st.error(f"Chart error: {e}")
         else:
-            st.info("No WEO data available for this country.")
+            if load_history:
+                st.info("No WEO data available for this country.")
+            else:
+                st.caption("Enable selected-country historical data above to load WEO history.")
 
     
     with de_tab_fsi:
@@ -365,7 +655,10 @@ with tab_explorer:
                 st.caption(f"📊 {n_indicators} indicators available for {selected_country_code}")
                 render_time_series_deep_dive(fsic_data, "FSIC", selected_country_code)
             else:
-                st.info("No FSIC data available for this country.")
+                if load_history:
+                    st.info("No FSIC data available for this country.")
+                else:
+                    st.caption("Enable selected-country historical data above to load FSIC history.")
         
         with fsi_tab2:
             load_fsibsis = st.checkbox(
@@ -436,7 +729,10 @@ with tab_explorer:
             st.caption(f"📊 {n_indicators} monetary indicators available for {selected_country_code}")
             render_time_series_deep_dive(mfs_data, "MFS", selected_country_code)
         else:
-            st.info("No MFS data available for this country.")
+            if load_history:
+                st.info("No MFS data available for this country.")
+            else:
+                st.caption("Enable selected-country historical data above to load MFS history.")
     
     with de_tab_wgi:
         if wgi_data is not None and len(wgi_data) > 0:
@@ -463,8 +759,12 @@ with tab_explorer:
                         color='Indicator',
                         title='Governance Indicators Over Time (0-100 scale)'
                     )
-                    fig.update_layout(template="plotly_dark", height=400)
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig.update_layout(
+                        height=400,
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                    )
+                    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
                 else:
                     st.info("No governance score columns found.")
             else:

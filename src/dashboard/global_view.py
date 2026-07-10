@@ -173,7 +173,7 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
         geo_bgcolor='rgba(0,0,0,0)',
         coloraxis_colorbar=dict(title="Risk Score", tickvals=[1,3,5,7,9])
     )
-    st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, use_container_width=True, theme="streamlit")
     
     # 5. Regional Analysis & Scatter
     col_left, col_right = st.columns([1, 1])
@@ -207,7 +207,7 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
             text_auto='.1f'
         )
         fig_bar.update_layout(xaxis_title="", yaxis_title="Weighted Risk Score")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar, use_container_width=True, theme="streamlit")
         
     with col_right:
         st.markdown("### Stability vs Growth")
@@ -231,7 +231,7 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
                 xaxis_title="Real GDP Growth (%)",
                 yaxis_title="Risk Score (1-10)"
             )
-            st.plotly_chart(fig_scat, use_container_width=True)
+            st.plotly_chart(fig_scat, use_container_width=True, theme="streamlit")
         else:
             st.info("GDP Growth data needed for scatter plot.")
 

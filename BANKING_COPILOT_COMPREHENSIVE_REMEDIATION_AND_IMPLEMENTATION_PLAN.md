@@ -1294,8 +1294,9 @@ production.
     outstanding.
 15. [ ] Complete the Streamlit serving-only refactor. Lightweight model loading,
     derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
-    history, and on-demand FSIBSIS loading are complete; active verified
-    snapshot display is confirmed in browser; snapshot selection,
+    history, on-demand FSIBSIS loading, theme-safe controls, customizable
+    peer sets, and cross-country indicator comparison are complete; active
+    verified snapshot display is confirmed in browser; snapshot selection,
     health/freshness UI, and last-known-good fallback remain.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
@@ -1564,3 +1565,17 @@ artifacts requires owner review under items 4, 8, and 11.
     returned WEO 1,990 rows, FSIC 11,927 rows, and MFS 18,432 rows; local
     Streamlit returned HTTP 200 on port 8520 with approximately 134 MB working
     set and 328 MB private memory after first response.
+- [x] Checkpoint 8: Streamlit usability and comparison workflow pass.
+  - Pending commit: `improve streamlit comparison ui`
+  - Scope:
+    - Replaced dark-only custom CSS with Streamlit theme-aware control,
+      tab, card, and dropdown styling so light mode remains readable.
+    - Replaced fixed peer display with an editable peer multiselect seeded
+      from nearest-neighbor peers.
+    - Added a cross-country indicator comparison panel for WEO, FSIC, MFS,
+      and WGI, loading only the selected countries.
+    - Removed hard-coded Plotly dark templates so charts follow the active
+      Streamlit theme.
+  - Verification: compile check passed; `40 passed`; local Streamlit rendered
+    the Country Profile peer selector and Data Explorer comparison panel
+    without a browser error.

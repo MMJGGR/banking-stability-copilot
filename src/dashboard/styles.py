@@ -61,8 +61,8 @@ STYLES = """
        SUMMARY CARDS
        ========================================= */
     .summary-box {
-        background: linear-gradient(135deg, #161B22 0%, #1a1f26 100%);
-        border: 1px solid #30363D;
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.28);
         border-radius: 8px;
         padding: 1.25rem;
         margin-bottom: 1rem;
@@ -70,7 +70,8 @@ STYLES = """
     }
     
     .summary-header {
-        color: #8B949E;
+        color: var(--text-color);
+        opacity: 0.68;
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -78,7 +79,7 @@ STYLES = """
     }
     
     .summary-value {
-        color: #E6E6E6;
+        color: var(--text-color);
         font-size: 1.5rem;
         font-weight: 600;
     }
@@ -90,7 +91,7 @@ STYLES = """
         display: flex;
         justify-content: space-between;
         padding: 0.35rem 0;
-        border-bottom: 1px solid #21262D;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.22);
     }
     
     .snapshot-row:last-child {
@@ -98,18 +99,20 @@ STYLES = """
     }
     
     .snapshot-label {
-        color: #8B949E;
+        color: var(--text-color);
+        opacity: 0.68;
         font-size: 0.85rem;
     }
     
     .snapshot-value {
-        color: #E6E6E6;
+        color: var(--text-color);
         font-weight: 500;
         font-family: 'Consolas', 'Roboto Mono', monospace;
     }
     
     .snapshot-value.missing {
-        color: #484F58;
+        color: var(--text-color);
+        opacity: 0.38;
     }
     
     .snapshot-value.imputed {
@@ -122,15 +125,16 @@ STYLES = """
        PREDICTION CARDS
        ========================================= */
     .prediction-card {
-        background: linear-gradient(135deg, #161B22 0%, #21262D 100%);
-        border: 1px solid #30363D;
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.28);
         border-radius: 8px;
         padding: 1.25rem;
         text-align: center;
     }
     
     .prediction-label {
-        color: #8B949E;
+        color: var(--text-color);
+        opacity: 0.68;
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -149,7 +153,7 @@ STYLES = """
     }
     
     .prediction-category {
-        color: #E6E6E6;
+        color: var(--text-color);
         font-size: 1rem;
     }
     
@@ -166,7 +170,7 @@ STYLES = """
        ========================================= */
     .stTabs [data-baseweb="tab-list"] {
         gap: 2px;
-        background-color: #161B22;
+        background-color: var(--secondary-background-color);
         border-radius: 6px;
         padding: 4px;
     }
@@ -178,18 +182,18 @@ STYLES = """
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: #21262D;
+        background-color: rgba(128, 128, 128, 0.14);
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #30363D !important;
+        background-color: rgba(128, 128, 128, 0.22) !important;
     }
     
     /* =========================================
        EXPANDERS
        ========================================= */
     .streamlit-expanderHeader {
-        background-color: #161B22;
+        background-color: var(--secondary-background-color);
         border-radius: 6px;
     }
     
@@ -197,21 +201,52 @@ STYLES = """
        INPUTS
        ========================================= */
     .stNumberInput > div > div > input {
-        background-color: #161B22;
-        border: 1px solid #30363D;
-        color: #E6E6E6;
+        background-color: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.28);
+        color: var(--text-color);
     }
     
-    .stSelectbox > div > div {
-        background-color: #161B22;
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="select"] input,
+    div[data-baseweb="select"] span {
+        background-color: var(--secondary-background-color) !important;
+        color: var(--text-color) !important;
+        -webkit-text-fill-color: var(--text-color) !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        border-color: rgba(128, 128, 128, 0.32) !important;
+    }
+
+    div[data-baseweb="popover"],
+    ul[data-testid="stVirtualDropdown"],
+    div[role="listbox"] {
+        background-color: var(--background-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    li[role="option"],
+    div[role="option"] {
+        background-color: var(--background-color) !important;
+        color: var(--text-color) !important;
+    }
+
+    li[role="option"]:hover,
+    div[role="option"]:hover {
+        background-color: var(--secondary-background-color) !important;
+    }
+
+    div[data-baseweb="tag"] {
+        background-color: rgba(47, 129, 247, 0.18) !important;
+        color: var(--text-color) !important;
     }
     
     /* =========================================
        CHARTS
        ========================================= */
     .chart-container {
-        background-color: #161B22;
-        border: 1px solid #30363D;
+        background-color: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.28);
         border-radius: 8px;
         padding: 1rem;
     }
