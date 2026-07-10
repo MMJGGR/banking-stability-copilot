@@ -104,24 +104,8 @@ def load_model_artifact_with_fallback() -> tuple:
         candidates = []
 
     for bundle in candidates:
-        model_path = bundle / "risk_model.pkl"
         try:
-            ensure_lfs_file(model_path)
-            manifest = {}
-            for manifest_name in ("snapshot_manifest.json", "data_manifest.json"):
-                if (bundle / manifest_name).exists():
-                    manifest = load_data_manifest(bundle / manifest_name)
-                    break
-            expected = (
-                manifest.get("artifacts", {})
-                .get("cache/risk_model.pkl", {})
-                .get("sha256")
-            )
-            if expected and _sha256_file(model_path) != expected:
-                raise ValueError(
-                    "archived risk model checksum does not match the bundle manifest"
-                )
-            artifact = load_model_artifact(model_path)
+            artifact, manifest = _load_bundle(bundle)
             return artifact, manifest, {
                 "mode": "fallback",
                 "fallback_snapshot": bundle.name,
@@ -135,6 +119,53 @@ def load_model_artifact_with_fallback() -> tuple:
     raise RuntimeError(
         "No serveable model artifact: " + "; ".join(errors)
     )
+
+
+def _load_bundle(bundle: Path) -> tuple:
+    """Load one archived snapshot bundle, checksum-verified when possible."""
+    model_path = bundle / "risk_model.pkl"
+    ensure_lfs_file(model_path)
+    manifest = {}
+    for manifest_name in ("snapshot_manifest.json", "data_manifest.json"):
+        if (bundle / manifest_name).exists():
+            manifest = load_data_manifest(bundle / manifest_name)
+            break
+    expected = (
+        manifest.get("artifacts", {})
+        .get("cache/risk_model.pkl", {})
+        .get("sha256")
+    )
+    if expected and _sha256_file(model_path) != expected:
+        raise ValueError(
+            "archived risk model checksum does not match the bundle manifest"
+        )
+    return load_model_artifact(model_path), manifest
+
+
+def list_archived_snapshots() -> list:
+    """Names of archived snapshot bundles, newest first."""
+    if not SNAPSHOT_ARCHIVE.exists():
+        return []
+    return sorted(
+        (
+            bundle.name for bundle in SNAPSHOT_ARCHIVE.iterdir()
+            if bundle.is_dir() and (bundle / "risk_model.pkl").exists()
+        ),
+        reverse=True,
+    )
+
+
+def load_archived_snapshot(name: str) -> tuple:
+    """Load a named archived bundle for read-only inspection.
+
+    Unlike the fallback chain this may load challenger bundles: the user is
+    explicitly choosing to inspect them, and the caller is responsible for
+    labelling unapproved snapshots.
+    """
+    bundle = SNAPSHOT_ARCHIVE / name
+    if not bundle.is_dir():
+        raise FileNotFoundError(f"No archived snapshot named {name!r}")
+    return _load_bundle(bundle)
 
 
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:

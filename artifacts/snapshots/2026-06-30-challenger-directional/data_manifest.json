@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "artifacts/model_policy_audit.json": {
-      "bytes": 1473,
-      "sha256": "ec5cd6cd359f49db613fc86e1d60220e253f650be303be2702adff5e8158de6c"
+      "bytes": 1459,
+      "sha256": "46b4100bcab8e8c206eb6e4dfbbced64a7b05ef008282f33e95522f6c4ed1cf7"
     },
     "cache/FSIBSIS_cache.parquet": {
       "bytes": 9868181,
@@ -17,29 +17,29 @@
       "sha256": "1f8acabdadabde718d7d2664ec2de0d972b52e348fb61ed0a679d031be7684f2"
     },
     "cache/crisis_features.parquet": {
-      "bytes": 116588,
-      "sha256": "c3893e82b7876b0395d72b965e3655d5214f19accaeedf40cf4d27b40f966903"
+      "bytes": 117508,
+      "sha256": "8f16a6761ae635f2d05a293ebad979dc6de19cdfa6431005600f8a7e57d040bd"
     },
     "cache/imputed_features.parquet": {
-      "bytes": 125496,
-      "sha256": "a35729c0443849872c04d83f92d039ac70d0441fc7e3be5e5307c7beece14e5e"
+      "bytes": 126413,
+      "sha256": "526d9555c197ea752143411abe0d83c991a06713439911ae620864333870496e"
     },
     "cache/inference_pipeline.pkl": {
-      "bytes": 136019,
-      "sha256": "f9a0dcba0a14f498affb8509ca4472c9042ba25e82fef5e4ec3f15cc4dbc2dbf"
+      "bytes": 137855,
+      "sha256": "9855b7f9f1a70a224d17ade8c4a66812ea7d07d9903de0f9d1fffcbc86e93093"
     },
     "cache/risk_model.pkl": {
-      "bytes": 155672,
-      "sha256": "cafc9566cc0f0e5e0c31c5c389687421779535bc193c827cf9ec352d94748103"
+      "bytes": 157407,
+      "sha256": "5645636a4d764833aaf78fffc84df3328025015ec709156261a32945ed829022"
     }
   },
   "as_of_date": "2026-06-30",
-  "generated_at": "2026-07-10T12:15:25.219986+00:00",
+  "generated_at": "2026-07-10T12:37:49.954276+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
     "snapshot_date": "2026-06-30",
-    "training_date": "2026-07-10T12:15:22.707733"
+    "training_date": "2026-07-10T12:37:47.438206"
   },
   "schema_version": 1,
   "snapshot_id": "2026-06-30",
@@ -91,7 +91,7 @@
     }
   },
   "validation": {
-    "model_checks_failed": 1,
-    "model_checks_passed": 2
+    "model_checks_failed": 0,
+    "model_checks_passed": 3
   }
 }

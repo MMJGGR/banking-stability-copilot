@@ -2,8 +2,8 @@
 
 The dashboard renders this report so users can tell whether the data are
 stale, whether the app is serving a fallback artifact, and when the snapshot
-was generated. Thresholds are the proposed source-staleness SLAs from
-docs/GOVERNANCE.md (pending owner approval; see section 21.5 items 30-31).
+was generated. Thresholds are the approved source-staleness SLAs from
+docs/GOVERNANCE.md (approved 2026-07-10).
 """
 
 from datetime import datetime, timezone
@@ -11,7 +11,7 @@ import re
 
 # Maximum acceptable age, in days, of each source's latest observation at
 # serving time. Derived from the section 9.4 cadence table plus typical
-# publication lag; owner approval tracked in docs/GOVERNANCE.md.
+# publication lag; approved in docs/GOVERNANCE.md (2026-07-10).
 SOURCE_FRESHNESS_SLA_DAYS = {
     "WEO": 420,       # two vintages per year, annual observations
     "FSIC": 240,      # rolling monthly/quarterly reporting with country lag

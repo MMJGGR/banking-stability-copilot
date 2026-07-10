@@ -20,14 +20,23 @@ ECONOMIC_FEATURES = [
     "voice_accountability", "political_stability", "govt_effectiveness",
 ]
 
+# Challenger v2 (2026-07-10): the level-share features `real_estate_loans`
+# and `fx_loan_exposure` are excluded from the pillar. As unconditional
+# levels they penalize mortgage-deep advanced economies and international
+# financial centers rather than measuring boom risk; the growth-based
+# `real_estate_credit_growth_3yr` stays, and both levels remain available to
+# the supervised classifier and the Data Explorer. `years_since_banking_crisis`
+# adds crisis-history memory so freshly recapitalized post-crisis balance
+# sheets do not read as pristine.
 INDUSTRY_FEATURES = [
     "capital_adequacy", "npl_ratio", "roe", "roa",
     "liquid_assets_st_liab", "liquid_assets_total",
-    "customer_deposits_loans", "fx_loan_exposure", "tier1_capital",
-    "npl_provisions", "loan_concentration", "real_estate_loans",
+    "customer_deposits_loans", "tier1_capital",
+    "npl_provisions", "loan_concentration",
     "sovereign_exposure_ratio", "bank_liability_to_nfa",
     "real_estate_credit_growth_3yr", "regulatory_quality",
     "rule_of_law", "control_corruption",
+    "years_since_banking_crisis",
 ]
 
 # Expected credit-risk direction per feature on the transformed scale used for
@@ -79,6 +88,7 @@ FEATURE_RISK_DIRECTIONS = {
     "regulatory_quality": -1.0,
     "rule_of_law": -1.0,
     "control_corruption": -1.0,
+    "years_since_banking_crisis": -1.0,
 }
 
 # Core banking soundness fields where a KNN-imputed value must not be allowed

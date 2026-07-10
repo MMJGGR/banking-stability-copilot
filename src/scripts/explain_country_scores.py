@@ -78,7 +78,12 @@ def _pillar_drivers(pipeline, scorer, columns, pillar_name, country,
     directions = getattr(pipeline, "risk_directions_", {})
     critical = set(getattr(pipeline, "critical_columns_", []))
     row_oriented = oriented.loc[country, columns].to_numpy(dtype=float)
-    contributions = weights * (row_oriented - scorer.mean_)
+    # direction_signs_ maps the fitted component to safety orientation, so
+    # -sign re-expresses contributions as risk (positive = riskier). This
+    # keeps the table correct for both constrained pipelines (sign -1) and
+    # legacy pipelines whose component orientation was anchor-determined.
+    risk_sign = -float(pipeline.direction_signs_.get(pillar_name, -1.0))
+    contributions = risk_sign * weights * (row_oriented - scorer.mean_)
     peer_percentiles = eligible[columns].rank(pct=True).loc[country]
 
     drivers = []

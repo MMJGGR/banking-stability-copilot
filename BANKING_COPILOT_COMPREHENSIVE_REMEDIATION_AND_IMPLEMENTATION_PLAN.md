@@ -328,14 +328,15 @@ artifacts are checksum-validated). The predictive surface remains a candidate,
 not production, until the section 2.8 critical items and the validation
 standard in the model card are satisfied.
 
-The naming decision remains open, now between:
+**Naming decision (2026-07-10, owner):** option 1 selected. The product is
+renamed **Banking Stability Analytics & Research Workbench** across the UI
+and README; no conversational layer is planned. The GitHub repository name is
+retained for link stability. The previously open options were:
 
-1. **Banking Stability Analytics Dashboard / Research Workbench**
-   Rename to reflect the dual analytics-plus-research-utility scope without
-   implying conversational capability.
+1. **Banking Stability Analytics Dashboard / Research Workbench** — selected.
 
-2. **Banking Stability Copilot**
-   Retain the name and add a governed conversational layer that answers questions using model outputs, source metadata, methodology, and citations.
+2. **Banking Stability Copilot** — rejected: would require a governed
+   conversational layer that is not on the roadmap.
 
 ### 6.2 If Copilot Scope Is Approved
 
@@ -1325,10 +1326,10 @@ production.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
     future approved candidate.
-17. [ ] Decide whether to rename the dashboard or complete the governed copilot
-    capability. Product-owner decision required. Owner has confirmed the
-    product is dual-purpose (predictive screening plus research data utility);
-    see section 6.1.
+17. [x] Decided 2026-07-10 (owner): renamed to **Banking Stability Analytics
+    & Research Workbench** (UI title, page title, README). No conversational
+    layer is planned; the GitHub repository name is retained for link
+    stability (renaming it is an optional owner action in GitHub settings).
 18. [~] Monitoring, rollback, ownership, and release procedures substantially
     complete 2026-07-10 (session 3): automatic last-known-good fallback,
     System Health panel, executable rollback runbook, CODEOWNERS, release
@@ -1664,6 +1665,75 @@ feature is recommended.
 - **Rank 32 — CLOSED.** `.github/CODEOWNERS` (per-area ownership) and
   `docs/RELEASE_CHECKLIST.md` (promotion checklist referencing the governance
   thresholds).
+
+#### 21.5.5 Session 3 Continuation — Owner Decisions Applied (2026-07-10)
+
+The owner reviewed the session-3 output live and made four decisions, all
+applied the same day:
+
+1. **Governance approved (ranks 30-31 — CLOSED).** `docs/GOVERNANCE.md`
+   status changed to APPROVED (@MMJGGR, 2026-07-10) as proposed: freshness
+   SLAs, coverage/imputation gates, score-change review thresholds, snapshot
+   lifecycle, and (added) the artifact-portability policy (rank 36 — CLOSED).
+2. **Coverage-bias gate re-baselined (owner decision on the rank 30 open
+   question).** `validate_model` now gates on the partial correlation of
+   coverage with the pre-policy score, controlling for log GDP per capita and
+   the six governance scores; raw correlations are reported as informational.
+3. **Product renamed (rank 38 / tracker item 17 — CLOSED).** "Banking
+   Stability Analytics & Research Workbench" across UI and README; repo name
+   retained.
+4. **Challenger iterated per owner instruction ("iterate first, then
+   re-review"), still NOT promoted.** Challenger v2 removes the level-share
+   features `real_estate_loans` and `fx_loan_exposure` from the pillar
+   (growth-based measure retained; levels remain available to classifier and
+   explorer) and adds a `years_since_banking_crisis` industry feature (capped
+   at 25) so post-recapitalization balance sheets are not scored as pristine.
+   Results: validation 3/3 PASSED (bias gate partial correlation -0.10);
+   Kenya/Mozambique acceptance holds (MOZ 8.3 >= KEN 7.9); all three v1
+   concerns resolved in direction (GBR 7.8→5.0 now below PAK 9.2; AUS
+   7.6→2.1; GHA 2.1→9.5). Movement vs production is still far beyond
+   promotion thresholds (mean |delta| 1.68, 135/201 countries >= 1 point,
+   Spearman 0.62), so v2 replaces v1 in the archived bundle
+   `artifacts/snapshots/2026-06-30-challenger-directional` with an updated
+   `artifacts/challenger_comparison.json`; the active serving artifacts are
+   unchanged pending the owner's promotion review.
+
+Additional backlog closures in the continuation:
+
+- **Rank 22 — CLOSED.** The Country Profile tab now has a "Score Drivers"
+  expander computing per-feature attribution in-app (raw vs imputed value,
+  critical flag, risk contribution, peer percentile, crisis uplift and
+  missingness penalty metrics) for the selected country and snapshot.
+- **Rank 27 — CLOSED.** Header snapshot selector loads any archived bundle
+  read-only (checksum-verified); challenger bundles are labelled UNAPPROVED
+  and a warning banner distinguishes viewing from serving.
+- **Rank 35 — CLOSED.** `build_data_manifest.py` now documents its contract
+  and preserves `retrieval`/`source_mode`/`validation` metadata from an
+  existing manifest by default (`--fresh` to drop deliberately).
+- **Rank 37 and review item 26 leftovers — CLOSED.** All 19 unreferenced
+  one-off diagnostic scripts moved to `src/scripts/archive/` with a README
+  naming the supported script set; `replication/outputs` was verified to be
+  a single 104 KB tree (no duplicates remain).
+
+Items that remain open and why they cannot be closed from this environment:
+
+- **Ranks 5-14 (external-liquidity data block):** `api.imf.org` is
+  unreachable through this session's egress proxy (connection blocked), so
+  BOP/IIP/IRFCL/PIP/CPIS/Fiscal Monitor/GFS retrieval, normalization, and
+  feature engineering must run where the official API is reachable (owner
+  machine or GitHub Actions).
+- **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
+  external benchmark):** owner methodology decisions plus (for 18) licensed
+  or external outcome data.
+- **Ranks 25-26 (live-deployment verification):** requires the deployed
+  Streamlit Cloud URL and a push to the branch Streamlit deploys.
+- **Rank 28 (Methodology copy review):** owner review of the live UI.
+- **Rank 29 (formal accessibility/responsive QA):** needs a browser-matrix
+  pass against the live deployment; local bare-mode and HTTP smoke checks
+  are in place.
+- **Rank 33 (LFS history rewrite):** destructive repository operation
+  requiring owner coordination (all clones invalidated).
+- **Rank 34 (repo privacy):** owner account decision.
 
 ### 21.1 GitHub Checkpoints
 

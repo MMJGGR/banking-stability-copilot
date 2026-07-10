@@ -10,6 +10,9 @@ from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
 from src.country_names import fill_missing_country_names
 from src.health import build_health_report
 from src.model_store import (
+    SNAPSHOT_ARCHIVE,
+    list_archived_snapshots,
+    load_archived_snapshot,
     load_data_manifest,
     load_model_artifact_with_fallback,
 )
@@ -88,7 +91,7 @@ def render_markdown_with_images(markdown_text: str):
 
 # Page Config
 st.set_page_config(
-    page_title="Banking System Stability Copilot",
+    page_title="Banking Stability Analytics & Research Workbench",
     page_icon="B",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -135,6 +138,44 @@ def load_all_data():
         scores_df, loader, wgi_data, model_features, pca_info,
         served_manifest, serving_status,
     )
+
+
+@st.cache_resource(max_entries=4)
+def load_archived_snapshot_cached(name: str):
+    """Checksum-verified, read-only load of one archived snapshot bundle."""
+    return load_archived_snapshot(name)
+
+
+@st.cache_resource(max_entries=4)
+def load_inference_pipeline(snapshot: str):
+    """Load the fitted pillar pipeline for driver-table attribution."""
+    import pickle
+    from pathlib import Path
+
+    from src.config import CACHE_DIR
+    from src.lfs_resolver import ensure_lfs_file
+
+    if snapshot == "Active":
+        path = Path(CACHE_DIR) / "inference_pipeline.pkl"
+    else:
+        path = SNAPSHOT_ARCHIVE / snapshot / "inference_pipeline.pkl"
+    ensure_lfs_file(path)
+    with path.open("rb") as handle:
+        artifact = pickle.load(handle)
+    pipeline = artifact.get("pillar_pipeline")
+    if pipeline is None or not pipeline.fitted_:
+        raise ValueError("No fitted pillar pipeline available for this snapshot")
+    return pipeline
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def compute_country_drivers(snapshot: str, country_code: str,
+                            _model: dict, _pipeline) -> dict:
+    """Per-feature score attribution for one country (rank 22)."""
+    from src.scripts.explain_country_scores import build_driver_table
+
+    report = build_driver_table([country_code], model=_model, pipeline=_pipeline)
+    return report["countries"][country_code]
 
 
 @st.cache_data(show_spinner=False, max_entries=48)
@@ -742,8 +783,62 @@ if scores_df is not None and model_features is not None:
         scores_df = scores_df.merge(model_features[['country_code', 'nominal_gdp']], on='country_code', how='left')
 
 # ==============================================================================
-# HEADER: Country Selector + Model Info
+# HEADER: Country Selector + Snapshot Selector + Model Info
 # ==============================================================================
+header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
+
+# Snapshot selection must resolve before the country list is built, so the
+# selector renders in header_col3 but executes first (Streamlit lays out by
+# container, not code order).
+ACTIVE_SNAPSHOT_OPTION = "Active"
+with header_col3:
+    archived_names = list_archived_snapshots()
+
+    def format_snapshot_option(name: str) -> str:
+        if name == ACTIVE_SNAPSHOT_OPTION:
+            return f"Active ({data_manifest.get('snapshot_id', 'unversioned')})"
+        if "challenger" in name:
+            return f"{name} — UNAPPROVED"
+        return name
+
+    selected_snapshot = st.selectbox(
+        "Snapshot",
+        options=[ACTIVE_SNAPSHOT_OPTION] + archived_names,
+        format_func=format_snapshot_option,
+        key="snapshot_select",
+        label_visibility="collapsed",
+        help=(
+            "Inspect an archived snapshot bundle read-only. Challenger "
+            "bundles are unapproved review candidates."
+        ),
+    )
+
+viewing_archived = selected_snapshot != ACTIVE_SNAPSHOT_OPTION
+if viewing_archived:
+    try:
+        archived_artifact, archived_manifest = load_archived_snapshot_cached(
+            selected_snapshot
+        )
+        scores_df = archived_artifact['country_scores'].copy()
+        fill_missing_country_names(scores_df, fallback_to_code=True)
+        model_features = archived_artifact.get('feature_values')
+        pca_info = dict(archived_artifact.get('pca_info', {}))
+        pca_info.setdefault('training_date', archived_artifact['training_date'])
+        if archived_manifest:
+            data_manifest = archived_manifest
+        if (
+            model_features is not None
+            and 'nominal_gdp' not in scores_df.columns
+            and 'nominal_gdp' in model_features.columns
+        ):
+            scores_df = scores_df.merge(
+                model_features[['country_code', 'nominal_gdp']],
+                on='country_code', how='left',
+            )
+    except Exception as snapshot_error:
+        st.error(f"Could not load archived snapshot: {snapshot_error}")
+        viewing_archived = False
+
 available_countries = scores_df.sort_values('country_name')[['country_code', 'country_name']].drop_duplicates()
 available_country_codes = available_countries['country_code'].tolist()
 country_name_lookup = dict(
@@ -755,9 +850,6 @@ def format_country_option(country_code: str) -> str:
     name = country_name_lookup.get(country_code, country_code)
     return f"{name} ({country_code})"
 
-
-header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
-
 HEALTH_BADGES = {
     "ok": "🟢 Healthy",
     "stale": "🟡 Stale Data",
@@ -766,7 +858,7 @@ HEALTH_BADGES = {
 }
 
 with header_col1:
-    st.markdown("### Banking System Stability Copilot")
+    st.markdown("### Banking Stability Analytics & Research Workbench")
     training_date = pca_info.get('training_date', 'Unknown') if pca_info else 'Unknown'
     snapshot_id = data_manifest.get('snapshot_id', 'unversioned')
     snapshot_status = data_manifest.get('snapshot_status', 'manifest unavailable')
@@ -812,10 +904,9 @@ with st.expander(
             hide_index=True,
         )
     st.caption(
-        "Freshness SLAs are the proposed thresholds from docs/GOVERNANCE.md "
-        "(pending owner approval). Fallback mode means the app is serving the "
-        "last verified archived snapshot because the active artifact failed "
-        "validation."
+        "Freshness SLAs are the approved thresholds from docs/GOVERNANCE.md. "
+        "Fallback mode means the app is serving the last verified archived "
+        "snapshot because the active artifact failed validation."
     )
 
 with header_col2:
@@ -831,8 +922,13 @@ with header_col2:
         label_visibility="collapsed"
     )
     
-with header_col3:
-    pass  # Reserved for future actions
+if viewing_archived:
+    st.warning(
+        f"Viewing archived snapshot **{selected_snapshot}** read-only"
+        + (" — this is an **unapproved challenger** candidate, not the served model"
+           if "challenger" in selected_snapshot else "")
+        + ". The System Health panel continues to describe the active serving state."
+    )
 
 # Get selected country data
 country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
@@ -898,7 +994,82 @@ with tab_profile:
         if 'combined_pillar' in country_score_row:
             comb_score = country_score_row['combined_pillar']
             st.metric("Combined Pillar", f"{comb_score:.1f}/10")
-    
+
+    with st.expander("Score Drivers — feature-level attribution"):
+        try:
+            driver_model = {
+                'country_scores': scores_df,
+                'feature_values': model_features,
+                'training_date': pca_info.get('training_date'),
+                'pca_info': pca_info,
+                'trained': True,
+                'countries_trained': len(scores_df),
+            }
+            driver_pipeline = load_inference_pipeline(selected_snapshot)
+            payload = compute_country_drivers(
+                selected_snapshot, selected_country_code,
+                driver_model, driver_pipeline,
+            )
+            if 'error' in payload:
+                st.info(payload['error'])
+            else:
+                summary = payload.get('summary', {})
+                sc1, sc2, sc3 = st.columns(3)
+                crisis_uplift = summary.get('crisis_uplift')
+                sc1.metric(
+                    "Crisis Uplift",
+                    "—" if crisis_uplift is None else f"+{crisis_uplift:.2f}",
+                    help="Upward-only classifier overlay added to the pillar score.",
+                )
+                critical_missing = summary.get('critical_missing_share')
+                sc2.metric(
+                    "Critical Fields Missing",
+                    "—" if critical_missing is None else f"{critical_missing:.0%}",
+                    help="Share of core banking soundness fields that had to be imputed.",
+                )
+                critical_penalty = summary.get('critical_penalty')
+                sc3.metric(
+                    "Missingness Penalty",
+                    "—" if critical_penalty is None else f"+{critical_penalty:.2f}",
+                    help="Disclosed risk-score penalty for imputed critical fields.",
+                )
+                driver_rows = [
+                    {
+                        "Feature": driver["feature"],
+                        "Pillar": driver["pillar"],
+                        "Raw Value": (
+                            np.nan if driver["raw_value"] is None
+                            else float(driver["raw_value"])
+                        ),
+                        "Value Used": round(driver["used_value"], 3),
+                        "Imputed": "yes" if driver["is_imputed"] else "",
+                        "Critical": "yes" if driver.get("is_critical") else "",
+                        "Risk Contribution": round(driver["risk_contribution"], 4),
+                        "Peer Percentile": (
+                            np.nan if driver["peer_percentile_raw"] is None
+                            else float(driver["peer_percentile_raw"])
+                        ),
+                    }
+                    for driver in payload.get("drivers", [])
+                ]
+                st.dataframe(
+                    pd.DataFrame(driver_rows),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                st.caption(
+                    "Positive risk contributions push the country toward higher "
+                    "risk relative to the training mean; contributions sum to the "
+                    "raw pillar components before percentile mapping, confidence "
+                    "weighting, floors, penalties, and the crisis uplift. "
+                    "'Imputed' rows use model-filled values, not reported data."
+                )
+        except Exception as driver_error:
+            st.info(
+                "Feature-level attribution is unavailable for this snapshot: "
+                f"{driver_error}"
+            )
+
     st.markdown("---")
     
     # 3. KEY DATA: Left = Model Inputs, Right = WGI Governance

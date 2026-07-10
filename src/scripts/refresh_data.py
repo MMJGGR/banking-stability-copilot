@@ -183,7 +183,9 @@ def main():
         as_of_date=args.as_of,
         retrain_classifier=args.retrain_classifier,
     )
-    passed_checks, failed_checks = validate_model(results)
+    passed_checks, failed_checks = validate_model(
+        results, features_df=model.feature_values
+    )
     model.save()
 
     policy_audit = build_policy_audit(model.feature_values)

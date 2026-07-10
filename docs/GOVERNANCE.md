@@ -1,13 +1,9 @@
 # Data and Model Governance Policy
 
-Status: **PROPOSED — pending owner approval** (backlog items 30 and 31 in the
-remediation plan). The numeric thresholds below are enforced in code where
-noted so they are exercised from day one; the owner can revise any value and
-the enforcement points pick the change up from this single source of truth's
-companion constants.
-
-Owner sign-off is recorded by changing this Status line to `APPROVED
-(name, date)` in a reviewed pull request.
+Status: **APPROVED (@MMJGGR, 2026-07-10)** — thresholds and snapshot
+lifecycle approved as proposed (backlog items 30 and 31 closed). The numeric
+thresholds below are enforced in code where noted; revisions require a
+reviewed pull request updating this document and the companion constants.
 
 ## 1. Source freshness SLAs (enforced: `src/health.py`, System Health panel)
 
@@ -92,7 +88,21 @@ Rules:
 - A merged PR replacing the active artifacts must reference the snapshot ID,
   its validation results, and (for model changes) the comparison report.
 
-## 5. Model-change classification
+## 5. Artifact portability policy (backlog item 36)
+
+- Serving and training artifacts are pickles pinned to Python 3.11 and the
+  exact library versions in `constraints-dev.txt`; CI installs under those
+  constraints and `src/config.py` refuses interpreters older than 3.10.
+- Any dependency upgrade that changes scikit-learn, XGBoost, or pandas major
+  or minor versions requires rebuilding and re-verifying all serving
+  artifacts in the same PR (checksums in the manifest make a stale artifact
+  fail loudly rather than load quietly).
+- Safer serialization (skops for the sklearn pipeline, native XGBoost JSON
+  for the booster) is the target for a future release; until then artifacts
+  must only be loaded from checksum-verified, repository-controlled bundles,
+  which both the active loader and the fallback chain enforce.
+
+## 6. Model-change classification
 
 | Change | Examples | Requirement |
 |---|---|---|

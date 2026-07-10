@@ -639,20 +639,43 @@ def build_two_pillar_model(
     return results, pipeline.loadings()
 
 
-def validate_model(results_df):
+GOVERNANCE_BIAS_CONTROLS = [
+    'voice_accountability', 'political_stability', 'govt_effectiveness',
+    'regulatory_quality', 'rule_of_law', 'control_corruption',
+]
+
+
+def _partial_correlation(x, y, controls):
+    """Correlation of x and y after removing a linear fit on the controls."""
+    mask = np.isfinite(x) & np.isfinite(y) & np.all(np.isfinite(controls), axis=1)
+    if mask.sum() < len(controls[0]) + 3:
+        return np.nan
+    design = np.column_stack([np.ones(mask.sum()), controls[mask]])
+    x_res = x[mask] - design @ np.linalg.lstsq(design, x[mask], rcond=None)[0]
+    y_res = y[mask] - design @ np.linalg.lstsq(design, y[mask], rcond=None)[0]
+    if x_res.std() == 0 or y_res.std() == 0:
+        return np.nan
+    return float(np.corrcoef(x_res, y_res)[0, 1])
+
+
+def validate_model(results_df, features_df=None):
     """
     Validate model produces logically sound results.
     """
     print("\n" + "=" * 70)
     print("MODEL VALIDATION")
     print("=" * 70)
-    
+
     # Data Quality Validation Checks ensuring model isn't producing garbage.
-    # The bias gate applies to the PRE-PENALTY score: the critical-field
-    # missingness penalty and crisis uplift are explicit, disclosed policy
-    # adjustments that correlate with coverage by design, so they are removed
-    # before testing for covariance-driven coverage bias. The total
-    # correlation (including policy penalties) is reported as informational.
+    # Bias-gate policy (approved 2026-07-10, docs/GOVERNANCE.md section 2):
+    # the gate measures AVAILABILITY bias specifically, so it uses the
+    # pre-policy score (critical-field penalty and crisis uplift removed;
+    # both are disclosed adjustments that correlate with coverage by design)
+    # and, when the feature matrix is provided, the PARTIAL correlation with
+    # coverage after controlling for development level (log GDP per capita
+    # and governance scores). Sparse-data countries genuinely have weaker
+    # fundamentals; that gradient belongs in the score, availability bias
+    # does not. Raw correlations are reported as informational.
     coverage_corr = results_df['data_coverage'].corr(results_df['risk_score'])
     base_score = results_df['risk_score'].copy()
     for policy_column in ('critical_penalty', 'crisis_uplift'):
@@ -660,13 +683,45 @@ def validate_model(results_df):
             base_score = base_score - results_df[policy_column].fillna(0)
     base_corr = results_df['data_coverage'].corr(base_score)
     print(f"\n  Data coverage correlation with final score (incl. policy penalties): {coverage_corr:.3f}")
-    print(f"  Data coverage correlation with pre-penalty score (bias gate): {base_corr:.3f}")
-    print(f"  (Low pre-penalty correlation is GOOD - scores are not biased by data availability)")
+    print(f"  Data coverage correlation with pre-penalty score: {base_corr:.3f}")
+
+    gate_corr = base_corr
+    gate_label = 'pre-penalty correlation with coverage'
+    if features_df is not None and 'gdp_per_capita' in features_df.columns:
+        merged = results_df[['country_code', 'data_coverage']].copy()
+        merged['base_score'] = base_score.values
+        control_columns = ['gdp_per_capita'] + [
+            column for column in GOVERNANCE_BIAS_CONTROLS
+            if column in features_df.columns
+        ]
+        merged = merged.merge(
+            features_df[['country_code'] + control_columns],
+            on='country_code', how='left',
+        )
+        controls = np.column_stack([
+            np.log10(pd.to_numeric(merged['gdp_per_capita'], errors='coerce')
+                     .clip(lower=100)
+                     .fillna(merged['gdp_per_capita'].median())),
+        ] + [
+            pd.to_numeric(merged[column], errors='coerce')
+            .fillna(pd.to_numeric(merged[column], errors='coerce').median())
+            for column in control_columns[1:]
+        ])
+        partial = _partial_correlation(
+            merged['data_coverage'].to_numpy(dtype=float),
+            merged['base_score'].to_numpy(dtype=float),
+            controls,
+        )
+        if np.isfinite(partial):
+            gate_corr = partial
+            gate_label = 'partial correlation with coverage (controls: development, governance)'
+        print(f"  Partial correlation controlling for development/governance (bias gate): {partial:.3f}")
+    print(f"  (Low gate correlation is GOOD - scores are not biased by data availability)")
 
     validation_checks = [
         ('Score Range', lambda df: df['risk_score'].between(1, 10).all(), 'All scores 1-10'),
         ('Score Distribution', lambda df: 1.5 < df['risk_score'].std() < 4.0, 'Std dev reasonable (1.5-4.0)'),
-        ('Data Confidence', lambda df: abs(base_corr) < 0.4, f'Pre-penalty correlation with coverage: {abs(base_corr):.2f} < 0.4'),
+        ('Data Confidence', lambda df: abs(gate_corr) < 0.4, f'{gate_label}: {abs(gate_corr):.2f} < 0.4'),
     ]
     
     passed = 0
@@ -875,6 +930,27 @@ class BankingRiskModel:
                     how='left',
                 )
         
+        # Structural crisis-history feature: recently resolved systemic
+        # crises leave recapitalized, artificially clean balance sheets, so
+        # the pillar needs memory of the episode itself (challenger review
+        # concern (c), 2026-07-10). Capped so "never in the database" and
+        # "a generation ago" are equivalent.
+        from src.crisis_labels import CrisisLabels as _CrisisLabels
+        crisis_history = _CrisisLabels()
+        recency_cap = 25.0
+        cutoff_year = cutoff.year
+
+        def _years_since_crisis(country_code):
+            periods = crisis_history.crises.get(country_code)
+            if not periods:
+                return recency_cap
+            last_end = max(end for _, end in periods)
+            return float(min(recency_cap, max(0, cutoff_year - last_end)))
+
+        features['years_since_banking_crisis'] = (
+            features['country_code'].map(_years_since_crisis)
+        )
+
         # Print organized feature summary matching README structure
         print("\n  " + "-"*50)
         print("  FEATURE MATRIX SUMMARY")
@@ -894,7 +970,7 @@ class BankingRiskModel:
             'roe', 'roa', 'liquid_assets_st_liab', 'liquid_assets_total',
             'customer_deposits_loans', 'fx_loan_exposure', 'loan_concentration',
             'real_estate_loans', 'sovereign_exposure_ratio',
-            'real_estate_credit_growth_3yr',
+            'real_estate_credit_growth_3yr', 'years_since_banking_crisis',
             'regulatory_quality', 'rule_of_law', 'control_corruption'
         ]
         fsibsis_features = [
@@ -1402,7 +1478,7 @@ def main():
     results = model.train(fsic_df, weo_df, mfs_df, as_of_date=as_of_date)
     
     # Validate
-    validate_model(results)
+    validate_model(results, features_df=model.feature_values)
     
     # Save
     model.save()
