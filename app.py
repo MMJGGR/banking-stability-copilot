@@ -403,6 +403,16 @@ with tab_explorer:
                     from src.data_loader import parse_period_label
                     fsibsis_long['period'] = fsibsis_long['period_label'].map(parse_period_label)
                     fsibsis_long['country_code'] = selected_country_code
+
+                    def _fsibsis_frequency(label) -> str:
+                        text = str(label).upper()
+                        if 'Q' in text:
+                            return 'Q'
+                        if 'M' in text:
+                            return 'M'
+                        return 'A'
+
+                    fsibsis_long['frequency'] = fsibsis_long['period_label'].map(_fsibsis_frequency)
                     
                     n_indicators = fsibsis_long['indicator_name'].nunique()
                     st.caption(f"📊 {n_indicators} balance sheet indicators available")
