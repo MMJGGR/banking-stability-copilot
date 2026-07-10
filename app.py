@@ -17,6 +17,15 @@ from src.dashboard.components import (
     WEO_INDICATORS,
     FSIC_NAME_PATTERNS
 )
+from src.dashboard.calculated_series import (
+    available_frequencies,
+    compute_cross_sectional_share,
+    compute_ratio,
+    compute_temporal_change,
+    filter_time_range,
+    normalize_observation_frame,
+    restrict_frequency,
+)
 from src.dashboard.global_view import render_global_summary
 from src.utils import find_peers
 
@@ -346,6 +355,395 @@ def render_indicator_comparison(
         latest_table[['Country', 'Latest Period', 'Latest Value']],
         use_container_width=True,
         hide_index=True,
+    )
+
+
+def _load_comparison_source(
+    dataset: str,
+    countries: list[str],
+    wgi_panel: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """Load a source panel for selected countries for Data Explorer tools."""
+    if dataset == "WGI":
+        if wgi_panel is None or len(wgi_panel) == 0:
+            return pd.DataFrame()
+        governance_cols = [
+            'voice_accountability', 'political_stability', 'govt_effectiveness',
+            'regulatory_quality', 'rule_of_law', 'control_corruption'
+        ]
+        available_cols = [c for c in governance_cols if c in wgi_panel.columns]
+        source_df = wgi_panel[wgi_panel['country_code'].isin(countries)].copy()
+        if len(source_df) == 0 or not available_cols:
+            return pd.DataFrame()
+        source_df = source_df.melt(
+            id_vars=['country_code', 'year'],
+            value_vars=available_cols,
+            var_name='indicator_code',
+            value_name='value',
+        )
+        source_df['indicator_name'] = source_df['indicator_code'].str.replace('_', ' ').str.title()
+        source_df['period'] = pd.to_datetime(source_df['year'].astype(str) + '-12-31')
+        source_df['frequency'] = 'A'
+        return source_df
+
+    return load_multi_country_history(tuple(countries), dataset)
+
+
+def _indicator_selector_metadata(source_df: pd.DataFrame, dataset: str):
+    """Return indicator options, labels and key column for a source frame."""
+    use_name_as_key = dataset in ("FSIC", "FSIBSIS") and 'indicator_name' in source_df.columns
+    if use_name_as_key:
+        indicator_options = source_df['indicator_name'].dropna().unique().tolist()
+        indicator_options = sorted(indicator_options, key=lambda x: x.lower())
+        display_map = {name: name[:90] + "..." if len(name) > 90 else name for name in indicator_options}
+        indicator_col = 'indicator_name'
+    else:
+        mapping = (
+            source_df[['indicator_code', 'indicator_name']]
+            .dropna()
+            .drop_duplicates('indicator_code')
+            if 'indicator_name' in source_df.columns
+            else pd.DataFrame(columns=['indicator_code', 'indicator_name'])
+        )
+        name_map = dict(zip(mapping['indicator_code'], mapping['indicator_name']))
+
+        def display_indicator(code):
+            name = name_map.get(code)
+            if pd.notna(name) and str(name).strip() and str(name) != str(code):
+                return f"{name} ({code})"
+            return str(code).replace('_', ' ').title()
+
+        indicator_options = sorted(
+            source_df['indicator_code'].dropna().unique().tolist(),
+            key=display_indicator,
+        )
+        display_map = {code: display_indicator(code) for code in indicator_options}
+        indicator_col = 'indicator_code'
+    return indicator_options, display_map, indicator_col
+
+
+def _render_calculated_chart(
+    chart_df: pd.DataFrame,
+    title: str,
+    country_formatter,
+    y_title: str = None,
+):
+    """Render a standard calculated-series line chart and latest table."""
+    if chart_df is None or len(chart_df) == 0:
+        st.info("No aligned observations are available for that calculation.")
+        return
+
+    chart_df = chart_df.copy()
+    chart_df['country_name'] = chart_df['country_code'].map(country_formatter)
+    chart_df = chart_df.sort_values('date')
+    fig = px.line(
+        chart_df,
+        x='date',
+        y='value',
+        color='country_name',
+        markers=True,
+        title=title,
+    )
+    fig.update_layout(
+        height=420,
+        margin=dict(l=20, r=20, t=48, b=20),
+        xaxis_title=None,
+        yaxis_title=y_title,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+    )
+    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+
+    latest = (
+        chart_df.sort_values('date')
+        .groupby(['country_code', 'country_name'], as_index=False)
+        .last()[['country_name', 'date', 'value']]
+        .sort_values('country_name')
+    )
+    latest['Latest Period'] = latest['date'].dt.strftime('%Y-%m-%d')
+    latest['Latest Value'] = latest['value'].map(lambda x: f"{x:,.2f}")
+    latest = latest.rename(columns={'country_name': 'Country'})
+    st.dataframe(
+        latest[['Country', 'Latest Period', 'Latest Value']],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def render_calculated_series_builder(
+    scores: pd.DataFrame,
+    selected_country: str,
+    default_peer_codes: list[str],
+    country_formatter,
+    wgi_panel: pd.DataFrame | None,
+):
+    """Render bounded multi-indicator, ratio, share and temporal calculations."""
+    st.markdown("### Calculated Series")
+    st.caption(
+        "Build lightweight exploratory calculations from one source at a time. "
+        "Calculations align observations by country, date, and reporting frequency."
+    )
+
+    available_codes = scores.sort_values('country_name')['country_code'].tolist()
+    default_countries = []
+    for code in [selected_country] + default_peer_codes:
+        if code in available_codes and code not in default_countries:
+            default_countries.append(code)
+    default_countries = default_countries[:5]
+
+    source_col, country_col = st.columns([1, 3])
+    with source_col:
+        source_choice = st.selectbox(
+            "Source",
+            ["Economic (WEO)", "Banking (FSIC)", "Monetary (MFS)", "Governance (WGI)"],
+            key="calc_source",
+        )
+    with country_col:
+        calc_countries = st.multiselect(
+            "Countries",
+            options=available_codes,
+            default=default_countries,
+            format_func=country_formatter,
+            key="calc_countries",
+            help="Selected countries are capped at 8 for hosted performance.",
+        )
+    if not calc_countries:
+        st.info("Select at least one country.")
+        return
+    if len(calc_countries) > 8:
+        st.warning("Using the first 8 selected countries to keep the hosted app responsive.")
+        calc_countries = calc_countries[:8]
+
+    dataset = {
+        "Economic (WEO)": "WEO",
+        "Banking (FSIC)": "FSIC",
+        "Monetary (MFS)": "MFS",
+        "Governance (WGI)": "WGI",
+    }[source_choice]
+
+    with st.spinner(f"Loading {dataset} history for calculated series..."):
+        source_df = _load_comparison_source(dataset, calc_countries, wgi_panel)
+    if source_df is None or len(source_df) == 0:
+        st.info(f"No {dataset} data is available for the selected countries.")
+        return
+
+    indicator_options, display_map, indicator_col = _indicator_selector_metadata(source_df, dataset)
+    if not indicator_options:
+        st.info("No indicators are available for this source/country selection.")
+        return
+
+    mode_col, range_col = st.columns([2, 1])
+    with mode_col:
+        calc_mode = st.selectbox(
+            "Calculation",
+            [
+                "Raw multi-indicator panels",
+                "Ratio",
+                "Cross-sectional share",
+                "Temporal change / index",
+            ],
+            key=f"calc_mode_{dataset}",
+        )
+    with range_col:
+        time_range = st.selectbox(
+            "Range",
+            ["5 Years", "10 Years", "20 Years", "All Data"],
+            index=1,
+            key=f"calc_range_{dataset}",
+        )
+
+    if calc_mode == "Raw multi-indicator panels":
+        selected_indicators = st.multiselect(
+            "Indicators",
+            options=indicator_options,
+            default=indicator_options[: min(3, len(indicator_options))],
+            format_func=lambda x: display_map[x],
+            key=f"calc_raw_indicators_{dataset}",
+            help="Shows up to 5 indicators as separate panels to avoid mixing units.",
+        )
+        selected_indicators = selected_indicators[:5]
+        if not selected_indicators:
+            st.info("Select at least one indicator.")
+            return
+        freq_options = available_frequencies(source_df)
+        selected_freq = None
+        if len(freq_options) > 1:
+            selected_freq = st.selectbox(
+                "Periodicity",
+                freq_options,
+                format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+                key=f"calc_raw_frequency_{dataset}",
+            )
+        elif freq_options:
+            selected_freq = freq_options[0]
+        for indicator in selected_indicators:
+            panel = normalize_observation_frame(
+                source_df,
+                indicator,
+                indicator_col,
+                display_map[indicator],
+            )
+            panel = filter_time_range(restrict_frequency(panel, selected_freq), time_range)
+            _render_calculated_chart(
+                panel,
+                title=display_map[indicator],
+                country_formatter=country_formatter,
+            )
+        st.caption("Formula: raw source value. Missing periods are not filled.")
+        return
+
+    if calc_mode == "Ratio":
+        num_col, den_col, scale_col = st.columns([2, 2, 1])
+        with num_col:
+            numerator_key = st.selectbox(
+                "Numerator",
+                indicator_options,
+                format_func=lambda x: display_map[x],
+                key=f"calc_ratio_num_{dataset}",
+            )
+        with den_col:
+            denominator_key = st.selectbox(
+                "Denominator",
+                indicator_options,
+                format_func=lambda x: display_map[x],
+                key=f"calc_ratio_den_{dataset}",
+            )
+        with scale_col:
+            scale_label = st.selectbox(
+                "Scale",
+                ["Ratio", "Percent"],
+                key=f"calc_ratio_scale_{dataset}",
+            )
+        scale = 100.0 if scale_label == "Percent" else 1.0
+        numerator = normalize_observation_frame(
+            source_df,
+            numerator_key,
+            indicator_col,
+            display_map[numerator_key],
+        )
+        denominator = normalize_observation_frame(
+            source_df,
+            denominator_key,
+            indicator_col,
+            display_map[denominator_key],
+        )
+        common_freqs = [
+            f for f in available_frequencies(numerator)
+            if f in set(denominator.get("frequency", pd.Series(dtype=str)))
+        ]
+        selected_freq = None
+        if len(common_freqs) > 1:
+            selected_freq = st.selectbox(
+                "Periodicity",
+                common_freqs,
+                format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+                key=f"calc_ratio_frequency_{dataset}_{numerator_key}_{denominator_key}",
+            )
+        elif common_freqs:
+            selected_freq = common_freqs[0]
+        ratio = compute_ratio(
+            restrict_frequency(numerator, selected_freq),
+            restrict_frequency(denominator, selected_freq),
+            scale=scale,
+        )
+        ratio = filter_time_range(ratio, time_range)
+        title = f"{display_map[numerator_key]} / {display_map[denominator_key]}"
+        _render_calculated_chart(
+            ratio,
+            title=title,
+            country_formatter=country_formatter,
+            y_title=scale_label,
+        )
+        st.caption(
+            f"Formula: {display_map[numerator_key]} ÷ {display_map[denominator_key]}"
+            f"{' × 100' if scale_label == 'Percent' else ''}. "
+            "Only exact country/date/frequency matches are used; zero denominators are excluded."
+        )
+        return
+
+    if calc_mode == "Cross-sectional share":
+        indicator_key = st.selectbox(
+            "Indicator",
+            indicator_options,
+            format_func=lambda x: display_map[x],
+            key=f"calc_share_indicator_{dataset}",
+        )
+        base = normalize_observation_frame(
+            source_df,
+            indicator_key,
+            indicator_col,
+            display_map[indicator_key],
+        )
+        freq_options = available_frequencies(base)
+        selected_freq = None
+        if len(freq_options) > 1:
+            selected_freq = st.selectbox(
+                "Periodicity",
+                freq_options,
+                format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+                key=f"calc_share_frequency_{dataset}_{indicator_key}",
+            )
+        elif freq_options:
+            selected_freq = freq_options[0]
+        share = compute_cross_sectional_share(restrict_frequency(base, selected_freq))
+        share = filter_time_range(share, time_range)
+        _render_calculated_chart(
+            share,
+            title=f"Share of selected-country total: {display_map[indicator_key]}",
+            country_formatter=country_formatter,
+            y_title="Percent of selected group",
+        )
+        st.caption(
+            "Formula: country value ÷ sum of selected countries for the same period × 100. "
+            "The selected country set defines the denominator."
+        )
+        return
+
+    indicator_key = st.selectbox(
+        "Indicator",
+        indicator_options,
+        format_func=lambda x: display_map[x],
+        key=f"calc_temporal_indicator_{dataset}",
+    )
+    temporal_mode = st.radio(
+        "Temporal calculation",
+        ["period_pct", "base_pct", "index_100"],
+        format_func=lambda x: {
+            "period_pct": "Period-over-period % change",
+            "base_pct": "Change from first period %",
+            "index_100": "Rebased index: first period = 100",
+        }[x],
+        horizontal=True,
+        key=f"calc_temporal_mode_{dataset}_{indicator_key}",
+    )
+    base = normalize_observation_frame(
+        source_df,
+        indicator_key,
+        indicator_col,
+        display_map[indicator_key],
+    )
+    freq_options = available_frequencies(base)
+    selected_freq = None
+    if len(freq_options) > 1:
+        selected_freq = st.selectbox(
+            "Periodicity",
+            freq_options,
+            format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+            key=f"calc_temporal_frequency_{dataset}_{indicator_key}",
+        )
+    elif freq_options:
+        selected_freq = freq_options[0]
+    ranged = filter_time_range(restrict_frequency(base, selected_freq), time_range)
+    temporal = compute_temporal_change(ranged, temporal_mode)
+    _render_calculated_chart(
+        temporal,
+        title=f"{display_map[indicator_key]} — {temporal_mode.replace('_', ' ')}",
+        country_formatter=country_formatter,
+        y_title="Percent" if temporal_mode != "index_100" else "Index",
+    )
+    st.caption(
+        "Formula: period change, first-period change, or rebased index calculated "
+        "separately for each country after frequency and time-range selection."
     )
 
 
@@ -966,6 +1364,14 @@ with tab_explorer:
     )
     with st.expander("Compare one indicator across countries", expanded=False):
         render_indicator_comparison(
+            scores=scores_df,
+            selected_country=selected_country_code,
+            default_peer_codes=explorer_default_peers,
+            country_formatter=format_country_option,
+            wgi_panel=wgi_data,
+        )
+    with st.expander("Calculated series: ratios, shares, and changes", expanded=False):
+        render_calculated_series_builder(
             scores=scores_df,
             selected_country=selected_country_code,
             default_peer_codes=explorer_default_peers,
