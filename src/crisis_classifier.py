@@ -10,10 +10,9 @@ academic best practices:
 - SHAP values for interpretability (IMF/policy requirement)
 - Class imbalance handling (crises are rare events)
 
-Architecture:
-    Hybrid Score = 0.4 * Economic_Pillar
-                 + 0.4 * Industry_Pillar  
-                 + 0.2 * Supervised_Crisis_Probability
+Architecture (policy decision recorded in docs/MODEL_CARD.md):
+    Final Score = 0.9 * Pillar_Score (50/50 economic/industry PCA blend)
+                + 0.1 * Supervised_Crisis_Probability (as a bounded adjustment)
 
 Author: Banking Copilot
 Date: 2026-01-02
@@ -89,7 +88,7 @@ class CrisisClassifier:
     # Higher priority = more predictive in published research
     FEATURE_PRIORITY = {
         # Tier 1: Critical predictors (BIS, IMF, Drehmann & Juselius 2014)
-        'credit_to_gdp_gap': 1,    
+        'credit_to_gdp_relative': 1,    
         'debt_service_gdp': 1,
         'npl_ratio': 1,
         'external_debt_gdp': 1,
@@ -116,7 +115,7 @@ class CrisisClassifier:
     EXCLUDED_FROM_CLASSIFIER = [
         'gdp_per_capita',    # Wealth proxy — raw scale dominates SHAP
         'nominal_gdp',       # Economic size — not a crisis predictor (Iceland, Cyprus disprove)
-        'credit_to_gdp',     # Redundant with credit_to_gdp_gap (the BIS-validated measure)
+        'credit_to_gdp',     # Redundant with credit_to_gdp_relative (cross-country median deviation)
         'development_tier',  # Ordinal income tier — used ONLY for sample weighting, not as feature
     ]
     
@@ -674,66 +673,6 @@ class CrisisClassifier:
         return classifier
 
 
-class HybridRiskScorer:
-    """
-    Hybrid risk scoring combining unsupervised and supervised approaches.
-    
-    CRISP-DM: Deployment-ready scoring system
-    
-    Architecture:
-        Score = 0.4 * Economic_Pillar (PCA-based)
-              + 0.4 * Industry_Pillar (PCA-based, includes liquidity)
-              + 0.2 * Supervised_Crisis_Probability
-    """
-    
-    def __init__(self):
-        self.crisis_classifier = None
-        self.fitted_ = False
-    
-    def compute_hybrid_score(self,
-                            economic_score: float,
-                            industry_score: float,
-                            crisis_probability: float,
-                            w_economic: float = 0.4,
-                            w_industry: float = 0.4,
-                            w_supervised: float = 0.2) -> float:
-        """
-        Compute hybrid risk score.
-        
-        Args:
-            economic_score: Economic pillar score (0-100, higher = stronger)
-            industry_score: Industry pillar score (0-100, higher = stronger)
-            crisis_probability: Supervised crisis probability (0-1)
-            w_*: Component weights (must sum to 1)
-        
-        Returns:
-            Hybrid risk score (1-10 scale, 1 = lowest risk)
-        """
-        # Validate weights
-        assert abs(w_economic + w_industry + w_supervised - 1.0) < 0.001
-        
-        # Combine components (higher = better/safer)
-        # Convert crisis probability to "safety" score (1 - prob)
-        combined = (
-            w_economic * economic_score +
-            w_industry * industry_score +
-            w_supervised * (1 - crisis_probability) * 100
-        )
-        
-        # Clamp combined to 0-100 range before converting
-        combined = np.clip(combined, 0, 100)
-        
-        # Convert to 1-10 risk scale
-        # Higher combined = lower risk number
-        risk_score = 1 + 9 * (1 - combined / 100)
-        
-        return np.clip(risk_score, 1, 10)
-
-
-# =============================================================================
-# Main training pipeline
-# =============================================================================
-
 def _assign_development_tier(gdp_per_capita):
     """
     Convert GDP per capita to ordinal development tier.
@@ -998,7 +937,7 @@ MONOTONE_DIRECTION = {
     'customer_deposits_loans': -1, # Deposit-funded loans
     
     # Ambiguous (0 = let model learn)
-    'credit_to_gdp_gap': 0,      # BIS: both high and rapid change matter
+    'credit_to_gdp_relative': 0,      # BIS: both high and rapid change matter
     'bank_liability_to_nfa': 0,  # Complex FX dynamics
     'sovereign_liability_to_reserves': 0,  # Context-dependent
     'securities_to_assets': 0,   # Can indicate market sophistication or risk
@@ -1040,7 +979,7 @@ def _build_monotone_constraints(feature_cols):
     return tuple(constraints)
 
 
-def train_crisis_model(weo_df=None, fsic_df=None):
+def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
     """
     Train the crisis classifier with temporal panel data.
     
@@ -1093,12 +1032,26 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     
     # --- BUILD TEMPORAL PANEL ---
     # Each epoch has year-matched features from WEO/FSIC + lag features
+    # Each epoch Y labels crises STARTING in [Y+1, Y+3] using features from
+    # the year before Y. The 2026-07 review found the original five epochs
+    # left 34 labeled systemic episodes (1988-90, 1994-95, 1999-2000,
+    # 2009-15, 2019+) structurally invisible; the set below covers every
+    # start year in the Laeven-Valencia labels from 1988 onward. Windows
+    # 1993/1995 and 2014/2015 overlap by one to two years, duplicating those
+    # observations; grouped CV keeps each country within a single fold.
     EPOCHS = {
+        1987: ('Late-1980s Africa/LatAm (TZA,SEN,CIV,ARG,ZAF,BRA)', 1986),
         1990: ('Africa (KEN,NGA,TZA), Nordic (FIN,SWE,NOR)', 1989),
+        1993: ('Tequila & mid-1990s (MEX,VEN,BOL,ARG,ZWE)', 1992),
         1995: ('Asian crisis (THA,IDN,KOR,MYS), LatAm (ARG,MEX)', 1994),
+        1998: ('Brazil 1999, Turkey 2000', 1997),
         2000: ('Argentina (2001), Turkey (2000)', 1999),
         2005: ('Global Financial Crisis (USA,GBR,ESP,ISL,GRC...)', 2004),
+        2008: ('Post-GFC second wave (NGA,VEN 2009)', 2007),
+        2011: ('European periphery & 2014 wave (CYP,SVN,UKR,BGR,KAZ,MDA)', 2010),
+        2014: ('2015 oil-price bust (AZE,GNQ,TCD)', 2013),
         2015: ('Ghana, Lebanon, and 2014-2018 systemic episodes', 2014),
+        2018: ('Lebanon 2019 and post-2019 episodes', 2017),
     }
     
     use_panel = (weo_df is not None)  # Can we build temporal panel?
@@ -1344,10 +1297,13 @@ def train_crisis_model(weo_df=None, fsic_df=None):
     
     # Predict on latest features for deployment
     deploy_feature_cols = [c for c in feature_cols if c in features.columns]
-    # Add lag features from latest WEO data if available
+    # Add lag features from latest WEO data if available. The reference year
+    # comes from the snapshot cutoff, never the wall clock, so a rebuild of a
+    # historical snapshot reproduces the same deployment lags.
     if weo_df is not None and use_panel:
-        from datetime import datetime
-        latest_year = datetime.now().year - 1
+        import pandas as _pd
+        cutoff = _pd.Timestamp(as_of_date or f"{_pd.Timestamp.today().year - 1}-12-31")
+        latest_year = cutoff.year if cutoff.month == 12 else cutoff.year - 1
         latest_lags = _compute_lag_features(weo_df, latest_year, all_countries)
         if len(latest_lags) > 0:
             lag_cols = ['gdp_growth_3yr_avg', 'inflation_acceleration',

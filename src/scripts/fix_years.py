@@ -35,7 +35,7 @@ def verify_and_fix():
     print("  [1a] Extracting core IMF features (WEO, FSIC, MFS)...")
     weo_features = fe.extract_weo_features(weo)
     fsic_features = fe.extract_fsic_features(loader._data_cache.get('FSIC'))
-    credit_gap = fe.compute_credit_to_gdp_gap(loader._data_cache.get('MFS'), weo)
+    credit_gap = fe.compute_credit_to_gdp_relative(loader._data_cache.get('MFS'), weo)
     sovereign_nexus = fe.compute_sovereign_bank_nexus(loader._data_cache.get('MFS'), weo)
     
     # Load WGI

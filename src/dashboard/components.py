@@ -96,10 +96,10 @@ FSIC_NAME_PATTERNS = {
     'npl_ratio': 'Nonperforming loans to total gross loans.*Core FSI',
     'roe': 'Return on equity.*Core FSI',
     'roa': 'Return on assets.*Core FSI',
-    'liquid_assets_st_liab': 'Liquid assets to short term liabilities.*Core FSI',
+    'liquid_assets_st_liab': 'Liquid assets to short.?term liabilities.*Core FSI',
     'liquid_assets_total': 'Liquid assets to total assets.*Percent',
     'customer_deposits_loans': 'Customer deposits to total.*loans.*Percent',
-    'fx_loan_exposure': 'Foreign currency.*loans.*Percent',
+    'fx_loan_exposure': 'Foreign.currency.*loans to total.*loans.*Percent',
     'loan_concentration': 'Loan concentration.*Percent',
     'real_estate_loans': 'Residential real estate loans to total gross loans.*Core FSI',
     'npl_provisions': 'Provisions to nonperforming loans.*Percent',
@@ -122,14 +122,16 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     # SINGLE SOURCE OF TRUTH: Read all features from crisis_features.parquet
     # This is exact same data the model uses - no recalculation needed
     actual_values = {}
-    
+    model_columns = set()
+
     from src.config import CACHE_DIR
     import os
     parquet_path = os.path.join(CACHE_DIR, 'crisis_features.parquet')
-    
+
     if os.path.exists(parquet_path) and country_code:
         try:
             crisis_df = pd.read_parquet(parquet_path)
+            model_columns = set(crisis_df.columns)
             crisis_row = crisis_df[crisis_df['country_code'] == country_code]
             if len(crisis_row) > 0:
                 row = crisis_row.iloc[0]
@@ -137,6 +139,12 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 for col in crisis_df.columns:
                     if col != 'country_code' and pd.notna(row.get(col)):
                         actual_values[col] = row[col]
+                # Serving artifacts built before the rename carry the
+                # legacy feature name; map it forward for display.
+                if 'credit_to_gdp_relative' not in actual_values and \
+                        'credit_to_gdp_gap' in actual_values:
+                    actual_values['credit_to_gdp_relative'] = actual_values['credit_to_gdp_gap']
+                    model_columns.add('credit_to_gdp_relative')
         except Exception as e:
             pass
     
@@ -163,13 +171,14 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
             ("inflation", "Inflation Rate", "{:.1f}%"),
             ("govt_debt_gdp", "Govt Debt/GDP", "{:.1f}%"),
             ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
-            ("credit_to_gdp_gap", "Credit-to-GDP Gap", "{:+.1f}pp"), # Moved from Liquidity
+            ("credit_to_gdp_relative", "Credit-to-GDP Gap", "{:+.1f}pp"), # Moved from Liquidity
             ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW
         ],
         "Banking Sector Health": [
             ("capital_adequacy", "Capital Adequacy Ratio", "{:.1f}%"),
             ("npl_ratio", "NPL Ratio", "{:.1f}%"),
             ("roe", "Return on Equity", "{:.1f}%"),
+            ("roa", "Return on Assets", "{:.1f}%"),
             ("sovereign_exposure_ratio", "Sovereign Exposure", "{:.1f}%"),
             ("net_interest_margin", "Net Interest Margin", "{:.2f}%"),
         ],
@@ -207,7 +216,12 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
             
             for key, display_name, fmt in indicators:
                 value = actual_values.get(key)
-                imputed_val = imputed_values.get(key)
+                # Only fall back to the imputed sidecar for features the
+                # current model actually carries; a feature absent from the
+                # model frame (renamed, dropped as redundant, or no longer
+                # extracted) must not surface a stale imputed number.
+                feature_in_model = key in model_columns if model_columns else True
+                imputed_val = imputed_values.get(key) if feature_in_model else None
                 
                 if value is not None and not pd.isna(value):
                     # Actual data available
@@ -259,7 +273,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("govt_debt_gdp", "Govt Debt/GDP", "{:.1f}%"),
                 ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
                 ("unemployment", "Unemployment", "{:.1f}%"),
-                ("credit_to_gdp_gap", "Credit-to-GDP Gap", "{:+.1f}pp"),
+                ("credit_to_gdp_relative", "Credit-to-GDP Gap", "{:+.1f}pp"),
                 ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW (Ratio)
                 # Governance indicators from WGI (only 2 kept after correlation filtering)
                 ("voice_accountability", "Voice & Accountability", "{:.0f}/100"),
@@ -686,7 +700,7 @@ def render_prediction_form(current_values: Dict[str, float] = None) -> Dict[str,
         "Credit Inputs": [
             ("private_credit_to_gdp", "Private Credit to GDP (%)", 10.0, 250.0, 50.0, 1.0), # Renamed
             ("total_credit_to_gdp", "Total Credit to GDP (%)", 10.0, 350.0, 80.0, 1.0), # NEW
-            ("credit_to_gdp_gap", "Credit-to-GDP Gap (pp)", -30.0, 30.0, 0.0, 0.5),
+            ("credit_to_gdp_relative", "Credit-to-GDP Gap (pp)", -30.0, 30.0, 0.0, 0.5),
         ],
     }
     

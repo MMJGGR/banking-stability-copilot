@@ -35,7 +35,6 @@ from src.country_names import country_name_from_code
 from src.feature_engineering import CrisisFeatureEngineer
 from src.crisis_classifier import (
     CrisisClassifier,
-    HybridRiskScorer,
     train_crisis_model,
     _compute_lag_features,
 )
@@ -235,7 +234,7 @@ def build_two_pillar_model_legacy(features_df, anchor_series, country_names):
     economic_cols = [
         'gdp_growth', 'inflation', 'current_account_gdp', 'gdp_per_capita',
         'govt_debt_gdp', 'fiscal_balance_gdp', 'unemployment',
-        'credit_to_gdp', 'credit_to_gdp_gap', 'debt_service_gdp', 'external_debt_gdp',
+        'credit_to_gdp', 'credit_to_gdp_relative', 'debt_service_gdp', 'external_debt_gdp',
         'sovereign_liability_to_reserves',
         # Literature gap features (2026-02)
         'inflation_differential_3yr',   # REER proxy (Gourinchas & Obstfeld 2012)
@@ -767,14 +766,15 @@ class BankingRiskModel:
             include_estimates=True,
             include_projections=False,
         )
-        fsic_features = engineer.extract_fsic_features(fsic_df)
-        credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
-        sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
-        
+        fsic_features = engineer.extract_fsic_features(fsic_df, as_of_date=cutoff)
+        credit_gap = engineer.compute_credit_to_gdp_relative(mfs_df, weo_df, as_of_date=cutoff)
+        sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df, as_of_date=cutoff)
+
         # Compute literature-identified gap features (2026-02)
         print("\n  [1a+] Computing literature gap features...")
         lit_gap_features = engineer.compute_literature_gap_features(
-            weo_df=weo_df, mfs_df=mfs_df, fsic_df=fsic_df, weo_features=weo_features
+            weo_df=weo_df, mfs_df=mfs_df, fsic_df=fsic_df, weo_features=weo_features,
+            as_of_date=cutoff,
         )
         
         # Load WGI governance features
@@ -873,7 +873,7 @@ class BankingRiskModel:
         economic_features = [
             'gdp_per_capita', 'gdp_growth', 'inflation', 'unemployment', 'nominal_gdp',
             'current_account_gdp', 'govt_debt_gdp', 'fiscal_balance_gdp',
-            'external_debt_gdp', 'debt_service_gdp', 'credit_to_gdp', 'credit_to_gdp_gap',
+            'external_debt_gdp', 'debt_service_gdp', 'credit_to_gdp', 'credit_to_gdp_relative',
             'inflation_differential_3yr', 'interest_cost_gdp', 'interest_cost_trend_3yr',
             'credit_growth_3yr', 'm2_to_reserves', 'ca_deficit_severity', 'tot_deterioration_3yr',
             'voice_accountability', 'political_stability', 'govt_effectiveness'
@@ -928,6 +928,32 @@ class BankingRiskModel:
         features_path = os.path.join(CACHE_DIR, 'crisis_features.parquet')
         features.to_parquet(features_path, index=False)
         print(f"\n  Saved features to: {features_path}")
+
+        # Persist the per-country data-heuristic flags collected during
+        # feature engineering so silent adjustments are auditable.
+        try:
+            import json as _json
+            from collections import Counter as _Counter
+            flags = list(getattr(engineer, 'heuristic_flags', []))
+            heuristics_payload = {
+                'schema_version': 1,
+                'flag_count': len(flags),
+                'counts_by_heuristic': dict(
+                    _Counter(flag['heuristic'] for flag in flags)
+                ),
+                'flags': flags,
+            }
+            heuristics_path = os.path.join(
+                os.path.dirname(CACHE_DIR), 'artifacts', 'feature_heuristics.json'
+            )
+            os.makedirs(os.path.dirname(heuristics_path), exist_ok=True)
+            with open(heuristics_path, 'w', encoding='utf-8') as sink:
+                _json.dump(heuristics_payload, sink, indent=2, sort_keys=True)
+            print(
+                f"  Saved {len(flags)} data-heuristic flags to: {heuristics_path}"
+            )
+        except Exception as exc:
+            print(f"  WARNING: could not write feature heuristics: {exc}")
         
         # --- 1b. PLOT CORRELATION MATRIX ---
         try:
@@ -967,7 +993,9 @@ class BankingRiskModel:
         print("[Step 2/4] CRISIS CLASSIFIER")
         print("-"*70)
         if retrain_classifier:
-            classifier, metrics = train_crisis_model(weo_df=weo_df, fsic_df=fsic_df)
+            classifier, metrics = train_crisis_model(
+                weo_df=weo_df, fsic_df=fsic_df, as_of_date=cutoff,
+            )
         else:
             try:
                 classifier = CrisisClassifier.load()
@@ -981,6 +1009,7 @@ class BankingRiskModel:
                 classifier, metrics = train_crisis_model(
                     weo_df=weo_df,
                     fsic_df=fsic_df,
+                    as_of_date=cutoff,
                 )
         
         # Get crisis probabilities
@@ -991,9 +1020,16 @@ class BankingRiskModel:
         
         # Ensure we have all necessary columns (fill missing with median)
         X = features[feature_cols].copy()
+        # Cached classifiers trained before the credit_to_gdp_relative rename
+        # still expect the legacy feature name.
+        legacy_feature_aliases = {'credit_to_gdp_gap': 'credit_to_gdp_relative'}
         for col in classifier.feature_names_:
             if col not in X.columns:
-                X[col] = np.nan
+                alias = legacy_feature_aliases.get(col)
+                if alias is not None and alias in X.columns:
+                    X[col] = X[alias]
+                else:
+                    X[col] = np.nan
         if not retrain_classifier:
             all_null_classifier_inputs = [
                 col for col in classifier.feature_names_
@@ -1056,7 +1092,30 @@ class BankingRiskModel:
             country_names,
             return_pipeline=True,
         )
-        
+
+        # Persist the imputed-feature sidecar the dashboard uses to label
+        # imputed values. It must be rebuilt with every model build so it
+        # always matches the current feature matrix; the legacy pillar path
+        # used to own this file and left it stale after the pipeline switch.
+        try:
+            imputed_matrix = self.pillar_pipeline.impute(features)
+            features_indexed = (
+                features.set_index('country_code')
+                if 'country_code' in features.columns else features
+            )
+            sidecar = imputed_matrix.copy()
+            for column in features_indexed.columns:
+                if column.endswith('_year'):
+                    sidecar[column] = features_indexed[column].reindex(sidecar.index)
+            sidecar.index.name = 'country_code'
+            sidecar.reset_index().to_parquet(
+                os.path.join(CACHE_DIR, 'imputed_features.parquet'),
+                index=False,
+            )
+            print(f"  Saved imputed feature sidecar ({len(sidecar)} countries)")
+        except Exception as exc:
+            print(f"  WARNING: could not write imputed feature sidecar: {exc}")
+
         # --- 4. HYBRID RISK SCORE ---
         print("\n" + "-"*70)
         print("[Step 4/4] FINAL RISK SCORING")

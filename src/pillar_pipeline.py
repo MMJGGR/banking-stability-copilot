@@ -12,7 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 ECONOMIC_FEATURES = [
     "gdp_growth", "inflation", "current_account_gdp", "gdp_per_capita",
     "govt_debt_gdp", "fiscal_balance_gdp", "unemployment",
-    "credit_to_gdp", "credit_to_gdp_gap", "debt_service_gdp",
+    "credit_to_gdp", "credit_to_gdp_relative", "debt_service_gdp",
     "external_debt_gdp", "sovereign_liability_to_reserves",
     "inflation_differential_3yr", "interest_cost_gdp",
     "interest_cost_trend_3yr", "credit_growth_3yr", "m2_to_reserves",
@@ -259,6 +259,37 @@ class PillarInferencePipeline:
                 results["country_code"].map(country_names).fillna("")
             )
         return results.sort_values("risk_score")
+
+    def impute(self, features: pd.DataFrame) -> pd.DataFrame:
+        """Return the KNN-imputed numeric matrix in natural units.
+
+        This is the imputation stage of ``transform`` without the log/scale/
+        PCA steps, so callers can persist what the model actually used to
+        fill gaps (e.g. the dashboard's imputed-value sidecar).
+        """
+        if not self.fitted_:
+            raise ValueError("Pillar pipeline is not fitted")
+        indexed = self._index_features(features)
+        for column in self.numeric_columns_:
+            if column not in indexed.columns:
+                indexed[column] = np.nan
+        numeric = indexed[self.numeric_columns_].apply(
+            pd.to_numeric,
+            errors="coerce",
+        )
+        eligible = numeric.loc[
+            numeric.notna().mean(axis=1) >= self.minimum_data_coverage
+        ].copy()
+        if eligible.empty:
+            return pd.DataFrame(columns=self.numeric_columns_)
+        imputed = pd.DataFrame(
+            self.imputer_.transform(eligible[self.imputed_columns_]),
+            index=eligible.index,
+            columns=self.imputed_columns_,
+        )
+        for column in self.empty_columns_:
+            imputed[column] = 0.0
+        return imputed[self.numeric_columns_]
 
     def loadings(self) -> dict:
         if not self.fitted_:
