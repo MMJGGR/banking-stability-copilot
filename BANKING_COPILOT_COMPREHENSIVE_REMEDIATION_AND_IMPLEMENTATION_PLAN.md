@@ -1875,3 +1875,43 @@ Items that remain open and why they cannot be closed from this environment:
       current-account receipts, reserves adequacy, and portfolio flows.
   - Verification: compile check passed; `42 passed`; local Streamlit returned
     HTTP 200 on port 8531 with no stderr.
+- [x] Checkpoint 12: Data Explorer calculated-series builder.
+  - Pending commit: `add data explorer calculated series`
+  - Scope:
+    - Added a bounded Data Explorer tool for raw multi-indicator panels,
+      ratios, cross-sectional shares, period-over-period changes, base-period
+      changes, and rebased indices.
+    - Calculations align observations by country, date, and reporting
+      frequency; no annual/quarterly/monthly series are silently mixed.
+    - Ratio mode excludes zero denominators and displays the formula.
+    - Cross-sectional share mode uses the selected-country group as the
+      denominator for each aligned period.
+    - Temporal modes calculate each country independently after the selected
+      frequency and time window are applied.
+  - Verification: compile check passed; `tests/test_calculated_series.py`
+    passed; full suite passed (`48 passed`); local Streamlit returned HTTP
+    200 on port 8532 with no stderr. Follow-up hotfix added explicit
+    Streamlit element keys for calculated-series Plotly charts and latest-value
+    tables after hosted Streamlit exposed duplicate auto-generated IDs in the
+    raw multi-indicator loop; compile check, calculated-series tests, full
+    suite (`48 passed`), and local Streamlit HTTP 200 on port 8533 passed.
+- [x] Checkpoint 13: Data Explorer scope, FSIBSIS comparison access, and UX cleanup.
+  - Pending commit: `improve data explorer scope and fsibsis tools`
+  - Scope:
+    - Moved the country selector out of the global header and into the Country
+      Profile tab so Global Summary and Methodology remain explicitly global.
+    - Added an independent Data Explorer focus-country selector used only for
+      single-country source tabs and default comparison peer seeding.
+    - Replaced the two large Data Explorer expanders with clearer analysis tabs
+      for cross-country indicator comparison and calculated series.
+    - Added FSIBSIS as a first-class source in both comparison and calculated
+      indicator tools.
+    - Added cached FSIBSIS wide-to-long conversion for annual, quarterly, and
+      monthly balance-sheet observations; the single-country FSIBSIS tab now
+      uses the same loader path as comparison/calculation tools.
+    - Made comparison/calculated country selections reset per Explorer focus
+      country to avoid stale peer selections after a country change.
+  - Verification: compile check passed; targeted FSIBSIS cache check confirmed
+    USA has 83 measures, 6,445 non-null observations, native annual/quarterly/
+    monthly periods through 2026-04-30; full suite passed (`48 passed`); local
+    Streamlit returned HTTP 200 on port 8507.
