@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.data_loader import IMFDataLoader
 from src.config import CACHE_DIR
+from src.country_names import country_name_from_code
 from src.feature_engineering import CrisisFeatureEngineer
 from src.crisis_classifier import (
     CrisisClassifier,
@@ -1031,6 +1032,13 @@ class BankingRiskModel:
         
         # Load country names mapping for display (deduplicate to avoid InvalidIndexError)
         country_names = weo_df[['country_code', 'country_name']].drop_duplicates(subset='country_code').set_index('country_code')['country_name']
+        # Official SDMX pulls may not carry display names; derive them from codes.
+        country_names = country_names.fillna('').astype(str).str.strip()
+        blank_names = country_names == ''
+        if blank_names.any():
+            country_names.loc[blank_names] = [
+                country_name_from_code(code) for code in country_names.index[blank_names]
+            ]
         
         # Get development anchor (GDP per capita)
         anchor = identify_anchor_indicator(features, None) # None passed as features already has gdp_per_capita

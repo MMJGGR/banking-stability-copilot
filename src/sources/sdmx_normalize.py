@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 from src.config import CACHE_DIR
+from src.country_names import country_name_from_code
 from src.data_loader import parse_period_label
 from src.sources.sdmx import IMF_SDMX_BASE, SDMX_CSV_ACCEPT
 
@@ -200,10 +201,14 @@ def normalize_imf_long_cache(source: str, csv_path, cache_dir=None) -> pd.DataFr
         raise ValueError(f"Unsupported IMF SDMX source for cache normalization: {source}")
 
     unit_values = df["UNIT"].fillna("") if "UNIT" in df else ""
+    country_codes = df["COUNTRY"].astype(str).str.upper().str[:3]
+    name_map = {
+        code: country_name_from_code(code) for code in country_codes.unique()
+    }
     result = pd.DataFrame(
         {
-            "country_code": df["COUNTRY"].astype(str).str.upper().str[:3],
-            "country_name": "",
+            "country_code": country_codes,
+            "country_name": country_codes.map(name_map),
             "indicator_code": df["INDICATOR"].astype(str),
             "indicator_name": df["indicator_name"].fillna(""),
             "frequency": df["FREQUENCY"].fillna(""),

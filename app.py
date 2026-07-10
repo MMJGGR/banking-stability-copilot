@@ -6,6 +6,7 @@ import time
 import os
 
 from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
+from src.country_names import fill_missing_country_names
 from src.model_store import load_data_manifest, load_model_artifact
 from src.dashboard.styles import STYLES, score_to_tier
 from src.dashboard.components import (
@@ -101,6 +102,8 @@ def load_all_data():
     try:
         model = load_model_artifact()
         scores_df = model['country_scores'].copy()
+        # Artifacts built from official SDMX feeds may lack display names.
+        fill_missing_country_names(scores_df, fallback_to_code=True)
         model_features = model.get('feature_values')
         pca_info = dict(model.get('pca_info', {}))
         pca_info.setdefault('training_date', model['training_date'])

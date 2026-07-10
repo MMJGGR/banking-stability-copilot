@@ -6,8 +6,21 @@ import plotly.graph_objects as go
 import pycountry_convert as pc
 from typing import Dict, Any, Optional
 
+# Codes pycountry_convert cannot map (IMF aggregates and small territories).
+CONTINENT_OVERRIDES = {
+    'TLS': 'Asia',
+    'WBG': 'Asia',
+    'KOS': 'Europe',
+    'UVK': 'Europe',
+    'SXM': 'North America',
+    'CUW': 'North America',
+}
+
+
 def get_continent_name(alpha3_code: str) -> str:
     """Convert ISO-3 country code to Continent Name."""
+    if alpha3_code in CONTINENT_OVERRIDES:
+        return CONTINENT_OVERRIDES[alpha3_code]
     try:
         alpha2 = pc.country_alpha3_to_country_alpha2(alpha3_code)
         continent_code = pc.country_alpha2_to_continent_code(alpha2)
