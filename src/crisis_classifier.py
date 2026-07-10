@@ -11,8 +11,11 @@ academic best practices:
 - Class imbalance handling (crises are rare events)
 
 Architecture (policy decision recorded in docs/MODEL_CARD.md):
-    Final Score = 0.9 * Pillar_Score (50/50 economic/industry PCA blend)
-                + 0.1 * Supervised_Crisis_Probability (as a bounded adjustment)
+    Final Score = Pillar_Score (50/50 economic/industry constrained-PCA blend)
+                + Crisis_Uplift, where
+    Crisis_Uplift = max(0, 0.1 * ((1 + 9 * P(crisis)) - Pillar_Score))
+    The classifier is an upward-only overlay: it is monotone in the crisis
+    probability and can never lower a high pillar-based risk score.
 
 Author: Banking Copilot
 Date: 2026-01-02

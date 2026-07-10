@@ -97,7 +97,9 @@ def build_local_snapshot(as_of_date: str, retrain_classifier: bool = False) -> d
         as_of_date=cutoff,
         retrain_classifier=retrain_classifier,
     )
-    passed_checks, failed_checks = validate_model(results)
+    passed_checks, failed_checks = validate_model(
+        results, features_df=model.feature_values
+    )
     model.save()
 
     audit = _write_policy_audit(model)

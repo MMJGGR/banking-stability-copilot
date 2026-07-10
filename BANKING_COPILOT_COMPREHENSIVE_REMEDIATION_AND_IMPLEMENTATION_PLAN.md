@@ -53,6 +53,18 @@ Completed in the initial priority tranche:
   actuals and IMF estimates/projections on WEO charts (2026-07-10).
 - [x] Mapped TLS/WBG/KOS/SXM/CUW to real continents so small territories no
   longer surface as an "Other" highest-risk region (2026-07-10).
+- [x] Built the directionally constrained challenger model: declared
+  credit-risk direction per pillar feature, constrained non-negative PCA
+  loadings shrunk toward equal weights, upward-only crisis overlay, and
+  critical-field missingness penalty. Archived as
+  `artifacts/snapshots/2026-06-30-challenger-directional` with a full
+  production-vs-challenger comparison report; NOT promoted (re-ranking
+  exceeds every review threshold) (2026-07-10, session 3).
+- [x] Added last-known-good artifact fallback, a user-visible System Health
+  panel (serving mode, snapshot age, per-source freshness vs SLA), the
+  per-country score driver table script, crisis-label provenance
+  verification harness, governance policy draft, CODEOWNERS, and release
+  checklist (2026-07-10, session 3).
 
 Checkpoint evidence:
 
@@ -316,14 +328,15 @@ artifacts are checksum-validated). The predictive surface remains a candidate,
 not production, until the section 2.8 critical items and the validation
 standard in the model card are satisfied.
 
-The naming decision remains open, now between:
+**Naming decision (2026-07-10, owner):** option 1 selected. The product is
+renamed **Banking Stability Analytics & Research Workbench** across the UI
+and README; no conversational layer is planned. The GitHub repository name is
+retained for link stability. The previously open options were:
 
-1. **Banking Stability Analytics Dashboard / Research Workbench**
-   Rename to reflect the dual analytics-plus-research-utility scope without
-   implying conversational capability.
+1. **Banking Stability Analytics Dashboard / Research Workbench** — selected.
 
-2. **Banking Stability Copilot**
-   Retain the name and add a governed conversational layer that answers questions using model outputs, source metadata, methodology, and citations.
+2. **Banking Stability Copilot** — rejected: would require a governed
+   conversational layer that is not on the roadmap.
 
 ### 6.2 If Copilot Scope Is Approved
 
@@ -1307,18 +1320,22 @@ production.
     derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
     history, on-demand FSIBSIS loading, theme-safe controls, customizable
     peer sets, and cross-country indicator comparison are complete; active
-    verified snapshot display is confirmed in browser; snapshot selection,
-    health/freshness UI, and last-known-good fallback remain.
+    verified snapshot display is confirmed in browser; health/freshness UI
+    and last-known-good fallback completed 2026-07-10 (session 3); snapshot
+    selection remains.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
     future approved candidate.
-17. [ ] Decide whether to rename the dashboard or complete the governed copilot
-    capability. Product-owner decision required. Owner has confirmed the
-    product is dual-purpose (predictive screening plus research data utility);
-    see section 6.1.
-18. [ ] Complete monitoring, rollback, ownership, and release procedures. The
-    initial operations runbook is present; named ownership and automated health
-    controls remain outstanding.
+17. [x] Decided 2026-07-10 (owner): renamed to **Banking Stability Analytics
+    & Research Workbench** (UI title, page title, README). No conversational
+    layer is planned; the GitHub repository name is retained for link
+    stability (renaming it is an optional owner action in GitHub settings).
+18. [~] Monitoring, rollback, ownership, and release procedures substantially
+    complete 2026-07-10 (session 3): automatic last-known-good fallback,
+    System Health panel, executable rollback runbook, CODEOWNERS, release
+    checklist, and the proposed governance thresholds document. Outstanding:
+    owner approval of `docs/GOVERNANCE.md` and post-deploy live health
+    verification (backlog ranks 25-26, 30-31).
 
 ### 21.1a Refresh-Workflow Test Results (2026-07-09)
 
@@ -1367,8 +1384,16 @@ predictive surface. See section 2.8 for full detail.
     from 1988 onward. Grouped and out-of-time validation re-run; honest
     leakage-free metrics (grouped CV AUC ~0.57-0.59) recorded for governance
     review — materially below the historical 0.84 claim.
-20. [ ] Replace the hand-transcribed crisis-label dictionary with labels loaded
-    from the published Laeven-Valencia dataset file, verified by checksum.
+20. [~] Partially done 2026-07-10 (session 3): automated reconciliation
+    harness and checksum registry added
+    (`src/scripts/verify_crisis_labels.py`, `data/reference/README.md`,
+    `tests/test_verify_crisis_labels.py`). The parser, checksum pinning, and
+    dictionary reconciliation are implemented and unit-tested; once the
+    published WP/26/94 workbook is manually downloaded into
+    `data/reference/` (IMF web hosts return 403 to all non-browser clients,
+    the same block documented in section 9.5), every test run re-verifies the
+    transcription against the pinned file. The one-step manual download is
+    the only remaining action.
 21. [x] Done 2026-07-10: shared `_enforce_cutoff` helper applied in
     `extract_fsic_features`, `compute_literature_gap_features`,
     `compute_credit_to_gdp_relative`, `compute_sovereign_bank_nexus`, and
@@ -1558,6 +1583,157 @@ whether users can safely consume the improved model and dataset.
 | 36 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
 | 37 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
 | 38 | Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
+
+#### 21.5.4 Sprint Execution Status (2026-07-10, Session 3)
+
+Work executed against the backlog above. Statuses here supersede the table
+rows; unlisted ranks are unchanged.
+
+**Sprint 1 (model trust):**
+
+- **Rank 1 — CLOSED (acceptance case met).** Driver-table tooling added
+  (`python -m src.scripts.explain_country_scores`, published to
+  `artifacts/score_drivers.json`) and the Kenya/Mozambique case is now an
+  automated acceptance test
+  (`tests/test_directional_scoring.py::test_challenger_acceptance_kenya_mozambique_and_no_derisking`).
+  Challenger scores: MOZ 8.7 >= KEN 5.9 (production had KEN 8.7 > MOZ 7.5).
+- **Rank 2 — CLOSED.** The classifier overlay is now upward-only:
+  `uplift = max(0, 0.1 * ((1 + 9 * P) - pillar_score))`, monotone in crisis
+  probability and unable to lower a high pillar score. Applied in both the
+  training and fixed-pipeline inference paths; `crisis_uplift` is a published
+  score column.
+- **Rank 3 — CLOSED (design); challenger pending promotion review.** Every
+  pillar feature now has a declared risk direction
+  (`FEATURE_RISK_DIRECTIONS`); pillar components are constrained principal
+  directions (negative loadings clipped, 50% shrinkage toward equal weights),
+  so no feature can move the score in an economically counterintuitive
+  direction. Monotonicity is unit-tested. Fitting fails loudly if a new
+  feature lacks a declared direction.
+- **Rank 4 — CLOSED.** Countries missing critical banking soundness fields
+  receive a bounded, disclosed penalty (max +1.5) instead of benefiting from
+  KNN imputation; `critical_missing_share` and `critical_penalty` are score
+  columns and appear in the driver table with per-feature raw/imputed flags.
+- **Rank 17 governance note applied.** The coverage-bias validation gate now
+  measures the pre-policy score (penalties/uplift excluded) and the
+  policy-inclusive correlation is reported separately.
+- **Crisis-label provenance (July review item 20, re-triaged into this
+  sprint):** reconciliation harness and checksum registry implemented; one
+  manual download step remains (see section 21.2 item 20).
+- **Ranks 5-16, 18-21 (external-liquidity data block, benchmarking, reference
+  distributions, GDP-anchor policy) — OPEN.** These require new IMF
+  dataflows (BOP, IIP, IRFCL, PIP/CPIS, Fiscal Monitor, GFS) and owner policy
+  decisions; not addressable from code alone in this session.
+
+**Challenger promotion decision (explicitly NOT taken unilaterally):** the
+directional challenger re-ranks the universe far beyond every section 3
+review threshold in `docs/GOVERNANCE.md` (mean |change| 2.27 points, 161/201
+countries move >= 1 point, Spearman 0.35 vs production). The active serving
+artifacts are therefore unchanged; the challenger is archived at
+`artifacts/snapshots/2026-06-30-challenger-directional` with
+`artifacts/challenger_comparison.json` documenting the largest movements and
+three named concerns for review: (a) level-share features
+(`real_estate_loans`, `fx_loan_exposure`) push mortgage-heavy advanced
+economies (GBR/AUS/CAN) into high-risk tiers — replacing levels with
+growth/price-based indicators (rank 21) is recommended first; (b) coverage
+correlates ~-0.5 with the pure model score through observed governance
+gradients — threshold decision is rank 30/owner; (c) post-crisis countries
+(GHA, DOM) score low on clean recapitalized balance sheets — a crisis-recency
+feature is recommended.
+
+**Sprint 2 (app reliability):**
+
+- **Rank 23 — CLOSED.** `load_model_artifact_with_fallback` serves the newest
+  checksum-valid archived bundle when the active artifact is missing,
+  corrupt, or fails validation; unit-tested including tamper detection. The
+  runbook now has an executable manual-rollback procedure.
+- **Rank 24 — CLOSED.** System Health panel in the app header: serving mode
+  (active/fallback), snapshot ID/status/age, per-source freshness against the
+  proposed SLAs, and explicit degraded-mode warnings (`src/health.py`,
+  unit-tested).
+- **Rank 22 — ADVANCED.** The driver table (rank 1 tooling) provides raw
+  value, imputed value, direction, weight, contribution, and peer percentile
+  per feature; surfacing it inside the Country Profile tab remains open.
+
+**Sprint 3 (governance):**
+
+- **Ranks 30-31 — DRAFTED, awaiting owner approval.** `docs/GOVERNANCE.md`
+  proposes concrete freshness SLAs (enforced in the health panel), coverage
+  and imputation gates (enforced where noted), score-change review thresholds
+  (which this session's own challenger correctly trips), and the full
+  snapshot lifecycle state machine. Approval is a one-line status change in a
+  reviewed PR.
+- **Rank 32 — CLOSED.** `.github/CODEOWNERS` (per-area ownership) and
+  `docs/RELEASE_CHECKLIST.md` (promotion checklist referencing the governance
+  thresholds).
+
+#### 21.5.5 Session 3 Continuation — Owner Decisions Applied (2026-07-10)
+
+The owner reviewed the session-3 output live and made four decisions, all
+applied the same day:
+
+1. **Governance approved (ranks 30-31 — CLOSED).** `docs/GOVERNANCE.md`
+   status changed to APPROVED (@MMJGGR, 2026-07-10) as proposed: freshness
+   SLAs, coverage/imputation gates, score-change review thresholds, snapshot
+   lifecycle, and (added) the artifact-portability policy (rank 36 — CLOSED).
+2. **Coverage-bias gate re-baselined (owner decision on the rank 30 open
+   question).** `validate_model` now gates on the partial correlation of
+   coverage with the pre-policy score, controlling for log GDP per capita and
+   the six governance scores; raw correlations are reported as informational.
+3. **Product renamed (rank 38 / tracker item 17 — CLOSED).** "Banking
+   Stability Analytics & Research Workbench" across UI and README; repo name
+   retained.
+4. **Challenger iterated per owner instruction ("iterate first, then
+   re-review"), still NOT promoted.** Challenger v2 removes the level-share
+   features `real_estate_loans` and `fx_loan_exposure` from the pillar
+   (growth-based measure retained; levels remain available to classifier and
+   explorer) and adds a `years_since_banking_crisis` industry feature (capped
+   at 25) so post-recapitalization balance sheets are not scored as pristine.
+   Results: validation 3/3 PASSED (bias gate partial correlation -0.10);
+   Kenya/Mozambique acceptance holds (MOZ 8.3 >= KEN 7.9); all three v1
+   concerns resolved in direction (GBR 7.8→5.0 now below PAK 9.2; AUS
+   7.6→2.1; GHA 2.1→9.5). Movement vs production is still far beyond
+   promotion thresholds (mean |delta| 1.68, 135/201 countries >= 1 point,
+   Spearman 0.62), so v2 replaces v1 in the archived bundle
+   `artifacts/snapshots/2026-06-30-challenger-directional` with an updated
+   `artifacts/challenger_comparison.json`; the active serving artifacts are
+   unchanged pending the owner's promotion review.
+
+Additional backlog closures in the continuation:
+
+- **Rank 22 — CLOSED.** The Country Profile tab now has a "Score Drivers"
+  expander computing per-feature attribution in-app (raw vs imputed value,
+  critical flag, risk contribution, peer percentile, crisis uplift and
+  missingness penalty metrics) for the selected country and snapshot.
+- **Rank 27 — CLOSED.** Header snapshot selector loads any archived bundle
+  read-only (checksum-verified); challenger bundles are labelled UNAPPROVED
+  and a warning banner distinguishes viewing from serving.
+- **Rank 35 — CLOSED.** `build_data_manifest.py` now documents its contract
+  and preserves `retrieval`/`source_mode`/`validation` metadata from an
+  existing manifest by default (`--fresh` to drop deliberately).
+- **Rank 37 and review item 26 leftovers — CLOSED.** All 19 unreferenced
+  one-off diagnostic scripts moved to `src/scripts/archive/` with a README
+  naming the supported script set; `replication/outputs` was verified to be
+  a single 104 KB tree (no duplicates remain).
+
+Items that remain open and why they cannot be closed from this environment:
+
+- **Ranks 5-14 (external-liquidity data block):** `api.imf.org` is
+  unreachable through this session's egress proxy (connection blocked), so
+  BOP/IIP/IRFCL/PIP/CPIS/Fiscal Monitor/GFS retrieval, normalization, and
+  feature engineering must run where the official API is reachable (owner
+  machine or GitHub Actions).
+- **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
+  external benchmark):** owner methodology decisions plus (for 18) licensed
+  or external outcome data.
+- **Ranks 25-26 (live-deployment verification):** requires the deployed
+  Streamlit Cloud URL and a push to the branch Streamlit deploys.
+- **Rank 28 (Methodology copy review):** owner review of the live UI.
+- **Rank 29 (formal accessibility/responsive QA):** needs a browser-matrix
+  pass against the live deployment; local bare-mode and HTTP smoke checks
+  are in place.
+- **Rank 33 (LFS history rewrite):** destructive repository operation
+  requiring owner coordination (all clones invalidated).
+- **Rank 34 (repo privacy):** owner account decision.
 
 ### 21.1 GitHub Checkpoints
 

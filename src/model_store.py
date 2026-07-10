@@ -15,6 +15,7 @@ from src.lfs_resolver import ensure_lfs_file
 
 MODEL_PATH = Path(CACHE_DIR) / "risk_model.pkl"
 MANIFEST_PATH = Path(CACHE_DIR).parent / "artifacts" / "data_manifest.json"
+SNAPSHOT_ARCHIVE = Path(CACHE_DIR).parent / "artifacts" / "snapshots"
 REQUIRED_KEYS = {
     "country_scores",
     "trained",
@@ -59,6 +60,112 @@ def load_model_artifact(path=None, verify_checksum: bool = True) -> dict:
         raise ValueError("Risk model artifact is not marked as trained")
 
     return artifact
+
+
+def load_model_artifact_with_fallback() -> tuple:
+    """Load the active artifact, falling back to the last archived snapshot.
+
+    Returns ``(artifact, manifest, serving_status)``. ``serving_status`` is a
+    dictionary with:
+
+    - ``mode``: ``"active"`` when the checksum-verified active artifact
+      loaded, ``"fallback"`` when an archived last-known-good bundle is being
+      served instead.
+    - ``fallback_snapshot``: name of the archived bundle in use (fallback
+      mode only).
+    - ``active_error``: why the active artifact was rejected (fallback mode
+      only).
+
+    Fallback candidates are the bundles under ``artifacts/snapshots/``, newest
+    first. Each candidate's ``risk_model.pkl`` is checksum-verified against
+    that bundle's own manifest before it is served.
+    """
+    try:
+        artifact = load_model_artifact()
+        return artifact, load_data_manifest(), {"mode": "active"}
+    except Exception as active_error:  # noqa: BLE001 - degrade, don't die
+        failure = f"{type(active_error).__name__}: {active_error}"
+
+    errors = [f"active: {failure}"]
+    if SNAPSHOT_ARCHIVE.exists():
+        candidates = sorted(
+            (
+                bundle for bundle in SNAPSHOT_ARCHIVE.iterdir()
+                if bundle.is_dir()
+                and (bundle / "risk_model.pkl").exists()
+                # Challenger bundles are archived for review, not approved
+                # for serving; they must never be picked up as a fallback.
+                and "challenger" not in bundle.name
+            ),
+            key=lambda bundle: bundle.name,
+            reverse=True,
+        )
+    else:
+        candidates = []
+
+    for bundle in candidates:
+        try:
+            artifact, manifest = _load_bundle(bundle)
+            return artifact, manifest, {
+                "mode": "fallback",
+                "fallback_snapshot": bundle.name,
+                "active_error": failure,
+            }
+        except Exception as bundle_error:  # noqa: BLE001
+            errors.append(
+                f"{bundle.name}: {type(bundle_error).__name__}: {bundle_error}"
+            )
+
+    raise RuntimeError(
+        "No serveable model artifact: " + "; ".join(errors)
+    )
+
+
+def _load_bundle(bundle: Path) -> tuple:
+    """Load one archived snapshot bundle, checksum-verified when possible."""
+    model_path = bundle / "risk_model.pkl"
+    ensure_lfs_file(model_path)
+    manifest = {}
+    for manifest_name in ("snapshot_manifest.json", "data_manifest.json"):
+        if (bundle / manifest_name).exists():
+            manifest = load_data_manifest(bundle / manifest_name)
+            break
+    expected = (
+        manifest.get("artifacts", {})
+        .get("cache/risk_model.pkl", {})
+        .get("sha256")
+    )
+    if expected and _sha256_file(model_path) != expected:
+        raise ValueError(
+            "archived risk model checksum does not match the bundle manifest"
+        )
+    return load_model_artifact(model_path), manifest
+
+
+def list_archived_snapshots() -> list:
+    """Names of archived snapshot bundles, newest first."""
+    if not SNAPSHOT_ARCHIVE.exists():
+        return []
+    return sorted(
+        (
+            bundle.name for bundle in SNAPSHOT_ARCHIVE.iterdir()
+            if bundle.is_dir() and (bundle / "risk_model.pkl").exists()
+        ),
+        reverse=True,
+    )
+
+
+def load_archived_snapshot(name: str) -> tuple:
+    """Load a named archived bundle for read-only inspection.
+
+    Unlike the fallback chain this may load challenger bundles: the user is
+    explicitly choosing to inspect them, and the caller is responsible for
+    labelling unapproved snapshots.
+    """
+    bundle = SNAPSHOT_ARCHIVE / name
+    if not bundle.is_dir():
+        raise FileNotFoundError(f"No archived snapshot named {name!r}")
+    return _load_bundle(bundle)
 
 
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:

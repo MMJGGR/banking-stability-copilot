@@ -1,0 +1,27 @@
+# Release governance (remediation plan backlog item 32).
+# Review by the code owner is required for changes to serving artifacts,
+# scoring code, governance policy, and workflows. For the current one-person
+# team the roles below are all held by the repository owner; splitting them
+# only requires editing this file.
+
+# Default owner for everything.
+*                                       @MMJGGR
+
+# Model owner: scoring pipeline, classifier, features, labels.
+/train_model.py                         @MMJGGR
+/src/pillar_pipeline.py                 @MMJGGR
+/src/crisis_classifier.py               @MMJGGR
+/src/crisis_labels.py                   @MMJGGR
+/src/feature_engineering.py             @MMJGGR
+
+# Data pipeline owner: sources, normalization, manifests.
+/src/sources/                           @MMJGGR
+/src/data_loader.py                     @MMJGGR
+/src/snapshot_manifest.py               @MMJGGR
+
+# Release approver: serving artifacts, workflows, governance policy.
+/cache/                                 @MMJGGR
+/artifacts/                             @MMJGGR
+/.github/                               @MMJGGR
+/docs/GOVERNANCE.md                     @MMJGGR
+/docs/RELEASE_CHECKLIST.md              @MMJGGR

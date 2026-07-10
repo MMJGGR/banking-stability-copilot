@@ -1,0 +1,221 @@
+{
+  "generated": "2026-07-10",
+  "version": "challenger v2 (iteration after owner review)",
+  "production_artifact": "artifacts/snapshots/2026-06-30-official-api",
+  "challenger_artifact": "artifacts/snapshots/2026-06-30-challenger-directional",
+  "challenger_changes": [
+    "Constrained pillar components: declared credit-risk direction per feature; negative PCA loadings clipped; loadings shrunk 50% toward equal weights",
+    "Crisis classifier overlay is upward-only (monotone, can never de-risk a high pillar score)",
+    "Critical-field missingness penalty up to +1.5 for imputed core banking soundness fields",
+    "v2: level-share features real_estate_loans and fx_loan_exposure removed from the pillar (kept for classifier/explorer); growth-based real_estate_credit_growth_3yr retained",
+    "v2: years_since_banking_crisis added to the industry pillar (capped at 25) so freshly recapitalized post-crisis balance sheets are not scored as pristine",
+    "v2: coverage-bias gate re-baselined to partial correlation controlling for development and governance (owner decision 2026-07-10); passes at -0.10"
+  ],
+  "validation": {
+    "model_checks": "3 passed, 0 failed",
+    "coverage_partial_correlation_bias_gate": -0.096,
+    "coverage_correlation_incl_policy_penalties": -0.375
+  },
+  "summary": {
+    "countries_compared": 201,
+    "mean_absolute_score_change": 1.679,
+    "countries_moving_at_least_one_point": 135,
+    "rank_correlation_spearman": 0.62
+  },
+  "acceptance_cases": {
+    "kenya_mozambique": {
+      "KEN": 7.9,
+      "MOZ": 8.3,
+      "expected": "MOZ >= KEN",
+      "met": true
+    },
+    "v1_concerns_rechecked": {
+      "GBR": "5.0 (v1: 7.8; production 2.2) - now below PAK 9.2",
+      "AUS": "2.1 (v1: 7.6)",
+      "GHA": "9.5 (v1: 2.1) - crisis-recency feature restores post-crisis risk memory"
+    }
+  },
+  "known_open_concerns": [
+    "Movement vs production still exceeds every promotion threshold (mean |delta| 1.68, 135/201 >= 1pt, Spearman 0.62): promotion requires owner review of this report",
+    "USA scores 6.7 driven by weak industry-safety percentile and a 0.21 crisis probability; driver table available via explain_country_scores",
+    "Recent-crisis and sparse-data countries (STP, DZA, GNB, COG, ZWE) move up sharply from the combination of crisis recency, observed governance, and disclosed missingness penalties",
+    "External-liquidity data block (backlog ranks 5-14) remains the largest missing input before rating-agency-style interpretation"
+  ],
+  "largest_movements": [
+    {
+      "country_code": "STP",
+      "country_name": "",
+      "production": 2.2,
+      "challenger": 8.7,
+      "delta": 6.5
+    },
+    {
+      "country_code": "DZA",
+      "country_name": "",
+      "production": 3.3,
+      "challenger": 8.7,
+      "delta": 5.4
+    },
+    {
+      "country_code": "PRT",
+      "country_name": "",
+      "production": 2.8,
+      "challenger": 7.5,
+      "delta": 4.7
+    },
+    {
+      "country_code": "GNB",
+      "country_name": "",
+      "production": 5.2,
+      "challenger": 9.6,
+      "delta": 4.4
+    },
+    {
+      "country_code": "ZWE",
+      "country_name": "",
+      "production": 4.8,
+      "challenger": 9.1,
+      "delta": 4.3
+    },
+    {
+      "country_code": "SRB",
+      "country_name": "",
+      "production": 4.7,
+      "challenger": 8.7,
+      "delta": 4.0
+    },
+    {
+      "country_code": "BGR",
+      "country_name": "",
+      "production": 4.5,
+      "challenger": 8.5,
+      "delta": 4.0
+    },
+    {
+      "country_code": "COG",
+      "country_name": "",
+      "production": 5.9,
+      "challenger": 9.8,
+      "delta": 3.9
+    },
+    {
+      "country_code": "NIC",
+      "country_name": "",
+      "production": 8.7,
+      "challenger": 4.9,
+      "delta": -3.8
+    },
+    {
+      "country_code": "ESP",
+      "country_name": "",
+      "production": 4.3,
+      "challenger": 7.8,
+      "delta": 3.5
+    },
+    {
+      "country_code": "ERI",
+      "country_name": "",
+      "production": 5.6,
+      "challenger": 9.1,
+      "delta": 3.5
+    },
+    {
+      "country_code": "AGO",
+      "country_name": "",
+      "production": 6.6,
+      "challenger": 9.9,
+      "delta": 3.3
+    },
+    {
+      "country_code": "COL",
+      "country_name": "",
+      "production": 3.0,
+      "challenger": 6.3,
+      "delta": 3.3
+    },
+    {
+      "country_code": "HUN",
+      "country_name": "",
+      "production": 4.4,
+      "challenger": 7.7,
+      "delta": 3.3
+    },
+    {
+      "country_code": "DOM",
+      "country_name": "",
+      "production": 6.9,
+      "challenger": 3.7,
+      "delta": -3.2
+    },
+    {
+      "country_code": "EGY",
+      "country_name": "",
+      "production": 5.7,
+      "challenger": 8.9,
+      "delta": 3.2
+    },
+    {
+      "country_code": "SYC",
+      "country_name": "",
+      "production": 5.5,
+      "challenger": 2.3,
+      "delta": -3.2
+    },
+    {
+      "country_code": "MDA",
+      "country_name": "",
+      "production": 6.2,
+      "challenger": 9.3,
+      "delta": 3.1
+    },
+    {
+      "country_code": "BGD",
+      "country_name": "",
+      "production": 6.3,
+      "challenger": 9.4,
+      "delta": 3.1
+    },
+    {
+      "country_code": "URY",
+      "country_name": "",
+      "production": 5.0,
+      "challenger": 1.9,
+      "delta": -3.1
+    },
+    {
+      "country_code": "TUN",
+      "country_name": "",
+      "production": 5.4,
+      "challenger": 8.4,
+      "delta": 3.0
+    },
+    {
+      "country_code": "TGO",
+      "country_name": "",
+      "production": 5.3,
+      "challenger": 8.3,
+      "delta": 3.0
+    },
+    {
+      "country_code": "ROU",
+      "country_name": "",
+      "production": 4.5,
+      "challenger": 7.4,
+      "delta": 2.9
+    },
+    {
+      "country_code": "BLZ",
+      "country_name": "",
+      "production": 6.5,
+      "challenger": 3.6,
+      "delta": -2.9
+    },
+    {
+      "country_code": "BRA",
+      "country_name": "",
+      "production": 7.3,
+      "challenger": 4.4,
+      "delta": -2.9
+    }
+  ]
+}

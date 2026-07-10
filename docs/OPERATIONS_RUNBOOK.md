@@ -102,10 +102,37 @@ git-lfs).
 
 ## Rollback
 
-1. Restore the previous approved artifact bundle or release pointer.
-2. Restore its matching `data_manifest.json`.
-3. Redeploy or reboot Streamlit.
-4. Verify the displayed snapshot ID and checksum.
+### Automatic (last-known-good fallback)
+
+The application degrades automatically: when the active
+`cache/risk_model.pkl` is missing, fails its manifest checksum, or fails
+contract validation, `load_model_artifact_with_fallback` serves the newest
+checksum-valid bundle from `artifacts/snapshots/` instead. The header badge
+switches to "Fallback Mode" and the System Health panel names the bundle in
+use and the load error. No operator action is needed to keep the app up, but
+fallback mode is an incident: diagnose and restore the active artifact.
+
+### Manual rollback to a specific snapshot
+
+```bash
+# 1. Pick the bundle to restore (each is a complete serveable set):
+ls artifacts/snapshots/
+
+# 2. Copy its artifacts over the active set:
+cp artifacts/snapshots/<SNAPSHOT>/risk_model.pkl            cache/risk_model.pkl
+cp artifacts/snapshots/<SNAPSHOT>/inference_pipeline.pkl    cache/inference_pipeline.pkl
+cp artifacts/snapshots/<SNAPSHOT>/crisis_classifier.pkl     cache/crisis_classifier.pkl
+cp artifacts/snapshots/<SNAPSHOT>/crisis_features.parquet   cache/crisis_features.parquet
+cp artifacts/snapshots/<SNAPSHOT>/imputed_features.parquet  cache/imputed_features.parquet
+cp artifacts/snapshots/<SNAPSHOT>/data_manifest.json        artifacts/data_manifest.json
+
+# 3. Verify locally, then commit and push through a reviewed PR (git-lfs
+#    required for cache/*):
+python -m pytest -q tests/test_model_store.py tests/test_model_fallback.py
+streamlit run app.py   # header must show the restored snapshot ID, healthy badge
+```
+
+4. Verify the displayed snapshot ID and checksum after deployment.
 5. Record the incident and affected release.
 
 ## Degraded Operation
@@ -116,6 +143,10 @@ When a source is unavailable:
 - Mark freshness SLA breaches in the candidate report.
 - Keep the live application on the previous approved snapshot.
 - Escalate only if the source remains unavailable beyond its expected cadence.
+
+The System Health panel in the app header surfaces degraded states to users:
+serving mode (active/fallback), snapshot age, and per-source freshness against
+the SLAs proposed in `docs/GOVERNANCE.md`.
 
 ## Secrets
 

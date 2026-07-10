@@ -1,0 +1,236 @@
+{
+  "counts_by_heuristic": {
+    "bank_liability_to_nfa_clip": 1,
+    "credit_to_gdp_scale_adjustment": 1,
+    "credit_to_gdp_unit_mismatch_drop": 7,
+    "reserve_currency_fx_imputation": 3,
+    "sovereign_exposure_low_value_overwrite": 18,
+    "sovereign_exposure_securities_proxy": 7
+  },
+  "flag_count": 37,
+  "flags": [
+    {
+      "country_code": "AFG",
+      "detail": "ratio 3.31% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "HTI",
+      "detail": "ratio 2.98% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "LBR",
+      "detail": "ratio 2.97e+03% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "PRT",
+      "detail": "ratio 7.42e+07% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "SDN",
+      "detail": "ratio 1.36% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "SLE",
+      "detail": "credit/GDP rescaled by 1000 to 5.8%",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_scale_adjustment"
+    },
+    {
+      "country_code": "SSD",
+      "detail": "ratio 3.04% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "ZMB",
+      "detail": "ratio 3.53% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "BEL",
+      "detail": "ratio -334.7 clipped to [-100, 100]",
+      "feature": "bank_liability_to_nfa",
+      "heuristic": "bank_liability_to_nfa_clip"
+    },
+    {
+      "country_code": "ETH",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "FSM",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "GBR",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "MAC",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "SGP",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "SOM",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "VNM",
+      "detail": "missing value filled with securities_to_assets",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "BOL",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "BRN",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "CHE",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "COD",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "CUW",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "DEU",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "DNK",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "EST",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "FIN",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "IRL",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "LBN",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "LIE",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "LUX",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "NIC",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "NLD",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "NOR",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "SWE",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "SXM",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "USA",
+      "detail": "missing FX loan exposure hard-imputed to 0 (reserve-currency list)",
+      "feature": "fx_loan_exposure",
+      "heuristic": "reserve_currency_fx_imputation"
+    },
+    {
+      "country_code": "JPN",
+      "detail": "missing FX loan exposure hard-imputed to 0 (reserve-currency list)",
+      "feature": "fx_loan_exposure",
+      "heuristic": "reserve_currency_fx_imputation"
+    },
+    {
+      "country_code": "BEL",
+      "detail": "missing FX loan exposure hard-imputed to 0 (reserve-currency list)",
+      "feature": "fx_loan_exposure",
+      "heuristic": "reserve_currency_fx_imputation"
+    }
+  ],
+  "schema_version": 1
+}
