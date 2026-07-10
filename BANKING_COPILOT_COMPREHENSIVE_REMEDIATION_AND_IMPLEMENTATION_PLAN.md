@@ -41,6 +41,18 @@ Completed in the initial priority tranche:
 - [x] Added a scheduled source-availability workflow that does not download Git LFS data.
 - [x] Added Python 3.11 configuration, development requirements, automated tests, and a CI workflow.
 - [x] Verified the Streamlit serving path and on-demand FSIBSIS loading in a browser.
+- [x] Split serving and training requirements so Streamlit Community Cloud
+  (which ignores `runtime.txt` and builds with Python 3.13/3.14) installs
+  binary wheels only; training keeps exact pins in `requirements-dev.txt`
+  (2026-07-10).
+- [x] Fixed the official-refresh regression that blanked all country display
+  names: names now derive from country codes at SDMX normalization, at
+  training, and defensively at app load (`src/country_names.py`) (2026-07-10).
+- [x] Data Explorer now surfaces history at native source periodicity
+  (monthly/quarterly/annual selector) and marks the boundary between reported
+  actuals and IMF estimates/projections on WEO charts (2026-07-10).
+- [x] Mapped TLS/WBG/KOS/SXM/CUW to real continents so small territories no
+  longer surface as an "Other" highest-risk region (2026-07-10).
 
 Checkpoint evidence:
 
@@ -1362,8 +1374,10 @@ predictive surface. See section 2.8 for full detail.
     diagnostic scripts.
 27. [ ] Fix remaining relative paths in `app.py` (README and image loads) and
     stop rendering unapproved historical metrics in the Methodology tab.
-28. [ ] Display WEO actual/estimate/projection status in the Data Explorer
-    time series to support research use.
+28. [x] Display WEO actual/estimate/projection status in the Data Explorer
+    time series to support research use. Implemented 2026-07-10: charts plot
+    at native periodicity and mark the last reported actual with a dashed
+    boundary and caption.
 
 ### 21.3 Retrieval Pipeline Actions (Section 9.5, Added 2026-07-09)
 
