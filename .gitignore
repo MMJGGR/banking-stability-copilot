@@ -37,3 +37,6 @@ Thumbs.db
 .streamlit/
 
 # Note: CSV, parquet, pkl files are tracked by Git LFS
+
+# External-liquidity candidate caches are workflow artifacts, never committed
+cache/external/
