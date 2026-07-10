@@ -1590,3 +1590,17 @@ artifacts requires owner review under items 4, 8, and 11.
   - Verification: compile check passed; unit suite passed; local Streamlit
     Methodology tab rendered current snapshot metadata without the old
     February 2026 legacy-artifact warning.
+- [x] Checkpoint 10: Methodology active-source count correction.
+  - Pending commit: `fix methodology source counts`
+  - Scope:
+    - Fixed FSIBSIS and WGI source summaries so active manifests report
+      source-appropriate indicator counts instead of omitting the field.
+    - FSIBSIS now reports unique `INDICATOR` labels with observations by the
+      cutoff; WGI now reports populated governance score columns.
+    - Updated the Methodology tab to label the field as
+      `Indicators / Measures` and show the count basis rather than implying
+      zero for source schemas without `indicator_code`.
+    - Preserved official-refresh metadata in `artifacts/data_manifest.json`
+      while adding the corrected counts.
+  - Verification: active manifest now reports FSIBSIS 289 measures and WGI
+    6 governance indicators; compile check passed; `42 passed`.

@@ -395,12 +395,14 @@ monthly or quarterly crisis probability.
     st.markdown("### Active Sources")
     source_rows = []
     for source_name, details in sorted(manifest.get('sources', {}).items()):
+        indicators = details.get("indicators")
         source_rows.append({
             "Source": source_name,
             "Rows": details.get("rows"),
             "Countries": details.get("countries"),
             "Latest Observation": details.get("latest_observation"),
-            "Indicators": details.get("indicators"),
+            "Indicators / Measures": indicators if indicators is not None else "—",
+            "Count Basis": details.get("indicator_basis", "unique indicator codes"),
         })
     if source_rows:
         st.dataframe(

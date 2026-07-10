@@ -95,6 +95,8 @@
   "sources": {
     "FSIBSIS": {
       "countries": 141,
+      "indicator_basis": "unique INDICATOR labels with observations by cutoff",
+      "indicators": 289,
       "latest_observation": "2026-04-30",
       "latest_period_label": "2026-M04",
       "rows": 11459
@@ -129,6 +131,8 @@
     },
     "WGI": {
       "countries": 207,
+      "indicator_basis": "governance score columns",
+      "indicators": 6,
       "latest_observation": "2024-12-31",
       "rows": 5301
     }

@@ -72,9 +72,12 @@ def summarize_fsibsis_cache(path: Path, cutoff: pd.Timestamp) -> dict:
         if period_columns
         else pd.Series(False, index=frame.index)
     )
+    active_frame = frame.loc[has_observation]
     return {
         "rows": int(len(frame)),
-        "countries": int(frame.loc[has_observation, "country_code"].nunique()),
+        "countries": int(active_frame["country_code"].nunique()),
+        "indicators": int(active_frame["INDICATOR"].nunique()),
+        "indicator_basis": "unique INDICATOR labels with observations by cutoff",
         "latest_observation": (
             parse_period_label(latest_label).date().isoformat()
             if latest_label
@@ -87,9 +90,17 @@ def summarize_fsibsis_cache(path: Path, cutoff: pd.Timestamp) -> dict:
 def summarize_wgi_cache(path: Path, cutoff: pd.Timestamp) -> dict:
     frame = pd.read_parquet(path)
     frame = frame.loc[pd.to_numeric(frame["year"], errors="coerce") <= cutoff.year]
+    indicator_columns = [
+        column
+        for column in frame.columns
+        if column not in {"country_code", "year"}
+        and frame[column].notna().any()
+    ]
     return {
         "rows": int(len(frame)),
         "countries": int(frame["country_code"].nunique()),
+        "indicators": int(len(indicator_columns)),
+        "indicator_basis": "governance score columns",
         "latest_observation": (
             f"{int(frame['year'].max())}-12-31" if len(frame) else None
         ),
