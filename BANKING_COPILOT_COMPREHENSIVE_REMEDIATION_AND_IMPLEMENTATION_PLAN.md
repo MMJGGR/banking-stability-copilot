@@ -1717,23 +1717,21 @@ Additional backlog closures in the continuation:
 
 Items that remain open and why they cannot be closed from this environment:
 
-- **Ranks 5-14 (external-liquidity data block) — STAGED (retrieval layer
-  shipped 2026-07-10; first Actions run pending).** `api.imf.org` is
-  unreachable through the development session's egress proxy, so the
-  retrieval layer was built to run on GitHub Actions instead:
-  `discover_external_sources.py` probes candidate dataflow IDs for BOP, IIP,
-  IRFCL, CPIS, CDIS, Fiscal Monitor, GFS, and QEDS against the SDMX structure
-  endpoint and records versions and key structures;
-  `fetch_external_sources.py` downloads resolved flows through the existing
-  chunk-safe SDMX client and normalizes them into generic observation
-  Parquets; the `external-data.yml` workflow (monthly + manual dispatch)
-  runs both and uploads candidate caches as reviewed artifacts, never
-  committing. Both scripts are fixture-tested. Remaining after the first
-  successful run: commit the discovered key structures to
-  `config/external_sources_discovery.json` via PR, then build the
-  external-liquidity features themselves (debt-service ratios, gross
-  external financing needs, reserves adequacy, portfolio flows) from the
-  staged caches — that feature engineering is ranks 6-14's remaining scope.
+- **Ranks 5-14 (external-liquidity data block) — PARTIALLY RESOLVED
+  (retrieval layer installed; key-structure discovery fixed for five IMF
+  flows).** The first manual `external-data.yml` run completed green but
+  downloaded no large source data because the discovery script incorrectly
+  expected `/structure/dataflow/...` to embed DSD dimensions. IMF's SDMX 3.0
+  dataflow response instead carries a DSD URN; dimensions must be read from
+  `/structure/datastructure/{agency}/{DSD}/+`. The resolver now follows that
+  reference and records usable keys for BOP, IIP, IRFCL, Fiscal Monitor, and
+  QGFS in `config/external_sources_discovery.json`. Local endpoint smoke
+  confirmed these five data URLs return SDMX CSV, and a local Fiscal Monitor
+  fetch normalized 1,024 observations. Remaining scope: rerun the GitHub
+  workflow to download/upload large candidate caches; identify valid modern
+  API IDs or fallback sources for CPIS, CDIS, and QEDS; then build the
+  external-liquidity features themselves (debt-service ratios, gross external
+  financing needs, reserves adequacy, portfolio flows) from the staged caches.
 - **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
   external benchmark):** owner methodology decisions plus (for 18) licensed
   or external outcome data.
@@ -1927,3 +1925,22 @@ Items that remain open and why they cannot be closed from this environment:
     USA has 83 measures, 6,445 non-null observations, native annual/quarterly/
     monthly periods through 2026-04-30; full suite passed (`48 passed`); local
     Streamlit returned HTTP 200 on port 8507.
+- [x] Checkpoint 14: External-liquidity SDMX discovery resolver fix.
+  - Pending commit: `fix external liquidity sdmx discovery`
+  - Scope:
+    - Diagnosed the first `external-data.yml` run: the job succeeded but
+      downloaded no large IMF dataflows because all candidate sources were
+      marked unresolved.
+    - Fixed the root cause: IMF SDMX 3.0 dataflow responses often contain only
+      a DSD URN, not embedded dimensions. Discovery now follows the dataflow's
+      `structure` reference to `/structure/datastructure/{agency}/{DSD}/+` and
+      extracts ordered dimensions from the DSD.
+    - Added discovered key structures under
+      `config/external_sources_discovery.json` for BOP, IIP, IRFCL, Fiscal
+      Monitor, and QGFS.
+    - Made `fetch_external_sources.py` fail loudly if a workflow run fetches
+      zero sources, avoiding another false-green Actions run.
+  - Verification: `tests/test_external_sources.py` passed; local full
+    discovery resolved BOP, IIP, IRFCL, FM, and GFS/QGFS; live endpoint smoke
+    confirmed all five resolved data URLs return SDMX CSV; a local Fiscal
+    Monitor fetch normalized 1,024 rows covering 18 countries.

@@ -201,6 +201,12 @@ def main():
         family for family, entry in report["sources"].items()
         if entry["status"] == "failed"
     ]
+    successes = [
+        family for family, entry in report["sources"].items()
+        if entry["status"] == "ok"
+    ]
+    if not successes:
+        raise SystemExit("No external-liquidity sources were fetched successfully.")
     raise SystemExit(1 if failures and len(failures) == len(report["sources"]) else 0)
 
 

@@ -19,6 +19,7 @@ Output: config/external_sources_discovery.json, consumed by
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,10 +51,11 @@ CANDIDATES = {
 
 
 def parse_dataflow_structure(payload: dict) -> dict:
-    """Extract version and ordered non-time dimensions from SDMX-JSON."""
+    """Extract version, DSD reference, and dimensions from SDMX-JSON."""
     data = payload.get("data", {})
     flows = data.get("dataflows", [])
     structures = data.get("dataStructures", [])
+    structure_ref = flows[0].get("structure") if flows else None
     dimensions = []
     if structures:
         dimension_list = (
@@ -73,9 +75,69 @@ def parse_dataflow_structure(payload: dict) -> dict:
             (flows[0].get("name") or flows[0].get("names", {}).get("en"))
             if flows else None
         ),
+        "structure_ref": structure_ref,
         "structure_version": structures[0].get("version") if structures else None,
         "dimensions": dimensions,
     }
+
+
+def parse_structure_reference(reference: str | None) -> dict | None:
+    """Parse an SDMX DSD URN from a dataflow's ``structure`` reference."""
+    if not reference:
+        return None
+    match = re.search(
+        r"DataStructure=(?P<agency>[^:]+):(?P<id>[^\(]+)\((?P<version>[^\)]+)\)",
+        reference,
+    )
+    if not match:
+        return None
+    return {
+        "agency": match.group("agency"),
+        "id": match.group("id"),
+        "version": match.group("version"),
+    }
+
+
+def parse_datastructure_dimensions(payload: dict) -> dict:
+    """Extract DSD version and ordered non-time dimensions from SDMX-JSON."""
+    structures = payload.get("data", {}).get("dataStructures", [])
+    dimensions = []
+    if structures:
+        dimension_list = (
+            structures[0]
+            .get("dataStructureComponents", {})
+            .get("dimensionList", {})
+        )
+        entries = dimension_list.get("dimensions", [])
+        entries = sorted(entries, key=lambda item: item.get("position", 0))
+        dimensions = [
+            entry["id"] for entry in entries
+            if entry.get("id") and entry["id"] != "TIME_PERIOD"
+        ]
+    return {
+        "structure_version": structures[0].get("version") if structures else None,
+        "dimensions": dimensions,
+    }
+
+
+def probe_datastructure(agency: str, structure_id: str, timeout=60) -> dict:
+    url = f"{IMF_SDMX_BASE}/structure/datastructure/{agency}/{structure_id}/+"
+    response = _retrying_get(
+        url,
+        headers={"Accept": "application/vnd.sdmx.structure+json"},
+        timeout=timeout,
+        retries=2,
+    )
+    if not response.text.strip():
+        raise SourceUnavailableError(
+            f"{agency}/{structure_id} datastructure returned no body"
+        )
+    parsed = parse_datastructure_dimensions(response.json())
+    if not parsed["dimensions"]:
+        raise SourceUnavailableError(
+            f"{agency}/{structure_id} datastructure exposed no dimensions"
+        )
+    return parsed
 
 
 def probe_dataflow(agency: str, dataflow_id: str, timeout=60) -> dict:
@@ -86,7 +148,22 @@ def probe_dataflow(agency: str, dataflow_id: str, timeout=60) -> dict:
         timeout=timeout,
         retries=2,
     )
+    if not response.text.strip():
+        raise SourceUnavailableError(
+            f"{agency}/{dataflow_id} dataflow returned no body"
+        )
     parsed = parse_dataflow_structure(response.json())
+    if not parsed["dimensions"]:
+        structure_ref = parse_structure_reference(parsed.get("structure_ref"))
+        if structure_ref:
+            dsd = probe_datastructure(
+                structure_ref["agency"],
+                structure_ref["id"],
+                timeout=timeout,
+            )
+            parsed["structure_id"] = structure_ref["id"]
+            parsed["structure_reference_version"] = structure_ref["version"]
+            parsed.update(dsd)
     if not parsed["dimensions"]:
         raise SourceUnavailableError(
             f"{agency}/{dataflow_id} resolved but exposed no dimensions"

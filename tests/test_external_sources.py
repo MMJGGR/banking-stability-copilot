@@ -5,7 +5,9 @@ import pytest
 
 from src.scripts.discover_external_sources import (
     CANDIDATES,
+    parse_datastructure_dimensions,
     parse_dataflow_structure,
+    parse_structure_reference,
 )
 from src.scripts.fetch_external_sources import _coverage, normalize_long_csv
 
@@ -46,6 +48,60 @@ def test_parse_dataflow_structure_orders_dimensions_and_reads_version():
     assert parsed["dataflow_version"] == "4.0.1"
     assert parsed["structure_version"] == "4.0.0"
     assert parsed["dimensions"] == ["COUNTRY", "INDICATOR", "FREQUENCY"]
+
+
+def test_parse_dataflow_structure_keeps_dsd_reference_when_dimensions_omitted():
+    payload = {
+        "data": {
+            "dataflows": [
+                {
+                    "version": "21.0.0",
+                    "name": "Balance of Payments",
+                    "structure": (
+                        "urn:sdmx:org.sdmx.infomodel.datastructure."
+                        "DataStructure=IMF.STA:DSD_BOP(24.0+.0)"
+                    ),
+                }
+            ],
+        }
+    }
+    parsed = parse_dataflow_structure(payload)
+    assert parsed["dimensions"] == []
+    assert parsed["structure_ref"].endswith("IMF.STA:DSD_BOP(24.0+.0)")
+    assert parse_structure_reference(parsed["structure_ref"]) == {
+        "agency": "IMF.STA",
+        "id": "DSD_BOP",
+        "version": "24.0+.0",
+    }
+
+
+def test_parse_datastructure_dimensions_orders_dsd_dimensions():
+    payload = {
+        "data": {
+            "dataStructures": [
+                {
+                    "version": "24.0.0",
+                    "dataStructureComponents": {
+                        "dimensionList": {
+                            "dimensions": [
+                                {"id": "TIME_PERIOD", "position": 5},
+                                {"id": "FREQUENCY", "position": 4},
+                                {"id": "COUNTRY", "position": 0},
+                                {"id": "INDICATOR", "position": 2},
+                                {"id": "UNIT", "position": 3},
+                                {"id": "BOP_ACCOUNTING_ENTRY", "position": 1},
+                            ]
+                        }
+                    },
+                }
+            ]
+        }
+    }
+    parsed = parse_datastructure_dimensions(payload)
+    assert parsed["structure_version"] == "24.0.0"
+    assert parsed["dimensions"] == [
+        "COUNTRY", "BOP_ACCOUNTING_ENTRY", "INDICATOR", "UNIT", "FREQUENCY",
+    ]
 
 
 def test_parse_dataflow_structure_handles_empty_payload():

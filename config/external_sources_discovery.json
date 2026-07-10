@@ -1,0 +1,119 @@
+{
+  "discovered_at": "2026-07-10T18:33:25.566022+00:00",
+  "endpoint": "https://api.imf.org/external/sdmx/3.0",
+  "families": {
+    "BOP": {
+      "agency": "IMF.STA",
+      "attempts": [],
+      "dataflow_id": "BOP",
+      "dataflow_name": "Balance of Payments (BOP)",
+      "dataflow_version": "21.0.0",
+      "dimensions": [
+        "COUNTRY",
+        "BOP_ACCOUNTING_ENTRY",
+        "INDICATOR",
+        "UNIT",
+        "FREQUENCY"
+      ],
+      "status": "resolved",
+      "structure_id": "DSD_BOP",
+      "structure_ref": "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.STA:DSD_BOP(24.0+.0)",
+      "structure_reference_version": "24.0+.0",
+      "structure_version": "24.0.0"
+    },
+    "CDIS": {
+      "attempts": [
+        "IMF.STA/CDIS: SourceUnavailableError: IMF.STA/CDIS dataflow returned no body"
+      ],
+      "status": "unresolved"
+    },
+    "CPIS": {
+      "attempts": [
+        "IMF.STA/CPIS: SourceUnavailableError: IMF.STA/CPIS dataflow returned no body"
+      ],
+      "status": "unresolved"
+    },
+    "FM": {
+      "agency": "IMF.FAD",
+      "attempts": [],
+      "dataflow_id": "FM",
+      "dataflow_name": "Fiscal Monitor (FM)",
+      "dataflow_version": "5.0.0",
+      "dimensions": [
+        "COUNTRY",
+        "INDICATOR",
+        "FREQUENCY"
+      ],
+      "status": "resolved",
+      "structure_id": "DSD_FM",
+      "structure_ref": "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.FAD:DSD_FM(8.0+.0)",
+      "structure_reference_version": "8.0+.0",
+      "structure_version": "8.0.0"
+    },
+    "GFS": {
+      "agency": "IMF.STA",
+      "attempts": [
+        "IMF.STA/GFS_MAB: SourceUnavailableError: IMF.STA/GFS_MAB dataflow returned no body"
+      ],
+      "dataflow_id": "QGFS",
+      "dataflow_name": "Quarterly Government Finance Statistics (QGFS)",
+      "dataflow_version": "12.0.0",
+      "dimensions": [
+        "COUNTRY",
+        "ACCOUNTS",
+        "SECTOR",
+        "INDICATOR",
+        "FREQUENCY"
+      ],
+      "status": "resolved",
+      "structure_id": "DSD_QGFS",
+      "structure_ref": "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.STA:DSD_QGFS(12.0+.0)",
+      "structure_reference_version": "12.0+.0",
+      "structure_version": "12.0.0"
+    },
+    "IIP": {
+      "agency": "IMF.STA",
+      "attempts": [],
+      "dataflow_id": "IIP",
+      "dataflow_name": "International Investment Position (IIP)",
+      "dataflow_version": "13.0.0",
+      "dimensions": [
+        "COUNTRY",
+        "BOP_ACCOUNTING_ENTRY",
+        "INDICATOR",
+        "UNIT",
+        "FREQUENCY"
+      ],
+      "status": "resolved",
+      "structure_id": "DSD_BOP",
+      "structure_ref": "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.STA:DSD_BOP(24.0+.0)",
+      "structure_reference_version": "24.0+.0",
+      "structure_version": "24.0.0"
+    },
+    "IRFCL": {
+      "agency": "IMF.STA",
+      "attempts": [],
+      "dataflow_id": "IRFCL",
+      "dataflow_name": "International Reserves and Foreign Currency Liquidity (IRFCL)",
+      "dataflow_version": "12.0.0",
+      "dimensions": [
+        "COUNTRY",
+        "INDICATOR",
+        "SECTOR",
+        "FREQUENCY"
+      ],
+      "status": "resolved",
+      "structure_id": "DSD_IRFCL_PUB",
+      "structure_ref": "urn:sdmx:org.sdmx.infomodel.datastructure.DataStructure=IMF.STA:DSD_IRFCL_PUB(13.0+.0)",
+      "structure_reference_version": "13.0+.0",
+      "structure_version": "13.0.0"
+    },
+    "QEDS": {
+      "attempts": [
+        "IMF.STA/QEDS: SourceUnavailableError: IMF.STA/QEDS dataflow returned no body",
+        "IMF.STA/QEDS_GDDS: SourceUnavailableError: IMF.STA/QEDS_GDDS dataflow returned no body"
+      ],
+      "status": "unresolved"
+    }
+  }
+}
