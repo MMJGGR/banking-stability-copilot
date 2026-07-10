@@ -1496,69 +1496,68 @@ latest `master` checkpoints through `improve methodology cards`. If an older
 unchecked action or historical issue is not listed here, do not treat it as a
 current open issue without re-triage.
 
-#### 21.5.1 Production Approval and Governance
+#### 21.5.1 Priority Queue: App Usability and Reliability First
 
-| Open issue | Why it matters | Priority | Next action |
-|---|---|---:|---|
-| Snapshot definitions and provisional/final rules are not approved | Users need to know whether a snapshot is preliminary, final, backfilled, or replaced by a later source vintage | Critical | Define snapshot lifecycle, naming, approval states, and replacement rules |
-| Freshness, coverage, imputation, and score-change thresholds are not approved | The refresh pipeline can build candidates, but promotion gates still need policy thresholds | Critical | Set thresholds for source staleness, minimum direct coverage, imputation share, and material score/rank/tier changes |
-| Named model owner, data owner, and release approver are not encoded | Promotion remains dependent on informal review | High | Add CODEOWNERS/release checklist or equivalent governance control |
-| Last-known-good rollback process is not implemented end to end | A bad artifact or broken deployment can still take down the public app | Critical | Add app fallback to previous verified artifact and document rollback command/runbook |
-| Public Streamlit live deployment is not re-verified after every push | GitHub pushes should auto-deploy, but live app state can lag or fail silently | High | Add post-push live health check and deployment-status evidence to each UI/data checkpoint |
-| Repository privacy/access-control decision is unresolved | Moving the repo private may affect Streamlit Cloud access and app visibility settings | Medium | Decide public/private repo and public/private app sharing model before adding licensed/private data |
+| Rank | Open issue | Why it matters | Priority | Next action |
+|---:|---|---|---:|---|
+| 1 | Last-known-good rollback process is not implemented end to end | A bad artifact or broken deployment can still take down the public app | Critical | Add app fallback to previous verified artifact and document rollback command/runbook |
+| 2 | App health/freshness/degraded-mode status is incomplete | Users cannot tell whether data are stale, app is using fallback, or a refresh failed | Critical | Add visible health panel using manifest, source freshness, last refresh status, and fallback status |
+| 3 | Public Streamlit live deployment is not re-verified after every push | GitHub pushes should auto-deploy, but live app state can lag or fail silently | High | Add post-push live health check and deployment-status evidence to each UI/data checkpoint |
+| 4 | Candidate workflow and promotion workflow do not prove live publication | Automation builds candidates but does not by itself prove the public app updated | High | Add deployment verification and explicit release notes after promotion |
+| 5 | Snapshot selection is not implemented in the app | Users cannot inspect YE2025 versus mid-2026 artifacts from the hosted UI | High | Add controlled snapshot selector backed by archived verified artifacts |
+| 6 | Country-level score explanation remains limited | Suspicious outputs require manual artifact inspection | High | Add model-driver table with raw value, imputed value, source period, direction, and peer percentile |
+| 7 | Methodology tab is improved but needs user review | The new UI-native cards are clearer, but content should be reviewed after live deployment | Medium | Review the live Methodology tab and tune copy/layout based on product-owner feedback |
+| 8 | Accessibility and responsive QA are not formalized | Light-mode fixes were made, but systematic UI QA is still informal | Medium | Add browser smoke coverage for light/dark mode, small screens, and key tabs |
+| 9 | Freshness, coverage, imputation, and score-change thresholds are not approved | The app can show data and scores, but users need reliable promotion gates behind them | Critical | Set thresholds for source staleness, minimum direct coverage, imputation share, and material score/rank/tier changes |
+| 10 | Snapshot definitions and provisional/final rules are not approved | Users need to know whether a snapshot is preliminary, final, backfilled, or replaced by a later source vintage | Critical | Define snapshot lifecycle, naming, approval states, and replacement rules |
+| 11 | Named model owner, data owner, and release approver are not encoded | Promotion remains dependent on informal review | High | Add CODEOWNERS/release checklist or equivalent governance control |
+| 12 | Repository privacy/access-control decision is unresolved | Moving the repo private may affect Streamlit Cloud access and app visibility settings | Medium | Decide public/private repo and public/private app sharing model before adding licensed/private data |
 
-#### 21.5.2 Model Methodology and Inference Quality
+#### 21.5.2 Priority Queue: User Trust in Scores
 
-| Open issue | Why it matters | Priority | Next action |
-|---|---|---:|---|
-| Mozambique/Kenya ranking exposed weak inference in the active artifact | Kenya is scored riskier than Mozambique because the current industry PCA and crisis blend dominate; the result is explainable but not yet analytically satisfying | Critical | Add driver-level country explanation, review variable signs, and test constrained scoring alternatives |
-| Unsupervised PCA can learn economically weak signs | Some banking features can affect the safety score in counterintuitive directions because PCA captures covariance, not causal credit risk | Critical | Replace or constrain PCA for credit-risk ratios using directional transforms/monotonic scoring |
-| Crisis overlay can de-risk high pillar-risk countries | The 90/10 blend with a 1-10 crisis-probability component can lower a high base risk score when the crisis probability score is below the base pillar score | Critical | Redesign the classifier overlay so crisis probability is additive, monotonic, or separately displayed |
-| GDP orientation and wealth anchoring remain a policy choice | GDP per capita affects pillar orientation but the active model is not a clean GDP-anchored sovereign-credit model | High | Decide whether GDP per capita is an anchor, a peer stratifier, or one ordinary economic feature; update model policy and UI language |
-| Imputation can make sparse countries look better than observed peers | Missing critical fields such as detailed banking concentration or real-estate exposure can be KNN-imputed favorably | High | Add critical-field missingness penalties and show raw/imputed driver flags in country explanations |
-| Current model is still a relative snapshot model | Scores are percentile-based and can move when source coverage or country universe changes | High | Add stable reference distributions by approved release and show rank-vs-score movement separately |
-| Honest grouped-CV AUC is modest | The retrained classifier is materially weaker than historical README claims and should not be oversold | High | Treat classifier as a weak signal until out-of-time and challenger comparisons support promotion |
-| No external benchmark/challenger against rating-agency style outcomes | Current objective is banking-system risk, but users are also asking sovereign-credit/liquidity questions | High | Build a challenger external-liquidity/sovereign-stress score and compare against ratings, spreads, or crisis outcomes |
-| Model output lacks sufficient country-level driver narrative | Users cannot yet see a concise "why this score" explanation for suspicious rankings | High | Add top positive/negative score drivers, imputed critical fields, freshness, and peer comparison to Country Profile |
+| Rank | Open issue | Why it matters | Priority | Next action |
+|---:|---|---|---:|---|
+| 13 | Mozambique/Kenya ranking exposed weak inference in the active artifact | Kenya is scored riskier than Mozambique because the current industry PCA and crisis blend dominate; the result is explainable but not yet analytically satisfying | Critical | Add driver-level country explanation, review variable signs, and test constrained scoring alternatives |
+| 14 | Crisis overlay can de-risk high pillar-risk countries | The 90/10 blend with a 1-10 crisis-probability component can lower a high base risk score when the crisis probability score is below the base pillar score | Critical | Redesign the classifier overlay so crisis probability is additive, monotonic, or separately displayed |
+| 15 | Unsupervised PCA can learn economically weak signs | Some banking features can affect the safety score in counterintuitive directions because PCA captures covariance, not causal credit risk | Critical | Replace or constrain PCA for credit-risk ratios using directional transforms/monotonic scoring |
+| 16 | Imputation can make sparse countries look better than observed peers | Missing critical fields such as detailed banking concentration or real-estate exposure can be KNN-imputed favorably | High | Add critical-field missingness penalties and show raw/imputed driver flags in country explanations |
+| 17 | Current model is still a relative snapshot model | Scores are percentile-based and can move when source coverage or country universe changes | High | Add stable reference distributions by approved release and show rank-vs-score movement separately |
+| 18 | GDP orientation and wealth anchoring remain a policy choice | GDP per capita affects pillar orientation but the active model is not a clean GDP-anchored sovereign-credit model | High | Decide whether GDP per capita is an anchor, a peer stratifier, or one ordinary economic feature; update model policy and UI language |
+| 19 | Honest grouped-CV AUC is modest | The retrained classifier is materially weaker than historical README claims and should not be oversold | High | Treat classifier as a weak signal until out-of-time and challenger comparisons support promotion |
+| 20 | No external benchmark/challenger against rating-agency style outcomes | Current objective is banking-system risk, but users are also asking sovereign-credit/liquidity questions | High | Build a challenger external-liquidity/sovereign-stress score and compare against ratings, spreads, or crisis outcomes |
 
-#### 21.5.3 Rating-Agency Feature and Data Gaps
+#### 21.5.3 Priority Queue: Data and Refresh Reliability
 
-| Open issue | Why it matters | Priority | Likely source / next action |
-|---|---|---:|---|
-| Debt-service burden is not fully modeled | Fitch/Moody's/S&P-style debt affordability depends on interest and principal burden, not debt stock alone | Critical | Add IMF BOP, World Bank IDS/QEDS, Fiscal Monitor, and/or GFS-derived debt-service ratios |
-| Gross external financing needs are missing | Core S&P-style external liquidity risk requires current account payments, short-term external debt, non-resident deposits, and maturing long-term external debt | Critical | Compute approximation from BOP + IIP/external debt + reserves; flag assumption quality |
-| Current account receipts/payments are missing | They are denominators for external liquidity and debt-service ratios | Critical | Add IMF BOP dataflow and compute CXR/CXP measures |
-| International reserves adequacy is only proxied | Current `m2_to_reserves` and `sovereign_liability_to_reserves` do not fully capture usable reserves against imports/CXP/short-term debt | High | Add IMF IRFCL and reserves/imports, reserves/CXP, reserves/short-term external debt |
-| Portfolio flows and portfolio liabilities are missing | Sudden-stop and market-access risk are central to external-finance assessment | High | Add IMF BOP portfolio flows and PIP/CPIS portfolio positions |
-| Net IIP and external liabilities are missing | External solvency requires stock positions, not only current account flow | High | Add IMF IIP and compute net IIP/GDP, external liabilities/GDP, portfolio liabilities/GDP |
-| FDI flow stability is missing | Stable financing should be separated from hot-money financing | Medium | Add IMF BOP FDI flows and DIP/CDIS positions |
-| Sovereign foreign-currency debt share is missing or weakly covered | FX debt structure is a core vulnerability metric | High | Test QEDS, World Bank IDS, GFS, and debt-management-source coverage |
-| Gross financing needs and interest/revenue are not robustly modeled | Fiscal refinancing pressure and affordability are central to sovereign-credit analysis | High | Add IMF Fiscal Monitor, GFS/QGFS, and WEO fiscal indicators where available |
-| Commodity/export concentration and terms-of-trade exposure are missing | Narrow export bases can create external liquidity shocks | Medium | Add BOP/export composition where available; consider commodity-price exposure proxy |
-| Real effective exchange-rate, equity-price, and property-price stress are missing | Fitch MPI-style macroprudential indicators use asset-price/REER pressure with credit growth | Medium | Explore IMF/BIS/OECD/national coverage; likely partial and lower priority |
-| Market access indicators are missing | Bond yields, spreads, CDS, issuance frequency, and failed auctions are high-value capital-market risk signals | High | Requires non-IMF market data provider or public proxy; decide source/licensing before implementation |
+| Rank | Open issue | Why it matters | Priority | Next action |
+|---:|---|---|---:|---|
+| 21 | Raw datasets remain in Git/LFS history | Repo/deploy size and LFS bandwidth remain higher than necessary | High | Move raw data to release/object-storage assets and plan any history rewrite as a separate controlled operation |
+| 22 | Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
+| 23 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
+| 24 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
 
-#### 21.5.4 Data Engineering and Refresh Workflow
+#### 21.5.4 Priority Queue: Model Coverage Enhancements
 
-| Open issue | Why it matters | Priority | Next action |
-|---|---|---:|---|
-| Existing source stack excludes BOP, IIP, IRFCL, PIP/CPIS, DIP/CDIS, Fiscal Monitor, QGFS/GFS, and market-price/rate feeds | These are needed for the external-liquidity and market-access features above | Critical | Extend `src/sources/sdmx.py`, normalization, manifests, and feature engineering with staged adapters |
-| Raw datasets remain in Git/LFS history | Repo/deploy size and LFS bandwidth remain higher than necessary | High | Move raw data to release/object-storage assets and plan any history rewrite as a separate controlled operation |
-| Candidate workflow and promotion workflow exist, but live publication is still human-mediated | Automation builds candidates but does not by itself prove the public app updated | High | Add deployment verification and explicit release notes after promotion |
-| Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
-| Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
-| Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
+| Rank | Open issue | Why it matters | Priority | Likely source / next action |
+|---:|---|---|---:|---|
+| 25 | Existing source stack excludes BOP, IIP, IRFCL, PIP/CPIS, DIP/CDIS, Fiscal Monitor, QGFS/GFS, and market-price/rate feeds | These sources are needed for external-liquidity and market-access features | Critical | Extend `src/sources/sdmx.py`, normalization, manifests, and feature engineering with staged adapters |
+| 26 | Debt-service burden is not fully modeled | Fitch/Moody's/S&P-style debt affordability depends on interest and principal burden, not debt stock alone | Critical | Add IMF BOP, World Bank IDS/QEDS, Fiscal Monitor, and/or GFS-derived debt-service ratios |
+| 27 | Gross external financing needs are missing | Core S&P-style external liquidity risk requires current account payments, short-term external debt, non-resident deposits, and maturing long-term external debt | Critical | Compute approximation from BOP + IIP/external debt + reserves; flag assumption quality |
+| 28 | Current account receipts/payments are missing | They are denominators for external liquidity and debt-service ratios | Critical | Add IMF BOP dataflow and compute CXR/CXP measures |
+| 29 | International reserves adequacy is only proxied | Current `m2_to_reserves` and `sovereign_liability_to_reserves` do not fully capture usable reserves against imports/CXP/short-term debt | High | Add IMF IRFCL and reserves/imports, reserves/CXP, reserves/short-term external debt |
+| 30 | Portfolio flows and portfolio liabilities are missing | Sudden-stop and market-access risk are central to external-finance assessment | High | Add IMF BOP portfolio flows and PIP/CPIS portfolio positions |
+| 31 | Net IIP and external liabilities are missing | External solvency requires stock positions, not only current account flow | High | Add IMF IIP and compute net IIP/GDP, external liabilities/GDP, portfolio liabilities/GDP |
+| 32 | Sovereign foreign-currency debt share is missing or weakly covered | FX debt structure is a core vulnerability metric | High | Test QEDS, World Bank IDS, GFS, and debt-management-source coverage |
+| 33 | Gross financing needs and interest/revenue are not robustly modeled | Fiscal refinancing pressure and affordability are central to sovereign-credit analysis | High | Add IMF Fiscal Monitor, GFS/QGFS, and WEO fiscal indicators where available |
+| 34 | Market access indicators are missing | Bond yields, spreads, CDS, issuance frequency, and failed auctions are high-value capital-market risk signals | High | Requires non-IMF market data provider or public proxy; decide source/licensing before implementation |
+| 35 | FDI flow stability is missing | Stable financing should be separated from hot-money financing | Medium | Add IMF BOP FDI flows and DIP/CDIS positions |
+| 36 | Commodity/export concentration and terms-of-trade exposure are missing | Narrow export bases can create external liquidity shocks | Medium | Add BOP/export composition where available; consider commodity-price exposure proxy |
+| 37 | Real effective exchange-rate, equity-price, and property-price stress are missing | Fitch MPI-style macroprudential indicators use asset-price/REER pressure with credit growth | Medium | Explore IMF/BIS/OECD/national coverage; likely partial and lower priority |
 
-#### 21.5.5 Application, UX, and Product
+#### 21.5.5 Priority Queue: Product Positioning
 
-| Open issue | Why it matters | Priority | Next action |
-|---|---|---:|---|
-| Snapshot selection is not implemented in the app | Users cannot inspect YE2025 versus mid-2026 artifacts from the hosted UI | High | Add controlled snapshot selector backed by archived verified artifacts |
-| App health/freshness/degraded-mode status is incomplete | Users cannot tell whether data are stale, app is using fallback, or a refresh failed | High | Add visible health panel using manifest, source freshness, and last refresh status |
-| Country-level score explanation remains limited | Suspicious outputs require manual artifact inspection | High | Add model-driver table with raw value, imputed value, source period, direction, and peer percentile |
-| Methodology tab is improved but needs user review | The new UI-native cards are clearer, but content should be reviewed by the product owner | Medium | Review live Methodology tab after Streamlit deploy and tune copy/layout |
-| Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
-| Accessibility and responsive QA are not formalized | Light-mode fixes were made, but systematic UI QA is still informal | Medium | Add browser smoke coverage for light/dark mode, small screens, and key tabs |
+| Rank | Open issue | Why it matters | Priority | Next action |
+|---:|---|---|---:|---|
+| 38 | Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
 
 ### 21.1 GitHub Checkpoints
 
