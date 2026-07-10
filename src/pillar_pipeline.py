@@ -30,6 +30,114 @@ INDUSTRY_FEATURES = [
     "rule_of_law", "control_corruption",
 ]
 
+# Expected credit-risk direction per feature on the transformed scale used for
+# PCA: +1 means a higher value indicates higher banking-system risk, -1 means
+# a higher value indicates lower risk. Every pillar feature must be declared
+# here so a new feature cannot silently enter the score with an unreviewed
+# direction. Note two transform-scale flips: `loan_concentration` is stored as
+# -log1p(|raw|), so a higher transformed value means LESS concentration.
+FEATURE_RISK_DIRECTIONS = {
+    # Economic pillar
+    "gdp_growth": -1.0,
+    "inflation": 1.0,
+    "current_account_gdp": -1.0,
+    "gdp_per_capita": -1.0,
+    "govt_debt_gdp": 1.0,
+    "fiscal_balance_gdp": -1.0,
+    "unemployment": 1.0,
+    "credit_to_gdp": 1.0,
+    "credit_to_gdp_relative": 1.0,
+    "debt_service_gdp": 1.0,
+    "external_debt_gdp": 1.0,
+    "sovereign_liability_to_reserves": 1.0,
+    "inflation_differential_3yr": 1.0,
+    "interest_cost_gdp": 1.0,
+    "interest_cost_trend_3yr": 1.0,
+    "credit_growth_3yr": 1.0,
+    "m2_to_reserves": 1.0,
+    "ca_deficit_severity": 1.0,
+    "tot_deterioration_3yr": 1.0,
+    "voice_accountability": -1.0,
+    "political_stability": -1.0,
+    "govt_effectiveness": -1.0,
+    # Industry pillar
+    "capital_adequacy": -1.0,
+    "npl_ratio": 1.0,
+    "roe": -1.0,
+    "roa": -1.0,
+    "liquid_assets_st_liab": -1.0,
+    "liquid_assets_total": -1.0,
+    "customer_deposits_loans": -1.0,
+    "fx_loan_exposure": 1.0,
+    "tier1_capital": -1.0,
+    "npl_provisions": -1.0,
+    "loan_concentration": -1.0,
+    "real_estate_loans": 1.0,
+    "sovereign_exposure_ratio": 1.0,
+    "bank_liability_to_nfa": 1.0,
+    "real_estate_credit_growth_3yr": 1.0,
+    "regulatory_quality": -1.0,
+    "rule_of_law": -1.0,
+    "control_corruption": -1.0,
+}
+
+# Core banking soundness fields where a KNN-imputed value must not be allowed
+# to make a sparse country look better than an observed peer. When these are
+# missing for a country, a bounded risk penalty is added instead of trusting
+# the imputation alone.
+CRITICAL_FEATURES = [
+    "npl_ratio",
+    "capital_adequacy",
+    "liquid_assets_st_liab",
+    "credit_to_gdp_relative",
+    "loan_concentration",
+    "real_estate_loans",
+    "fx_loan_exposure",
+    "sovereign_exposure_ratio",
+]
+
+
+class ConstrainedRiskComponent:
+    """First principal direction constrained to the declared risk directions.
+
+    Inputs must already be oriented so that higher values mean higher risk.
+    The first PCA component is flipped to point toward risk, negative loadings
+    are clipped to zero (a negative loading would let a feature move the score
+    in an economically counterintuitive direction), and the clipped loadings
+    are shrunk halfway toward equal weights. The shrinkage prevents the
+    component from collapsing onto one or two high-variance features after
+    clipping: every declared feature keeps a strictly positive, monotone
+    influence on the pillar score.
+    """
+
+    equal_weight_shrinkage = 0.5
+
+    def fit(self, frame: pd.DataFrame):
+        pca = PCA(n_components=1).fit(frame)
+        weights = pca.components_[0].copy()
+        if weights.sum() < 0:
+            weights = -weights
+        weights = np.clip(weights, 0.0, None)
+        total = weights.sum()
+        uniform = np.full(frame.shape[1], 1.0 / frame.shape[1])
+        if total == 0:
+            weights = uniform
+        else:
+            shrinkage = self.equal_weight_shrinkage
+            weights = (
+                (1 - shrinkage) * (weights / total) + shrinkage * uniform
+            )
+        weights = weights / np.linalg.norm(weights)
+        self.mean_ = frame.mean().to_numpy()
+        self.components_ = weights.reshape(1, -1)
+        self.feature_names_ = frame.columns.tolist()
+        return self
+
+    def transform(self, frame: pd.DataFrame) -> np.ndarray:
+        return (
+            (frame.to_numpy() - self.mean_) @ self.components_[0]
+        ).reshape(-1, 1)
+
 
 @dataclass
 class PillarInferencePipeline:
@@ -39,14 +147,18 @@ class PillarInferencePipeline:
     median_risk: float = 5.5
     confidence_exponent: float = 0.5
     apply_risk_floors: bool = True
-    schema_version: int = 1
+    critical_missing_max_penalty: float = 1.5
+    schema_version: int = 2
     numeric_columns_: list = field(default_factory=list)
     imputed_columns_: list = field(default_factory=list)
     empty_columns_: list = field(default_factory=list)
     economic_columns_: list = field(default_factory=list)
     industry_columns_: list = field(default_factory=list)
+    critical_columns_: list = field(default_factory=list)
     log_shifts_: dict = field(default_factory=dict)
     direction_signs_: dict = field(default_factory=dict)
+    risk_directions_: dict = field(default_factory=dict)
+    anchor_correlations_: dict = field(default_factory=dict)
     reference_scores_: dict = field(default_factory=dict)
     fitted_: bool = False
 
@@ -67,6 +179,24 @@ class PillarInferencePipeline:
                 "Both economic and industry features are required to fit "
                 "the pillar pipeline"
             )
+        pillar_columns = self.economic_columns_ + self.industry_columns_
+        undeclared = [
+            column for column in pillar_columns
+            if column not in FEATURE_RISK_DIRECTIONS
+        ]
+        if undeclared:
+            raise ValueError(
+                "Pillar features without a declared risk direction: "
+                f"{undeclared}. Add them to FEATURE_RISK_DIRECTIONS."
+            )
+        self.risk_directions_ = {
+            column: FEATURE_RISK_DIRECTIONS[column]
+            for column in pillar_columns
+        }
+        self.critical_columns_ = [
+            column for column in CRITICAL_FEATURES
+            if column in self.numeric_columns_
+        ]
 
         coverage = numeric.notna().mean(axis=1)
         training = numeric.loc[coverage >= self.minimum_data_coverage]
@@ -99,26 +229,42 @@ class PillarInferencePipeline:
             columns=transformed.columns,
         )
 
-        self.economic_pca_ = self._fit_pca(scaled[self.economic_columns_])
-        self.industry_pca_ = self._fit_pca(scaled[self.industry_columns_])
+        oriented = self._orient(scaled)
+        self.economic_pca_ = ConstrainedRiskComponent().fit(
+            oriented[self.economic_columns_]
+        )
+        self.industry_pca_ = ConstrainedRiskComponent().fit(
+            oriented[self.industry_columns_]
+        )
         combined_columns = self.economic_columns_ + self.industry_columns_
-        self.combined_pca_ = self._fit_pca(scaled[combined_columns])
+        self.combined_pca_ = ConstrainedRiskComponent().fit(
+            oriented[combined_columns]
+        )
 
+        # Constrained components are risk-oriented by construction (higher =
+        # riskier). Downstream percentile math expects safety orientation, so
+        # the signs are deterministic; the GDP anchor no longer decides score
+        # direction and is recorded only as a diagnostic.
         raw_scores = {
             "economic": self.economic_pca_.transform(
-                scaled[self.economic_columns_]
+                oriented[self.economic_columns_]
             )[:, 0],
             "industry": self.industry_pca_.transform(
-                scaled[self.industry_columns_]
+                oriented[self.industry_columns_]
             )[:, 0],
             "combined": self.combined_pca_.transform(
-                scaled[combined_columns]
+                oriented[combined_columns]
             )[:, 0],
         }
-        self.direction_signs_ = self._direction_signs(
+        self.direction_signs_ = {
+            "economic": -1.0,
+            "industry": -1.0,
+            "combined": -1.0,
+        }
+        self.anchor_correlations_ = self._anchor_correlations(
             raw_scores,
             anchor,
-            scaled.index,
+            oriented.index,
         )
         raw_scores["risk"] = (
             0.5 * raw_scores["economic"] * self.direction_signs_["economic"]
@@ -177,16 +323,17 @@ class PillarInferencePipeline:
             index=transformed.index,
             columns=transformed.columns,
         )
+        oriented = self._orient(scaled)
         combined_columns = self.economic_columns_ + self.industry_columns_
         raw_scores = {
             "economic": self.economic_pca_.transform(
-                scaled[self.economic_columns_]
+                oriented[self.economic_columns_]
             )[:, 0] * self.direction_signs_["economic"],
             "industry": self.industry_pca_.transform(
-                scaled[self.industry_columns_]
+                oriented[self.industry_columns_]
             )[:, 0] * self.direction_signs_["industry"],
             "combined": self.combined_pca_.transform(
-                scaled[combined_columns]
+                oriented[combined_columns]
             )[:, 0] * self.direction_signs_["combined"],
         }
         raw_scores["risk"] = (
@@ -227,7 +374,26 @@ class PillarInferencePipeline:
                 5.0,
             )
         before_floor = risk_scores.copy()
-        risk_scores = np.maximum(risk_scores, risk_floor).round(1)
+        risk_scores = np.maximum(risk_scores, risk_floor)
+
+        # Critical-field missingness penalty: countries missing core banking
+        # soundness fields cannot be scored safer than observed peers purely
+        # on the strength of imputed values.
+        critical_columns = [
+            column for column in getattr(self, "critical_columns_", [])
+            if column in original_missing.columns
+        ]
+        if critical_columns:
+            critical_missing_share = (
+                original_missing[critical_columns].mean(axis=1)
+            )
+        else:
+            critical_missing_share = pd.Series(0.0, index=eligible.index)
+        critical_penalty = (
+            critical_missing_share
+            * getattr(self, "critical_missing_max_penalty", 0.0)
+        )
+        risk_scores = np.minimum(risk_scores + critical_penalty, 10.0).round(1)
 
         results = pd.DataFrame(
             {
@@ -244,6 +410,10 @@ class PillarInferencePipeline:
                 "risk_floor_applied": np.asarray(
                     risk_scores > before_floor.round(1)
                 ),
+                "critical_missing_share": critical_missing_share.round(
+                    3
+                ).to_numpy(),
+                "critical_penalty": critical_penalty.round(2).to_numpy(),
             },
             index=eligible.index,
         )
@@ -292,20 +462,30 @@ class PillarInferencePipeline:
         return imputed[self.numeric_columns_]
 
     def loadings(self) -> dict:
+        """Signed loadings on the original (unoriented) scaled feature axes.
+
+        A positive value means a higher feature value raises the risk score;
+        the constrained fit guarantees the sign matches the declared risk
+        direction of each feature.
+        """
         if not self.fitted_:
             return {}
+        directions = getattr(self, "risk_directions_", {})
+
+        def _signed(columns, component) -> dict:
+            return {
+                column: float(weight) * directions.get(column, 1.0)
+                for column, weight in zip(columns, component)
+            }
+
         return {
-            "economic_loadings": dict(
-                zip(
-                    self.economic_columns_,
-                    self.economic_pca_.components_[0],
-                )
+            "economic_loadings": _signed(
+                self.economic_columns_,
+                self.economic_pca_.components_[0],
             ),
-            "industry_loadings": dict(
-                zip(
-                    self.industry_columns_,
-                    self.industry_pca_.components_[0],
-                )
+            "industry_loadings": _signed(
+                self.industry_columns_,
+                self.industry_pca_.components_[0],
             ),
         }
 
@@ -319,12 +499,21 @@ class PillarInferencePipeline:
             raise ValueError("Feature matrix contains duplicate country codes")
         return features.copy()
 
-    @staticmethod
-    def _fit_pca(frame: pd.DataFrame) -> PCA:
-        components = min(5, frame.shape[1] - 1, frame.shape[0] - 1)
-        if components < 1:
-            raise ValueError("PCA requires at least two features and countries")
-        return PCA(n_components=components).fit(frame)
+    def _orient(self, scaled: pd.DataFrame) -> pd.DataFrame:
+        """Flip scaled pillar columns so higher always means higher risk.
+
+        Pipelines pickled before schema version 2 carry no risk-direction map
+        and their PCA objects were fitted on unoriented data, so this is a
+        no-op for them.
+        """
+        directions = getattr(self, "risk_directions_", None)
+        if not directions:
+            return scaled
+        oriented = scaled.copy()
+        for column, direction in directions.items():
+            if direction < 0 and column in oriented.columns:
+                oriented[column] = 1.0 - oriented[column]
+        return oriented
 
     def _fit_log_transforms(self, frame: pd.DataFrame) -> pd.DataFrame:
         transformed = frame.copy()
@@ -356,20 +545,23 @@ class PillarInferencePipeline:
         return transformed
 
     @staticmethod
-    def _direction_signs(raw_scores, anchor, index) -> dict:
-        signs = {name: 1.0 for name in raw_scores}
+    def _anchor_correlations(raw_scores, anchor, index) -> dict:
+        """Diagnostic only: correlation of each risk-oriented raw score with
+        log GDP per capita. Recorded for the policy audit; it no longer
+        decides score orientation."""
         if anchor is None:
-            return signs
+            return {}
         aligned = pd.to_numeric(anchor.reindex(index), errors="coerce")
         aligned = aligned.fillna(aligned.median()).clip(lower=100)
         anchor_log = np.log10(aligned)
         if anchor_log.std() == 0:
-            return signs
+            return {}
+        correlations = {}
         for name, values in raw_scores.items():
             correlation = np.corrcoef(anchor_log, values)[0, 1]
-            if np.isfinite(correlation) and correlation < 0:
-                signs[name] = -1.0
-        return signs
+            if np.isfinite(correlation):
+                correlations[name] = float(correlation)
+        return correlations
 
     def _reference_percentile(self, name, values) -> np.ndarray:
         reference = self.reference_scores_[name]

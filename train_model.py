@@ -647,15 +647,26 @@ def validate_model(results_df):
     print("MODEL VALIDATION")
     print("=" * 70)
     
-    # Data Quality Validation Checks ensuring model isn't producing garbage
+    # Data Quality Validation Checks ensuring model isn't producing garbage.
+    # The bias gate applies to the PRE-PENALTY score: the critical-field
+    # missingness penalty and crisis uplift are explicit, disclosed policy
+    # adjustments that correlate with coverage by design, so they are removed
+    # before testing for covariance-driven coverage bias. The total
+    # correlation (including policy penalties) is reported as informational.
     coverage_corr = results_df['data_coverage'].corr(results_df['risk_score'])
-    print(f"\n  Data coverage correlation with risk score: {coverage_corr:.3f}")
-    print(f"  (Low correlation is GOOD - means scores are not biased by data availability)")
-    
+    base_score = results_df['risk_score'].copy()
+    for policy_column in ('critical_penalty', 'crisis_uplift'):
+        if policy_column in results_df.columns:
+            base_score = base_score - results_df[policy_column].fillna(0)
+    base_corr = results_df['data_coverage'].corr(base_score)
+    print(f"\n  Data coverage correlation with final score (incl. policy penalties): {coverage_corr:.3f}")
+    print(f"  Data coverage correlation with pre-penalty score (bias gate): {base_corr:.3f}")
+    print(f"  (Low pre-penalty correlation is GOOD - scores are not biased by data availability)")
+
     validation_checks = [
         ('Score Range', lambda df: df['risk_score'].between(1, 10).all(), 'All scores 1-10'),
         ('Score Distribution', lambda df: 1.5 < df['risk_score'].std() < 4.0, 'Std dev reasonable (1.5-4.0)'),
-        ('Data Confidence', lambda df: abs(df['data_coverage'].corr(df['risk_score'])) < 0.4, f'Correlation with coverage: {abs(coverage_corr):.2f} < 0.4'),
+        ('Data Confidence', lambda df: abs(base_corr) < 0.4, f'Pre-penalty correlation with coverage: {abs(base_corr):.2f} < 0.4'),
     ]
     
     passed = 0
@@ -1128,23 +1139,18 @@ class BankingRiskModel:
             how='left'
         )
         
-        # IMPORTANT: The pillar_scores['risk_score'] already incorporates:
-        # - 50% GDP per capita (anchor)
-        # - 25% Economic pillar (PCA)  
-        # - 25% Industry pillar (PCA)
-        # We adjust with crisis probability but keep the anchor-based score dominant
-        
-        # Adjust: 90% pillar-based score + 10% crisis probability adjustment
-        # Higher crisis_prob should INCREASE risk score
-        # NOTE: Using low weight for crisis_prob as classifier gives counterintuitive results
-        final_df['crisis_adjustment'] = final_df['crisis_prob'] * 3  # Scale crisis prob (0-1) to adjustment
+        # The classifier acts as an upward-only overlay on the pillar score:
+        # when the classifier's implied score (1 + 9 * probability) exceeds
+        # the pillar score, 10% of that gap is added. The overlay is monotone
+        # in crisis probability and can never lower a high pillar-based risk
+        # score (a weak classifier signal must not de-risk a country).
+        classifier_implied = 1 + 9 * final_df['crisis_prob']
+        final_df['crisis_uplift'] = (
+            0.1 * (classifier_implied - final_df['risk_score'])
+        ).clip(lower=0)
         final_df['hybrid_risk_score'] = (
-            0.9 * final_df['risk_score'] +  # Keep mostly the anchor-weighted score
-            0.1 * (1 + 9 * final_df['crisis_prob'])  # Add small crisis-based component (1-10 scale)
-        )
-        
-        # Clamp to 1-10 range
-        final_df['hybrid_risk_score'] = final_df['hybrid_risk_score'].clip(1, 10)
+            final_df['risk_score'] + final_df['crisis_uplift']
+        ).clip(1, 10)
         
         # Update risk category based on new hybrid score
         def score_to_category(score):
@@ -1214,10 +1220,11 @@ class BankingRiskModel:
             how="left",
             validate="one_to_one",
         )
-        scored["crisis_adjustment"] = scored["crisis_prob"] * 3
+        scored["crisis_uplift"] = (
+            0.1 * ((1 + 9 * scored["crisis_prob"]) - scored["risk_score"])
+        ).clip(lower=0)
         scored["hybrid_risk_score"] = (
-            0.9 * scored["risk_score"]
-            + 0.1 * (1 + 9 * scored["crisis_prob"])
+            scored["risk_score"] + scored["crisis_uplift"]
         ).clip(1, 10)
         scored["risk_score"] = scored["hybrid_risk_score"]
         scored["risk_category"] = scored["risk_score"].apply(

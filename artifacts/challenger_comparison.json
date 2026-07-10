@@ -1,0 +1,211 @@
+{
+  "generated": "2026-07-10",
+  "production_artifact": "artifacts/snapshots/2026-06-30-official-api",
+  "challenger_artifact": "artifacts/snapshots/2026-06-30-challenger-directional",
+  "challenger_changes": [
+    "Constrained pillar components: every feature has a declared credit-risk direction; negative PCA loadings clipped; loadings shrunk 50% toward equal weights",
+    "Crisis classifier overlay is upward-only (monotone, can never de-risk a high pillar score)",
+    "Critical-field missingness penalty up to +1.5 for imputed core banking soundness fields",
+    "GDP anchor no longer decides score orientation (recorded as diagnostic only)"
+  ],
+  "summary": {
+    "countries_compared": 201,
+    "mean_absolute_score_change": 2.267,
+    "countries_moving_at_least_one_point": 161,
+    "rank_correlation_spearman": 0.349
+  },
+  "acceptance_case_kenya_mozambique": {
+    "production": {
+      "KEN": 8.674920554161073,
+      "MOZ": 7.5011325562000275
+    },
+    "challenger": {
+      "KEN": 5.9,
+      "MOZ": 8.7
+    },
+    "expected": "MOZ >= KEN",
+    "met_by_challenger": true
+  },
+  "known_open_concerns": [
+    "Advanced economies with structurally high mortgage shares and international FX books (GBR, AUS, CAN) move to high-risk tiers because real_estate_loans and fx_loan_exposure are level-shares treated as unconditionally risky; replacing levels with growth/price-based indicators (backlog item 21) or peer-stratified levels is recommended before promotion",
+    "Coverage-score correlation is ~-0.5 on the pure model score: sparse-data countries score riskier through observed governance/macro gradients; owner must set the bias threshold policy (backlog item 30)",
+    "Countries immediately after resolved crises (GHA, DOM) score low because post-recapitalization balance sheets look clean; the pillar has no crisis-history memory. The upward-only classifier overlay partially offsets this but is bounded; a crisis-recency feature is recommended before promotion"
+  ],
+  "largest_movements": [
+    {
+      "country_code": "AUS",
+      "country_name": "",
+      "production": 1.5,
+      "challenger": 7.6,
+      "delta": 6.1
+    },
+    {
+      "country_code": "DZA",
+      "country_name": "",
+      "production": 3.3,
+      "challenger": 9.3,
+      "delta": 6.0
+    },
+    {
+      "country_code": "GBR",
+      "country_name": "",
+      "production": 2.2,
+      "challenger": 7.8,
+      "delta": 5.6
+    },
+    {
+      "country_code": "DOM",
+      "country_name": "",
+      "production": 6.9,
+      "challenger": 1.4,
+      "delta": -5.5
+    },
+    {
+      "country_code": "GHA",
+      "country_name": "",
+      "production": 7.5,
+      "challenger": 2.1,
+      "delta": -5.4
+    },
+    {
+      "country_code": "GAB",
+      "country_name": "",
+      "production": 8.1,
+      "challenger": 2.7,
+      "delta": -5.3
+    },
+    {
+      "country_code": "ZWE",
+      "country_name": "",
+      "production": 4.8,
+      "challenger": 9.6,
+      "delta": 4.8
+    },
+    {
+      "country_code": "BRA",
+      "country_name": "",
+      "production": 7.3,
+      "challenger": 2.6,
+      "delta": -4.7
+    },
+    {
+      "country_code": "BLZ",
+      "country_name": "",
+      "production": 6.5,
+      "challenger": 1.9,
+      "delta": -4.6
+    },
+    {
+      "country_code": "GMB",
+      "country_name": "",
+      "production": 3.7,
+      "challenger": 8.3,
+      "delta": 4.6
+    },
+    {
+      "country_code": "TZA",
+      "country_name": "",
+      "production": 8.8,
+      "challenger": 4.3,
+      "delta": -4.5
+    },
+    {
+      "country_code": "COL",
+      "country_name": "",
+      "production": 3.0,
+      "challenger": 7.4,
+      "delta": 4.4
+    },
+    {
+      "country_code": "MRT",
+      "country_name": "",
+      "production": 4.6,
+      "challenger": 9.0,
+      "delta": 4.4
+    },
+    {
+      "country_code": "PER",
+      "country_name": "",
+      "production": 2.6,
+      "challenger": 6.9,
+      "delta": 4.3
+    },
+    {
+      "country_code": "PAN",
+      "country_name": "",
+      "production": 3.1,
+      "challenger": 7.4,
+      "delta": 4.3
+    },
+    {
+      "country_code": "KWT",
+      "country_name": "",
+      "production": 4.0,
+      "challenger": 8.3,
+      "delta": 4.3
+    },
+    {
+      "country_code": "SLB",
+      "country_name": "",
+      "production": 5.7,
+      "challenger": 1.5,
+      "delta": -4.2
+    },
+    {
+      "country_code": "CIV",
+      "country_name": "",
+      "production": 5.0,
+      "challenger": 9.2,
+      "delta": 4.2
+    },
+    {
+      "country_code": "UKR",
+      "country_name": "",
+      "production": 8.5,
+      "challenger": 4.4,
+      "delta": -4.1
+    },
+    {
+      "country_code": "SYC",
+      "country_name": "",
+      "production": 5.5,
+      "challenger": 1.3,
+      "delta": -4.1
+    },
+    {
+      "country_code": "SRB",
+      "country_name": "",
+      "production": 4.7,
+      "challenger": 8.8,
+      "delta": 4.1
+    },
+    {
+      "country_code": "LBR",
+      "country_name": "",
+      "production": 4.8,
+      "challenger": 8.9,
+      "delta": 4.1
+    },
+    {
+      "country_code": "SLE",
+      "country_name": "",
+      "production": 5.0,
+      "challenger": 9.1,
+      "delta": 4.1
+    },
+    {
+      "country_code": "SEN",
+      "country_name": "",
+      "production": 4.6,
+      "challenger": 8.7,
+      "delta": 4.1
+    },
+    {
+      "country_code": "TGO",
+      "country_name": "",
+      "production": 5.3,
+      "challenger": 9.4,
+      "delta": 4.1
+    }
+  ]
+}

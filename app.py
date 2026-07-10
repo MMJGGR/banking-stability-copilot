@@ -8,7 +8,11 @@ import os
 
 from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
 from src.country_names import fill_missing_country_names
-from src.model_store import load_data_manifest, load_model_artifact
+from src.health import build_health_report
+from src.model_store import (
+    load_data_manifest,
+    load_model_artifact_with_fallback,
+)
 from src.dashboard.styles import STYLES, score_to_tier
 from src.dashboard.components import (
     render_summary_card, 
@@ -98,10 +102,17 @@ st.markdown(STYLES, unsafe_allow_html=True)
 # ==============================================================================
 @st.cache_resource
 def load_all_data():
-    """Load model artifacts and lightweight reference data."""
+    """Load model artifacts and lightweight reference data.
+
+    Loads the checksum-verified active artifact when possible; otherwise
+    degrades to the newest archived last-known-good snapshot bundle so a bad
+    refresh cannot take the application down.
+    """
     # timestamp: force_reload_2026_01_12_v2
     try:
-        model = load_model_artifact()
+        model, served_manifest, serving_status = (
+            load_model_artifact_with_fallback()
+        )
         scores_df = model['country_scores'].copy()
         # Artifacts built from official SDMX feeds may lack display names.
         fill_missing_country_names(scores_df, fallback_to_code=True)
@@ -110,7 +121,7 @@ def load_all_data():
         pca_info.setdefault('training_date', model['training_date'])
     except Exception as e:
         st.error(f"Error loading model: {e}")
-        return None, None, None, None, None
+        return None, None, None, None, None, {}, {"mode": "error", "active_error": str(e)}
 
     loader = IMFDataLoader()
 
@@ -119,8 +130,11 @@ def load_all_data():
         wgi_data = wgi_loader.load()
     except Exception as e:
         wgi_data = None
-        
-    return scores_df, loader, wgi_data, model_features, pca_info
+
+    return (
+        scores_df, loader, wgi_data, model_features, pca_info,
+        served_manifest, serving_status,
+    )
 
 
 @st.cache_data(show_spinner=False, max_entries=48)
@@ -624,11 +638,19 @@ available for each country and indicator. Monthly, quarterly, and annual source
 data are preserved in the Data Explorer, but the risk model scores one
 cross-section per snapshot.
 
-The final score combines two PCA pillars with a supervised systemic-crisis
-classifier. The current policy weighting is 90% pillar score and 10%
-crisis-probability adjustment. The crisis classifier is trained on annual
-historical epochs and produces a forward-looking three-year risk signal, not a
-monthly or quarterly crisis probability.
+The final score is the two-pillar PCA score plus an upward-only crisis
+overlay. Each pillar is a constrained principal component: every feature has a
+declared credit-risk direction (for example, higher NPL ratios can only raise
+risk), so the score cannot learn economically counterintuitive signs from
+covariance alone. Countries missing critical banking soundness fields receive
+a bounded risk penalty instead of relying on imputed values.
+
+The supervised systemic-crisis classifier adds
+`max(0, 0.1 x ((1 + 9 x P(crisis)) - pillar score))`: it is monotone in the
+crisis probability and can never lower a high pillar-based risk score. The
+classifier is trained on annual historical epochs and produces a
+forward-looking three-year risk signal, not a monthly or quarterly crisis
+probability.
 """
     )
 
@@ -701,8 +723,14 @@ promotion remain separate governance steps.
         render_data_card_summary(features, manifest)
 
 
-scores_df, loader, wgi_data, model_features, pca_info = load_all_data()
-data_manifest = load_data_manifest()
+(
+    scores_df, loader, wgi_data, model_features, pca_info,
+    served_manifest, serving_status,
+) = load_all_data()
+# In fallback mode the manifest describing what is actually being served is
+# the archived bundle's manifest, not the active one on disk.
+data_manifest = served_manifest or load_data_manifest()
+health_report = build_health_report(data_manifest, serving_status)
 
 if scores_df is None:
     st.error("Application cannot start without model data.")
@@ -730,13 +758,64 @@ def format_country_option(country_code: str) -> str:
 
 header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
 
+HEALTH_BADGES = {
+    "ok": "🟢 Healthy",
+    "stale": "🟡 Stale Data",
+    "degraded": "🟠 Fallback Mode",
+    "unknown": "⚪ Health Unknown",
+}
+
 with header_col1:
     st.markdown("### Banking System Stability Copilot")
     training_date = pca_info.get('training_date', 'Unknown') if pca_info else 'Unknown'
     snapshot_id = data_manifest.get('snapshot_id', 'unversioned')
     snapshot_status = data_manifest.get('snapshot_status', 'manifest unavailable')
+    health_badge = HEALTH_BADGES.get(health_report["overall"], health_report["overall"])
     st.caption(
-        f"v2.0 | Snapshot {snapshot_id} | {snapshot_status.replace('_', ' ')}"
+        f"v2.0 | Snapshot {snapshot_id} | {snapshot_status.replace('_', ' ')} | {health_badge}"
+    )
+
+with st.expander(
+    f"System Health: {HEALTH_BADGES.get(health_report['overall'], health_report['overall'])}",
+    expanded=health_report["overall"] in ("degraded", "unknown"),
+):
+    hc1, hc2, hc3, hc4 = st.columns(4)
+    hc1.metric("Serving Mode", health_report["serving_mode"].title())
+    hc2.metric("Snapshot", str(health_report.get("snapshot_id") or "—"))
+    hc3.metric(
+        "Snapshot Status",
+        str(health_report.get("snapshot_status") or "—").replace("_", " ").title(),
+    )
+    generated_age = health_report.get("generated_age_days")
+    hc4.metric(
+        "Snapshot Age",
+        "—" if generated_age is None else f"{generated_age} days",
+    )
+    for note in health_report["notes"]:
+        st.warning(note)
+    if health_report["sources"]:
+        status_icons = {"ok": "🟢", "stale": "🟡", "unknown": "⚪"}
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Source": source["source"],
+                        "Latest Observation": source["latest_observation"],
+                        "Age (days)": source["age_days"],
+                        "Freshness SLA (days)": source["sla_days"],
+                        "Status": f"{status_icons.get(source['status'], '')} {source['status']}",
+                    }
+                    for source in health_report["sources"]
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+    st.caption(
+        "Freshness SLAs are the proposed thresholds from docs/GOVERNANCE.md "
+        "(pending owner approval). Fallback mode means the app is serving the "
+        "last verified archived snapshot because the active artifact failed "
+        "validation."
     )
 
 with header_col2:
