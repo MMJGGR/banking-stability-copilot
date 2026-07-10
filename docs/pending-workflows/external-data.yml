@@ -3,25 +3,21 @@ name: Fetch external-liquidity source data
 # Backlog ranks 5-14: BOP, IIP, IRFCL, CPIS, CDIS, Fiscal Monitor, GFS, QEDS.
 # Runs on GitHub Actions because api.imf.org is reachable here (verified for
 # the WEO/FSIC/MFS/FSIBSIS refresh) but blocked in some development
-# environments. Discovery + fetch only: normalized candidate caches are
-# uploaded as workflow artifacts for review and NEVER committed automatically,
-# consistent with refresh-data.yml and docs/GOVERNANCE.md.
+# environments. The production path is bounded and feature-oriented: it queries
+# exact BOP/IIP keys for model-country ISO3 batches, builds staged
+# external-liquidity features, and uploads candidate caches for review. Caches
+# are NEVER committed automatically, consistent with refresh-data.yml and
+# docs/GOVERNANCE.md.
 
 on:
   schedule:
     - cron: "43 5 5 * *"
   workflow_dispatch:
     inputs:
-      sources:
-        description: >-
-          Space-separated source families to fetch (subset of
-          BOP IIP IRFCL CPIS CDIS FM GFS QEDS). Empty fetches all resolved.
-        required: false
-        default: ""
       start_period:
         description: Earliest period to keep (year, YYYY-Qn, or YYYY-Mnn)
         required: false
-        default: "2005"
+        default: "2018"
 
 permissions:
   contents: read
@@ -51,14 +47,13 @@ jobs:
       - name: Discover dataflow IDs and key structures
         run: python -m src.scripts.discover_external_sources
 
-      - name: Fetch and normalize resolved sources
+      - name: Build bounded external-liquidity feature inputs
         shell: bash
         run: |
-          ARGS=(--start-period "${{ inputs.start_period || '2005' }}")
-          if [ -n "${{ inputs.sources }}" ]; then
-            ARGS+=(--sources ${{ inputs.sources }})
-          fi
-          python -m src.scripts.fetch_external_sources "${ARGS[@]}"
+          python -m src.scripts.build_external_liquidity_features \
+            --fetch \
+            --start-period "${{ inputs.start_period || '2018' }}" \
+            --batch-size 25
 
       - name: Write job summary
         if: always()
@@ -70,7 +65,7 @@ jobs:
             cat config/external_sources_discovery.json 2>/dev/null || echo "no discovery output"
             echo '```'
             echo '```json'
-            cat artifacts/external_sources_report.json 2>/dev/null || echo "no fetch report"
+            cat artifacts/external_liquidity_features_report.json 2>/dev/null || echo "no feature report"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -83,5 +78,5 @@ jobs:
           retention-days: 30
           path: |
             config/external_sources_discovery.json
-            artifacts/external_sources_report.json
+            artifacts/external_liquidity_features_report.json
             cache/external/*.parquet

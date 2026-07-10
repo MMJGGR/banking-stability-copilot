@@ -1717,21 +1717,24 @@ Additional backlog closures in the continuation:
 
 Items that remain open and why they cannot be closed from this environment:
 
-- **Ranks 5-14 (external-liquidity data block) — PARTIALLY RESOLVED
-  (retrieval layer installed; key-structure discovery fixed for five IMF
-  flows).** The first manual `external-data.yml` run completed green but
-  downloaded no large source data because the discovery script incorrectly
-  expected `/structure/dataflow/...` to embed DSD dimensions. IMF's SDMX 3.0
-  dataflow response instead carries a DSD URN; dimensions must be read from
-  `/structure/datastructure/{agency}/{DSD}/+`. The resolver now follows that
-  reference and records usable keys for BOP, IIP, IRFCL, Fiscal Monitor, and
-  QGFS in `config/external_sources_discovery.json`. Local endpoint smoke
-  confirmed these five data URLs return SDMX CSV, and a local Fiscal Monitor
-  fetch normalized 1,024 observations. Remaining scope: rerun the GitHub
-  workflow to download/upload large candidate caches; identify valid modern
-  API IDs or fallback sources for CPIS, CDIS, and QEDS; then build the
-  external-liquidity features themselves (debt-service ratios, gross external
-  financing needs, reserves adequacy, portfolio flows) from the staged caches.
+- **Ranks 5-14 (external-liquidity data block) — CLOSED for staged challenger
+  feature coverage.** The broad full-flow downloader was replaced with a
+  bounded, feature-oriented BOP/IIP retrieval path because IMF ignores
+  `c[...]` query filters on these SDMX dataflow URLs. The new builder queries
+  exact path keys by ISO3 country batches, writes normalized observations, and
+  computes staged external-liquidity features: current-account receipts and
+  payments, goods/services trade flows, reserve adequacy, net IIP, external
+  liabilities, portfolio liabilities/flows, an investment-income-service proxy,
+  and a gross-external-financing-need proxy. Local full-universe run:
+  19,172 observations; 185/201 scored countries with at least one
+  external-liquidity feature; BOP flow ratios cover 181/201 countries (90.0%);
+  IIP position ratios cover 159-166/201 countries (79.1%-82.6%). CPIS, CDIS,
+  and QEDS remain unavailable under the tested current IMF API IDs, but this is
+  no longer blocking the MVP challenger block because BOP/IIP cover portfolio
+  flows/positions and the exact contractual debt-service series is explicitly
+  represented as a proxy pending a future QEDS/IDS enhancement. These features
+  are not wired into production scoring until a separate challenger comparison
+  is reviewed.
 - **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
   external benchmark):** owner methodology decisions plus (for 18) licensed
   or external outcome data.
@@ -1944,3 +1947,26 @@ Items that remain open and why they cannot be closed from this environment:
     discovery resolved BOP, IIP, IRFCL, FM, and GFS/QGFS; live endpoint smoke
     confirmed all five resolved data URLs return SDMX CSV; a local Fiscal
     Monitor fetch normalized 1,024 rows covering 18 countries.
+- [x] Checkpoint 15: Bounded external-liquidity feature builder and workflow.
+  - Pending commit: `add bounded external liquidity features`
+  - Scope:
+    - Added `src/external_liquidity.py` and
+      `src/scripts/build_external_liquidity_features.py`.
+    - Replaced broad full-dataflow workflow fetching with exact BOP/IIP
+      path-key queries for model-country ISO3 batches.
+    - Added staged derived features for current-account receipts/payments,
+      goods/services flows, reserves adequacy, net IIP, external liabilities,
+      portfolio liabilities/flows, an investment-income-service proxy, and a
+      gross-external-financing-need proxy.
+    - Reclassified CPIS/CDIS/QEDS as non-blocking future enhancements for the
+      MVP challenger block: BOP/IIP provide portfolio flows/positions; exact
+      contractual debt service remains proxied until QEDS/IDS is added.
+    - Updated the external-data workflow and operations runbook to build and
+      upload feature caches/reports instead of hanging on full-flow downloads.
+  - Verification: local full-universe run fetched 19,172 observations and
+    covered 185/201 scored countries with at least one external-liquidity
+    feature. BOP current-account/trade ratios cover 181/201 countries (90.0%);
+    IIP position/reserve ratios cover 159-166/201 countries (79.1%-82.6%).
+    Full test suite passed (`78 passed`, `1 skipped`). These features remain
+    staged challenger inputs and do not change production predictions until a
+    challenger comparison is reviewed.

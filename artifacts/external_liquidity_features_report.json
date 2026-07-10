@@ -1,0 +1,78 @@
+{
+  "feature_coverage": {
+    "current_account_balance_gdp_bop": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "current_account_payments_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "current_account_receipts_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "external_liabilities_gdp": {
+      "countries": 162,
+      "pct_model_countries": 80.6
+    },
+    "external_liquidity_feature_count": {
+      "countries": 185,
+      "pct_model_countries": 92.0
+    },
+    "goods_services_exports_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "goods_services_imports_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "gross_external_financing_need_proxy_gdp": {
+      "countries": 173,
+      "pct_model_countries": 86.1
+    },
+    "investment_income_debits_to_cxr": {
+      "countries": 185,
+      "pct_model_countries": 92.0
+    },
+    "net_iip_gdp": {
+      "countries": 162,
+      "pct_model_countries": 80.6
+    },
+    "portfolio_liabilities_gdp": {
+      "countries": 159,
+      "pct_model_countries": 79.1
+    },
+    "portfolio_liability_flows_gdp": {
+      "countries": 173,
+      "pct_model_countries": 86.1
+    },
+    "portfolio_net_flows_gdp": {
+      "countries": 177,
+      "pct_model_countries": 88.1
+    },
+    "reserves_gdp_iip": {
+      "countries": 162,
+      "pct_model_countries": 80.6
+    },
+    "reserves_to_current_account_payments": {
+      "countries": 166,
+      "pct_model_countries": 82.6
+    },
+    "reserves_to_goods_services_imports": {
+      "countries": 166,
+      "pct_model_countries": 82.6
+    }
+  },
+  "generated_at": "2026-07-10T19:22:45.513044+00:00",
+  "model_countries": 201,
+  "notes": [
+    "Features are staged challenger inputs and are not wired into production scoring.",
+    "gross_external_financing_need_proxy_gdp is a proxy: current-account deficit plus absolute portfolio-liability flow over GDP.",
+    "investment_income_debits_to_cxr is a broad external-income-service proxy, not contractual debt service.",
+    "QEDS/CPIS/CDIS remain separate source-family gaps pending usable current IMF API IDs or fallback providers."
+  ],
+  "observation_countries": 185,
+  "observation_rows": 19172
+}

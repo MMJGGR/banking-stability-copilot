@@ -10,7 +10,7 @@ python -m src.scripts.audit_model_policy
 streamlit run app.py
 ```
 
-## Fetch External-Liquidity Sources (BOP, IIP, IRFCL, CPIS, CDIS, FM, GFS, QEDS)
+## Build External-Liquidity Feature Inputs
 
 Preferred route (api.imf.org must be reachable, which it is from GitHub
 Actions):
@@ -19,20 +19,23 @@ Actions):
 Actions → Fetch external-liquidity source data → Run workflow
 ```
 
-The workflow discovers each family's dataflow ID and key structure, fetches
-and normalizes observations, and uploads `external_sources_discovery.json`,
-`external_sources_report.json`, and `cache/external/*.parquet` as run
-artifacts for review. Nothing is committed automatically.
+The workflow discovers each family's dataflow ID and key structure, then uses
+the bounded external-liquidity feature builder. It queries exact BOP/IIP SDMX
+path keys for the model-country ISO3 universe instead of downloading complete
+large IMF dataflows. It uploads `external_sources_discovery.json`,
+`external_liquidity_features_report.json`, and `cache/external/*.parquet` as
+run artifacts for review. Nothing is committed automatically.
 
-After the first successful run, commit the downloaded
-`config/external_sources_discovery.json` through a reviewed PR so the
-discovered key structures are persisted in configuration (plan section 9.5).
+Current feature coverage from the July 2026 local full-universe run is 185 of
+201 scored countries with at least one staged external-liquidity feature; core
+BOP flow ratios cover 181 countries and IIP position ratios cover 159-166
+countries depending on feature.
 
 Local equivalent:
 
 ```bash
 python -m src.scripts.discover_external_sources
-python -m src.scripts.fetch_external_sources --start-period 2005
+python -m src.scripts.build_external_liquidity_features --fetch --start-period 2018
 ```
 
 ## Check Official Source Availability
