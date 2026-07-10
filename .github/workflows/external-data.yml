@@ -1,0 +1,87 @@
+name: Fetch external-liquidity source data
+
+# Backlog ranks 5-14: BOP, IIP, IRFCL, CPIS, CDIS, Fiscal Monitor, GFS, QEDS.
+# Runs on GitHub Actions because api.imf.org is reachable here (verified for
+# the WEO/FSIC/MFS/FSIBSIS refresh) but blocked in some development
+# environments. Discovery + fetch only: normalized candidate caches are
+# uploaded as workflow artifacts for review and NEVER committed automatically,
+# consistent with refresh-data.yml and docs/GOVERNANCE.md.
+
+on:
+  schedule:
+    - cron: "43 5 5 * *"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: >-
+          Space-separated source families to fetch (subset of
+          BOP IIP IRFCL CPIS CDIS FM GFS QEDS). Empty fetches all resolved.
+        required: false
+        default: ""
+      start_period:
+        description: Earliest period to keep (year, YYYY-Qn, or YYYY-Mnn)
+        required: false
+        default: "2005"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-external:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out source only
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install serving dependencies (sufficient for retrieval)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Discover dataflow IDs and key structures
+        run: python -m src.scripts.discover_external_sources
+
+      - name: Fetch and normalize resolved sources
+        shell: bash
+        run: |
+          ARGS=(--start-period "${{ inputs.start_period || '2005' }}")
+          if [ -n "${{ inputs.sources }}" ]; then
+            ARGS+=(--sources ${{ inputs.sources }})
+          fi
+          python -m src.scripts.fetch_external_sources "${ARGS[@]}"
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## External-liquidity source run"
+            echo '```json'
+            cat config/external_sources_discovery.json 2>/dev/null || echo "no discovery output"
+            echo '```'
+            echo '```json'
+            cat artifacts/external_sources_report.json 2>/dev/null || echo "no fetch report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload candidate caches and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-liquidity-data
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            config/external_sources_discovery.json
+            artifacts/external_sources_report.json
+            cache/external/*.parquet
