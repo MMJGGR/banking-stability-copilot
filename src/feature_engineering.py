@@ -5,14 +5,14 @@ Banking Crisis Early Warning System - Feature Engineering & EDA Module
 CRISP-DM Phase: Data Preparation
 
 This module:
-1. Computes credit-to-GDP gap (BIS methodology) 
+1. Computes relative credit depth (cross-country median deviation) 
 2. Extracts debt service ratios from WEO
 3. Engineers liquidity metrics from FSIC
 4. Provides EDA visualizations for iterative improvement
 
 Academic Foundation:
 - Laeven & Valencia (2018) - Crisis definitions
-- BIS (2019) - Credit-to-GDP gap as early warning indicator
+- BIS (2019) - credit-to-GDP gap motivates the relative credit-depth feature
 - S&P BICRA - Two-pillar risk framework
 
 Author: Banking Copilot
@@ -45,7 +45,7 @@ class CrisisFeatureEngineer:
     Feature engineering for banking crisis prediction.
     
     Implements academically-validated features:
-    - Credit-to-GDP gap (BIS methodology)
+    - Relative credit depth (cross-country median deviation; not the BIS gap)
     - Debt service ratio (external vulnerability)
     - Liquidity ratios (banking sector resilience)
     
@@ -78,7 +78,7 @@ class CrisisFeatureEngineer:
     # Feature categories aligned with S&P BICRA two-pillar structure
     ECONOMIC_PILLAR_FEATURES = {
         # WEO-derived macro features
-        'credit_to_gdp_gap': 'Credit-to-GDP gap (HP-filtered)',
+        'credit_to_gdp_relative': 'Credit-to-GDP relative depth (median deviation)',
         'private_credit_to_gdp': 'Private sector credit (% GDP)',  # NEW: explicit private credit
         'total_credit_to_gdp': 'Total domestic credit (% GDP)',    # NEW: total credit incl. govt
         'debt_service_gdp': 'External debt service (% GDP)',
@@ -120,6 +120,13 @@ class CrisisFeatureEngineer:
         """
         self.output_dir = output_dir or os.path.join(CACHE_DIR, 'eda')
         os.makedirs(self.output_dir, exist_ok=True)
+
+        # Structured record of data heuristics applied during feature
+        # engineering (unit-mismatch drops, proxy overwrites, denominator
+        # floors, reserve-currency imputation). Persisted by the training
+        # entry point so heuristics are auditable per country instead of
+        # silently changing scores.
+        self.heuristic_flags = []
         
         self.features_df = None
         self.eda_stats = {}
@@ -127,7 +134,43 @@ class CrisisFeatureEngineer:
     # ==========================================================================
     # CRISP-DM: DATA PREPARATION - Feature Extraction
     # ==========================================================================
-    
+
+    @staticmethod
+    def _enforce_cutoff(
+        df: pd.DataFrame,
+        as_of_date=None,
+        include_estimates: bool = True,
+        include_projections: bool = False,
+    ) -> pd.DataFrame:
+        """Filter observations to the snapshot cutoff and allowed statuses.
+
+        Every feature computation must apply this so estimates/projections
+        dated inside the cutoff cannot leak into 'historical' features.
+        """
+        if df is None or len(df) == 0:
+            return df
+        result = df
+        cutoff = pd.Timestamp(as_of_date or f"{pd.Timestamp.today().year - 1}-12-31")
+        if 'period' in result.columns:
+            result = result[pd.to_datetime(result['period']) <= cutoff]
+        if 'observation_status' in result.columns:
+            allowed = {'actual', 'unknown'}
+            if include_estimates:
+                allowed.add('estimate')
+            if include_projections:
+                allowed.add('projection')
+            result = result[result['observation_status'].isin(allowed)]
+        return result.copy()
+
+    def _flag_heuristic(self, heuristic: str, country_code, feature: str, detail: str):
+        """Record a per-country data heuristic for the audit sidecar."""
+        self.heuristic_flags.append({
+            'heuristic': heuristic,
+            'country_code': str(country_code),
+            'feature': feature,
+            'detail': detail,
+        })
+
     def extract_weo_features(
         self,
         weo_df: pd.DataFrame,
@@ -217,7 +260,7 @@ class CrisisFeatureEngineer:
         
         return weo_features
     
-    def extract_fsic_features(self, fsic_df: pd.DataFrame) -> pd.DataFrame:
+    def extract_fsic_features(self, fsic_df: pd.DataFrame, as_of_date=None) -> pd.DataFrame:
         """
         Extract Industry Pillar features from FSIC dataset.
         
@@ -231,7 +274,9 @@ class CrisisFeatureEngineer:
         if fsic_df is None or len(fsic_df) == 0:
             print("  WARNING: FSIC data is empty")
             return pd.DataFrame()
-        
+
+        fsic_df = self._enforce_cutoff(fsic_df, as_of_date)
+
         # FSIC indicator mappings - Core FSI metrics
         # IMPORTANT: Patterns must include 'Percent' where relevant to avoid matching currency values
         fsic_mappings = {
@@ -239,11 +284,15 @@ class CrisisFeatureEngineer:
             'npl_ratio': ('Nonperforming loans to total gross loans.*Core FSI', False),
             'roe': ('Return on equity.*Core FSI', True),
             'roa': ('Return on assets.*Core FSI', True),
-            'liquid_assets_st_liab': ('Liquid assets to short term liabilities.*Core FSI', True),
+            # 'short.?term' matches both the legacy 'short term' and the
+            # official SDMX 'short-term' spellings.
+            'liquid_assets_st_liab': ('Liquid assets to short.?term liabilities.*Core FSI', True),
             'liquid_assets_total': ('Liquid assets to total assets.*Percent', True),
             'deposit_to_total_assets': ('Deposits to total.*assets.*Percent', True),  # NEW: Supplementary liquidity
             'customer_deposits_loans': ('Customer deposits to total.*loans.*Percent', True),
-            'fx_loan_exposure': ('Foreign currency.*loans.*Percent', False),
+            # Official SDMX name: 'Foreign-currency-denominated loans to total
+            # loans'; legacy name: 'Foreign currency loans to total loans'.
+            'fx_loan_exposure': ('Foreign.currency.*loans to total.*loans.*Percent', False),
             'tier1_capital': ('Tier 1 capital to risk-weighted assets.*Core FSI', True), # Fixed ambiguity
             'npl_provisions': ('Provisions to nonperforming loans.*Percent', True),
             'loan_concentration': ('Loan concentration.*Percent', False),
@@ -304,34 +353,42 @@ class CrisisFeatureEngineer:
         
         return fsic_features
     
-    def compute_credit_to_gdp_gap(self, mfs_df: pd.DataFrame, 
-                                   weo_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_credit_to_gdp_relative(self, mfs_df: pd.DataFrame,
+                                   weo_df: pd.DataFrame,
+                                   as_of_date=None) -> pd.DataFrame:
         """
-        Compute credit-to-GDP metrics using BIS methodology.
-        
+        Compute relative credit-depth metrics from MFS credit and WEO GDP.
+
         CRISP-DM: Data Preparation
-        
-        The credit-to-GDP gap is the single most robust early warning indicator
-        for banking crises (BIS, 2019). It measures the deviation of the 
-        credit-to-GDP ratio from its long-term trend.
-        
-        Methodology:
+
+        NOTE ON METHODOLOGY: ``credit_to_gdp_relative`` is the deviation of a
+        country's latest private-credit-to-GDP ratio from the cross-country
+        median. It is NOT the BIS credit-to-GDP gap (deviation from a
+        country's own one-sided HP-filter trend, Drehmann & Juselius 2014).
+        Implementing the genuine BIS gap requires per-country credit time
+        series of sufficient length and remains a registered follow-up.
+
+        Computation:
         1. Private Credit = MFS "DCORP_A_ACO_PS" (Claims on Private Sector)
         2. Total Credit = MFS "DCORP_A_ACO_S1_Z" (Total Domestic Credit)
         3. GDP = WEO nominal GDP (local currency)
-        4. Gap = private_credit_to_gdp - median(private_credit_to_gdp)
+        4. credit_to_gdp_relative = private_credit_to_gdp
+           - cross-country median(private_credit_to_gdp)
         
         Returns:
-            DataFrame with private_credit_to_gdp, total_credit_to_gdp, and credit_to_gdp_gap
+            DataFrame with private_credit_to_gdp, total_credit_to_gdp, and credit_to_gdp_relative
         """
         print("\n" + "="*70)
-        print("COMPUTING CREDIT-TO-GDP METRICS (BIS Methodology)")
+        print("COMPUTING CREDIT-TO-GDP METRICS (cross-country median deviation)")
         print("="*70)
         
         if mfs_df is None or weo_df is None:
             print("  WARNING: MFS or WEO data missing")
             return pd.DataFrame()
-        
+
+        mfs_df = self._enforce_cutoff(mfs_df, as_of_date)
+        weo_df = self._enforce_cutoff(weo_df, as_of_date)
+
         # Get PRIVATE credit from MFS (DCORP_A_ACO_PS)
         private_credit_mask = mfs_df['indicator_code'].str.contains(
             'DCORP_A_ACO_PS', case=False, na=False, regex=False
@@ -378,26 +435,48 @@ class CrisisFeatureEngineer:
                     latest_total = country_total.sort_values('period')['value'].iloc[-1]
                 
                 if latest_gdp > 0 and not pd.isna(latest_private):
-                    # UNIT CONVERSION: MFS in millions -> billions
-                    private_in_billions = latest_private / 1000
-                    private_ratio = (private_in_billions / latest_gdp) * 100
-                    
-                    # Sanity check: credit-to-GDP typically 20-300%
-                    if 5 < private_ratio < 500:
+                    # UNIT HANDLING: legacy portal CSVs served MFS in
+                    # millions against WEO GDP in billions (factor 1/1000);
+                    # the official SDMX feeds serve both in raw domestic
+                    # currency units (factor 1). Try both and keep the
+                    # scaling that lands in the plausible 5-500% band, so
+                    # the same code handles either vintage.
+                    private_ratio = None
+                    candidate_scales = (1.0, 1e-3, 1e3)
+                    for scale in candidate_scales:
+                        candidate = (latest_private * scale / latest_gdp) * 100
+                        if 5 < candidate < 500:
+                            private_ratio = candidate
+                            if scale != 1.0:
+                                self._flag_heuristic(
+                                    'credit_to_gdp_scale_adjustment', country,
+                                    'private_credit_to_gdp',
+                                    f'credit/GDP rescaled by {scale:g} to {candidate:.1f}%',
+                                )
+                            break
+                    if private_ratio is None:
+                        raw_ratio = (latest_private / latest_gdp) * 100
+                        self._flag_heuristic(
+                            'credit_to_gdp_unit_mismatch_drop', country,
+                            'private_credit_to_gdp',
+                            f'ratio {raw_ratio:.3g}% outside 5-500% at all trial scales; country dropped from credit features',
+                        )
+                    if private_ratio is not None:
                         result = {
                             'country_code': country,
                             'credit_to_gdp': private_ratio,  # Keep for backwards compat
                             'private_credit_to_gdp': private_ratio,
                             # Save YEAR
-                            'credit_to_gdp_gap_year': pd.to_datetime(country_private.sort_values('period')['period'].iloc[-1]).year
+                            'credit_to_gdp_relative_year': pd.to_datetime(country_private.sort_values('period')['period'].iloc[-1]).year
                         }
                         
-                        # Add total credit if available
+                        # Add total credit if available (same adaptive scaling)
                         if latest_total is not None and not pd.isna(latest_total):
-                            total_in_billions = latest_total / 1000
-                            total_ratio = (total_in_billions / latest_gdp) * 100
-                            if 5 < total_ratio < 600:  # Slightly higher range for total
-                                result['total_credit_to_gdp'] = total_ratio
+                            for scale in candidate_scales:
+                                total_ratio = (latest_total * scale / latest_gdp) * 100
+                                if 5 < total_ratio < 600:  # Slightly higher range for total
+                                    result['total_credit_to_gdp'] = total_ratio
+                                    break
                         
                         results.append(result)
                         countries_processed += 1
@@ -405,13 +484,13 @@ class CrisisFeatureEngineer:
         if len(results) > 0:
             gap_df = pd.DataFrame(results)
             
-            # Compute gap as deviation from median (simplified BIS approach)
+            # Deviation from the cross-country median (NOT the BIS HP-filter gap)
             median_ratio = gap_df['private_credit_to_gdp'].median()
-            gap_df['credit_to_gdp_gap'] = gap_df['private_credit_to_gdp'] - median_ratio
+            gap_df['credit_to_gdp_relative'] = gap_df['private_credit_to_gdp'] - median_ratio
             
             print(f"  Computed credit-to-GDP for {countries_processed} countries")
             print(f"  Median private credit/GDP: {median_ratio:.1f}%")
-            print(f"  Gap range: {gap_df['credit_to_gdp_gap'].min():.1f} to {gap_df['credit_to_gdp_gap'].max():.1f}")
+            print(f"  Gap range: {gap_df['credit_to_gdp_relative'].min():.1f} to {gap_df['credit_to_gdp_relative'].max():.1f}")
             if 'total_credit_to_gdp' in gap_df.columns:
                 total_coverage = gap_df['total_credit_to_gdp'].notna().sum()
                 print(f"  Total credit/GDP coverage: {total_coverage}/{len(gap_df)} countries")
@@ -420,8 +499,9 @@ class CrisisFeatureEngineer:
         
         return pd.DataFrame()
     
-    def compute_sovereign_bank_nexus(self, mfs_df: pd.DataFrame, 
-                                      weo_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_sovereign_bank_nexus(self, mfs_df: pd.DataFrame,
+                                      weo_df: pd.DataFrame,
+                                      as_of_date=None) -> pd.DataFrame:
         """
         Compute sovereign-bank nexus feature from MFS.
         
@@ -444,10 +524,13 @@ class CrisisFeatureEngineer:
         print("\n" + "="*70)
         print("COMPUTING SOVEREIGN-BANK NEXUS (Claims on Govt / Total Banking Assets)")
         print("="*70)
-        
+
         if mfs_df is None:
             print("  WARNING: MFS data missing")
             return pd.DataFrame()
+
+        mfs_df = self._enforce_cutoff(mfs_df, as_of_date)
+        weo_df = self._enforce_cutoff(weo_df, as_of_date)
         
         # Methodology Update (2026-01):
         # 1. Focus on ODCORP (Other Depository Corporations = Commercial Banks).
@@ -541,20 +624,21 @@ class CrisisFeatureEngineer:
             print(f"  Median ODCORP exposure: {nexus_df['sovereign_exposure_ratio'].median():.1f}%")
             
             # --- MERGE WITH EXTERNAL RISK METRICS ---
-            ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df)
+            ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df, as_of_date=as_of_date)
             if len(ext_risk) > 0:
                 nexus_df = nexus_df.merge(ext_risk, on='country_code', how='outer')
                 
             return nexus_df
         
         # If no sovereign exposure but external risk exists
-        ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df)
+        ext_risk = self.compute_external_risk_metrics(mfs_df, weo_df, as_of_date=as_of_date)
         if len(ext_risk) > 0:
             return ext_risk
             
         return pd.DataFrame()
 
-    def compute_external_risk_metrics(self, mfs_df: pd.DataFrame, weo_df: pd.DataFrame) -> pd.DataFrame:
+    def compute_external_risk_metrics(self, mfs_df: pd.DataFrame, weo_df: pd.DataFrame,
+                                      as_of_date=None) -> pd.DataFrame:
         """
         Compute External Vulnerability & Liquidity Metrics.
         
@@ -566,10 +650,13 @@ class CrisisFeatureEngineer:
         print("\n" + "="*70)
         print("COMPUTING EXTERNAL RISK METRICS")
         print("="*70)
-        
+
         if mfs_df is None or weo_df is None:
             return pd.DataFrame()
-            
+
+        mfs_df = self._enforce_cutoff(mfs_df, as_of_date)
+        weo_df = self._enforce_cutoff(weo_df, as_of_date)
+
         mfs_df = mfs_df.sort_values('period')
         mfs_df['year'] = pd.to_datetime(mfs_df['period']).dt.year
         
@@ -667,10 +754,22 @@ class CrisisFeatureEngineer:
                 # Avoid division by zero
                 # If NFA is 0, we set it to a small number (1.0 in millions LC)
                 nfa_safe = nfa.replace(0, 1.0)
-                
+
                 ratio = liab / nfa_safe
-                
+
                 # Cap extreme values to [-100, 100] to prevent model instability
+                for code in nfa.index[nfa == 0]:
+                    self._flag_heuristic(
+                        'nfa_zero_denominator_floor', code,
+                        'bank_liability_to_nfa',
+                        'zero NFA denominator replaced with 1.0 before division',
+                    )
+                for code in ratio.index[(ratio < -100) | (ratio > 100)]:
+                    self._flag_heuristic(
+                        'bank_liability_to_nfa_clip', code,
+                        'bank_liability_to_nfa',
+                        f'ratio {ratio.loc[code]:.1f} clipped to [-100, 100]',
+                    )
                 ratio = ratio.clip(-100, 100)
                 
                 features.loc[common, 'bank_liability_to_nfa'] = ratio
@@ -694,7 +793,13 @@ class CrisisFeatureEngineer:
                 # Ratio: Liabilities / Reserves
                 # If reserves 0 (rare for central bank), handle it.
                 res_safe = res.replace(0, 1.0)
-                
+                for code in res.index[res == 0]:
+                    self._flag_heuristic(
+                        'reserves_zero_denominator_floor', code,
+                        'sovereign_liability_to_reserves',
+                        'zero reserves denominator replaced with 1.0 before division',
+                    )
+
                 ratio_cb = liab / res_safe
                 
                 features.loc[common_cb, 'sovereign_liability_to_reserves'] = ratio_cb
@@ -704,10 +809,11 @@ class CrisisFeatureEngineer:
         print(f"  Computed FX Risk Feature 2 (Sov Liab/Reserves) for {features['sovereign_liability_to_reserves'].notna().sum()} countries")
         return features.reset_index().rename(columns={'index': 'country_code'})
 
-    def compute_literature_gap_features(self, weo_df: pd.DataFrame, 
+    def compute_literature_gap_features(self, weo_df: pd.DataFrame,
                                          mfs_df: pd.DataFrame,
                                          fsic_df: pd.DataFrame,
-                                         weo_features: pd.DataFrame) -> pd.DataFrame:
+                                         weo_features: pd.DataFrame,
+                                         as_of_date=None) -> pd.DataFrame:
         """
         Compute features identified as gaps in literature comparison.
         
@@ -735,11 +841,14 @@ class CrisisFeatureEngineer:
             print("  WARNING: WEO data missing, skipping literature gap features")
             return results
         
-        # Prepare WEO time series
-        from datetime import datetime
-        weo = weo_df.copy()
+        # Prepare WEO time series bounded by the snapshot cutoff (never the
+        # wall clock) and stripped of estimates/projections.
+        cutoff = pd.Timestamp(as_of_date or f"{pd.Timestamp.today().year - 1}-12-31")
+        weo = self._enforce_cutoff(weo_df, cutoff, include_estimates=False)
+        mfs_df = self._enforce_cutoff(mfs_df, cutoff)
+        fsic_df = self._enforce_cutoff(fsic_df, cutoff)
         weo['year'] = pd.to_datetime(weo['period']).dt.year
-        max_year = datetime.now().year
+        max_year = cutoff.year
         weo = weo[weo['year'] <= max_year]
         
         countries = weo['country_code'].unique()
@@ -1056,9 +1165,21 @@ class CrisisFeatureEngineer:
                     # Missing values
                     still_missing = merged['sovereign_exposure_ratio'].isna() & merged['securities_to_assets'].notna()
                     merged.loc[still_missing, 'sovereign_exposure_ratio'] = merged.loc[still_missing, 'securities_to_assets']
-                    
+                    for code in merged.loc[still_missing, 'country_code']:
+                        self._flag_heuristic(
+                            'sovereign_exposure_securities_proxy', code,
+                            'sovereign_exposure_ratio',
+                            'missing value filled with securities_to_assets',
+                        )
+
                     # Low values (< 2%) but high securities (> 5%) -> Use securities (Likely data definition mismatch)
                     low_val_mask = (merged['sovereign_exposure_ratio'] < 2.0) & (merged['securities_to_assets'] > 5.0)
+                    for code in merged.loc[low_val_mask, 'country_code']:
+                        self._flag_heuristic(
+                            'sovereign_exposure_low_value_overwrite', code,
+                            'sovereign_exposure_ratio',
+                            'observed value < 2% overwritten with securities_to_assets (> 5%)',
+                        )
                     merged.loc[low_val_mask, 'sovereign_exposure_ratio'] = merged.loc[low_val_mask, 'securities_to_assets']
                     
                     if still_missing.sum() + low_val_mask.sum() > 0:
@@ -1091,6 +1212,11 @@ class CrisisFeatureEngineer:
                     if pd.isna(merged.loc[idx, 'fx_loan_exposure']).any():
                         merged.loc[idx, 'fx_loan_exposure'] = 0.0
                         fx_imputed += 1
+                        self._flag_heuristic(
+                            'reserve_currency_fx_imputation', country,
+                            'fx_loan_exposure',
+                            'missing FX loan exposure hard-imputed to 0 (reserve-currency list)',
+                        )
             if fx_imputed > 0:
                 print(f"  Imputed FX exposure = 0 for {fx_imputed} reserve currency countries")
         
@@ -1225,7 +1351,7 @@ class CrisisFeatureEngineer:
         # Define feature priority (lower = more important, keep these)
         # Core features that should be preserved
         priority_features = {
-            'credit_to_gdp_gap': 1,      # BIS validated
+            'credit_to_gdp_relative': 1,      # Relative credit depth
             'capital_adequacy': 1,        # Core FSI
             'npl_ratio': 1,               # Core FSI
             'sovereign_exposure_ratio': 2,
@@ -1257,8 +1383,17 @@ class CrisisFeatureEngineer:
         
         if features_to_drop:
             print(f"    Dropping {len(features_to_drop)} redundant features: {sorted(features_to_drop)}")
-            df = df.drop(columns=list(features_to_drop), errors='ignore')
-        
+            # Drop the companion year columns too so downstream consumers do
+            # not see orphaned metadata for features the model no longer has.
+            year_companions = {
+                f"{column}_year" for column in features_to_drop
+                if f"{column}_year" in df.columns
+            }
+            df = df.drop(
+                columns=list(features_to_drop | year_companions),
+                errors='ignore',
+            )
+
         return df
     
     # ==========================================================================
@@ -1444,7 +1579,7 @@ def run_feature_engineering_pipeline():
     fsic_features = engineer.extract_fsic_features(fsic_df)
     
     # Compute credit-to-GDP metrics (private + total + gap)
-    credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
+    credit_gap = engineer.compute_credit_to_gdp_relative(mfs_df, weo_df)
     
     # Compute sovereign-bank nexus
     sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)

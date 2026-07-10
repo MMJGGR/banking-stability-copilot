@@ -82,15 +82,23 @@ Before promotion, verify:
 
 ## Promotion
 
-Promotion is intentionally manual until governance controls are proven.
+Promotion is workflow-assisted; the final merge stays with a human reviewer.
 
-1. Download the candidate artifact bundle.
-2. Verify manifest checksums.
-3. Review data and model change reports.
-4. Replace serving artifacts through a reviewed pull request or approved
-   release pointer.
-5. Verify Streamlit health and visible snapshot status.
-6. Record the approver and release identifier.
+1. Run `Actions -> Promote candidate snapshot`, supplying the candidate
+   build's run ID and snapshot date. The workflow downloads the bundle,
+   re-runs `python -m src.scripts.smoke_test_artifacts` against it (country
+   names present, scores in range, raw/imputed sidecar coherence, verified
+   manifest), commits the artifacts via Git LFS to `promote/<date>`, and
+   opens a pull request.
+2. Review the model-policy audit, feature-heuristic flags, and large score
+   or tier changes on the pull request.
+3. Merge the pull request; Streamlit Cloud redeploys from master.
+4. Verify Streamlit health and the visible snapshot status.
+5. Record the approver and release identifier.
+
+Manual fallback: download the bundle, run the smoke test locally, and
+replace the serving artifacts through a reviewed pull request (requires
+git-lfs).
 
 ## Rollback
 

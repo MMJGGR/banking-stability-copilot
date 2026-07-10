@@ -6,6 +6,13 @@ Defines indicator categories, thresholds, and risk tier definitions.
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 import os
+import sys
+
+if sys.version_info < (3, 10):
+    raise RuntimeError(
+        "banking-stability-copilot requires Python 3.10 or newer; "
+        f"found {sys.version.split()[0]}. See .python-version."
+    )
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

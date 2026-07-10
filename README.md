@@ -89,7 +89,7 @@ To ensure model stability, we filtered out highly correlated features (r > 0.85)
 | current_account_gdp | 88% (206) | WEO | Current account % GDP | External vulnerability (Frankel & Saravelos, 2012) |
 | govt_debt_gdp | 87% (204) | WEO | Government debt % GDP | Sovereign fiscal space (Acharya et al., 2014) |
 | fiscal_balance_gdp | 88% (207) | WEO | Fiscal balance % GDP | Fiscal trajectory (Laeven & Valencia, 2018) |
-| credit_to_gdp_gap | 66% (156) | MFS | BIS credit gap methodology | Early warning indicator (Drehmann et al., 2010) |
+| credit_to_gdp_relative | 66% (156) | MFS | Private credit/GDP deviation from cross-country median (not the BIS HP-filter gap) | Relative credit depth, motivated by Drehmann et al. (2010) |
 | voice_accountability | 92% (216) | WGI | Voice & Accountability (0-100) | Institutional quality (Acemoglu et al., 2005) |
 | political_stability | 92% (216) | WGI | Political Stability (0-100) | Political risk premium (Diamonte et al., 1996) |
 | sovereign_liability_to_reserves | 75% (177) | MFS | Sovereign Ext Liab / Reserves | **Currency Mismatch** (Inability to borrow in local currency) |
@@ -144,6 +144,7 @@ The model employs a **Hybrid Architecture** combining unsupervised structure wit
     *   **5-Fold Stratified Cross-Validation** to prevent overfitting on small crisis samples (n=27).
     *   **Metric**: Area Under ROC Curve (AUC).
 
+<!-- UNAPPROVED-METRICS:START (not rendered in the app's Methodology tab) -->
 #### Validation Results
 The figures below are retained as historical project claims. They have not yet
 been reproduced under the new country-grouped and out-of-time validation
@@ -157,6 +158,7 @@ standard and are not approved production performance metrics.
 
 ![CV ROC Curve](cache/eda/cv_roc_curve.png)
 *Figure 2: 5-Fold CV ROC Curve. The model maintains high sensitivity without excessive false alarms.*
+<!-- UNAPPROVED-METRICS:END -->
 
 
 #### Feature Importance

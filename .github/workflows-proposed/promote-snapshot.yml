@@ -1,0 +1,87 @@
+name: Promote candidate snapshot
+
+# Promotes a candidate bundle built by "Build candidate data snapshot" into a
+# reviewed pull request against master. The smoke-test gate re-runs against
+# the downloaded bundle before anything is committed, so a defective
+# candidate (blank names, stale sidecars, out-of-range scores) cannot reach
+# the serving branch. Final merge stays with a human reviewer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Actions run ID of the candidate build to promote
+        required: true
+      snapshot_date:
+        description: Snapshot cutoff being promoted (YYYY-MM-DD)
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source with LFS support
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install serving dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Download candidate bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: banking-copilot-${{ inputs.snapshot_date }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: candidate
+
+      - name: Install candidate artifacts into working tree
+        run: |
+          set -euo pipefail
+          cp -v candidate/cache/*.parquet candidate/cache/*.pkl cache/
+          cp -v candidate/artifacts/data_manifest.json artifacts/data_manifest.json
+          cp -v candidate/artifacts/model_policy_audit.json artifacts/model_policy_audit.json
+          if [ -f candidate/artifacts/feature_heuristics.json ]; then
+            cp -v candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json
+          fi
+
+      - name: Smoke-test candidate artifacts
+        run: python -m src.scripts.smoke_test_artifacts
+
+      - name: Open promotion pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          BRANCH="promote/${SNAPSHOT_DATE}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add cache artifacts
+          git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
+
+          Candidate bundle from Actions run ${RUN_ID}; smoke tests passed."
+          git push -u origin "$BRANCH" --force-with-lease
+          gh pr create \
+            --title "Promote snapshot ${SNAPSHOT_DATE}" \
+            --body "Automated promotion of the candidate snapshot built by Actions run ${RUN_ID}. Smoke tests passed against the downloaded bundle (country names present, scores in range, raw/imputed sidecar coherent, manifest verified). Review the model-policy audit and score changes before merging; merging redeploys the Streamlit app." \
+            --base master \
+            --head "$BRANCH" || echo "PR already exists for $BRANCH"

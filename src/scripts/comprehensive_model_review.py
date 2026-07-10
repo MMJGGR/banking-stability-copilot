@@ -405,7 +405,7 @@ def analyze_literature_compliance():
     
     bicra = [
         ('GDP per capita', 'gdp_per_capita'),
-        ('Credit-to-GDP gap', 'credit_to_gdp_gap'),
+        ('Credit-to-GDP gap', 'credit_to_gdp_relative'),
         ('Government debt', 'govt_debt_gdp'),
         ('Current account', 'current_account_gdp'),
         ('Inflation', 'inflation'),
@@ -430,7 +430,7 @@ def analyze_literature_compliance():
     
     print("\n--- 5.2 BIS Early Warning Indicators ---")
     bis = [
-        ('Credit-to-GDP gap', 'credit_to_gdp_gap'),
+        ('Credit-to-GDP gap', 'credit_to_gdp_relative'),
         ('Property price gap', None),
         ('Debt service ratio', None),
     ]

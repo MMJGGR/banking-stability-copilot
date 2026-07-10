@@ -1286,9 +1286,12 @@ production.
 13. [ ] Move raw datasets out of routine Git LFS versioning. Candidate workflow
     artifacts and `data/raw/` exclusion are implemented; migration of existing
     repository history is a separate controlled operation.
-14. [ ] Complete scheduled refresh, retraining, quality, promotion, and release
-    workflows. Quality, source-check, and manual candidate-refresh workflows are
-    implemented; promotion and release automation remain outstanding.
+14. [~] Promotion automation added 2026-07-10: `promote-snapshot.yml`
+    downloads a candidate bundle, re-runs the serving-artifact smoke tests
+    (`src/scripts/smoke_test_artifacts.py`, also gating `refresh-data.yml`),
+    commits artifacts via Git LFS, and opens a reviewed promotion pull
+    request. Final merge remains a human decision; release tagging remains
+    outstanding.
 15. [ ] Complete the Streamlit serving-only refactor. Lightweight model loading,
     derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
     history, and on-demand FSIBSIS loading are complete; active verified
@@ -1345,35 +1348,44 @@ An end-to-end test of the refresh workflow produced these findings:
 Ordered by leverage; items 19–21 block any production approval of the
 predictive surface. See section 2.8 for full detail.
 
-19. [ ] Add 2010 and 2020 (or 2021) epochs to the crisis-classifier temporal
-    panel so 2009–2015 and post-2019 systemic episodes become positive labels,
-    and re-run grouped plus out-of-time validation.
+19. [x] Done 2026-07-10 (exceeded scope): coverage analysis showed 34 labeled
+    episodes invisible to the original five epochs (1988-90, 1994-95,
+    1999-2000, 2009-15, 2019+). The panel now has 12 epochs (added 1987,
+    1993, 1998, 2008, 2011, 2014, 2018) covering every labeled start year
+    from 1988 onward. Grouped and out-of-time validation re-run; honest
+    leakage-free metrics (grouped CV AUC ~0.57-0.59) recorded for governance
+    review — materially below the historical 0.84 claim.
 20. [ ] Replace the hand-transcribed crisis-label dictionary with labels loaded
     from the published Laeven-Valencia dataset file, verified by checksum.
-21. [ ] Enforce snapshot-cutoff and observation-status filtering in every
-    feature computation (`compute_literature_gap_features`,
-    `compute_credit_to_gdp_gap`, `compute_sovereign_bank_nexus`,
-    `compute_external_risk_metrics`, deployment lag features); remove all
-    `datetime.now()` usage from feature paths.
-22. [ ] Either rename `credit_to_gdp_gap` to reflect the implemented
-    median-deviation computation or implement the genuine BIS one-sided
-    HP-filter gap from the MFS credit time series; reconcile README and
-    docstrings either way.
-23. [ ] Correct the hybrid-weight documentation (0.9 pillar / 0.1 classifier),
-    remove the unused `HybridRiskScorer`, and record the classifier-weight
-    choice as an explicit policy decision in the model card.
-24. [ ] Surface and log the silent data heuristics (unit-mismatch country
-    drops, sovereign-exposure overwrites, denominator floors, reserve-currency
-    FX imputation) as flagged, per-country records, and add them to the
-    model-policy sensitivity audit.
-25. [ ] Add a reproducible lock/constraints file and an early Python-version
-    guard so wrong-interpreter runs fail with a clear message.
-26. [ ] Remove or archive dead modules (`risk_scorer`, `insight_generator`,
-    `report_generator`, `trend_analyzer`, `explainability`, `ui_components`,
-    `src/styles`), deduplicate `replication/outputs`, and triage the
-    diagnostic scripts.
-27. [ ] Fix remaining relative paths in `app.py` (README and image loads) and
-    stop rendering unapproved historical metrics in the Methodology tab.
+21. [x] Done 2026-07-10: shared `_enforce_cutoff` helper applied in
+    `extract_fsic_features`, `compute_literature_gap_features`,
+    `compute_credit_to_gdp_relative`, `compute_sovereign_bank_nexus`, and
+    `compute_external_risk_metrics`; `datetime.now()` removed from the
+    literature-gap and deployment-lag paths (cutoff threaded from
+    `train_crisis_model(as_of_date=...)`).
+22. [x] Done 2026-07-10 (rename branch): feature renamed to
+    `credit_to_gdp_relative` across the pipeline with legacy aliases for
+    cached classifiers and pre-rename serving artifacts; README, docstrings,
+    and prints now state the cross-country median-deviation computation and
+    explicitly disclaim the BIS HP-filter gap (implementing the genuine BIS
+    gap remains a registered follow-up).
+23. [x] Done 2026-07-10: module docstring corrected to 0.9 pillar / 0.1
+    classifier, unused `HybridRiskScorer` removed.
+24. [x] Done 2026-07-10: per-country heuristic flags collected during
+    feature engineering and persisted to `artifacts/feature_heuristics.json`
+    (shipped with candidate bundles). The first flagged build immediately
+    exposed a critical defect: the millions/billions unit assumption dropped
+    credit features for ~175 countries under official SDMX data (see 21.4).
+25. [x] Done 2026-07-10: `constraints-dev.txt` generated (uv, Python 3.11)
+    and used by the CI install; `src/config.py` now fails fast on
+    interpreters older than 3.10.
+26. [~] Partially done 2026-07-10: the seven dead modules are removed
+    (verified unimported). `replication/outputs` deduplication and diagnostic
+    script triage remain outstanding.
+27. [x] Done 2026-07-10: README and architecture-diagram loads resolve from
+    the app directory; the unapproved historical AUC block in the README is
+    fenced with UNAPPROVED-METRICS markers and stripped from the Methodology
+    tab.
 28. [x] Display WEO actual/estimate/projection status in the Data Explorer
     time series to support research use. Implemented 2026-07-10: charts plot
     at native periodicity and mark the last reported actual with a dashed
@@ -1419,6 +1431,49 @@ predictive surface. See section 2.8 for full detail.
     2026-07-09 workflow test before enabling scheduled data refreshes.
     Completed 2026-07-10 by enforcing client-side period filtering and adding
     raw-download reuse for downstream reruns.
+
+### 21.4 Fixes Landed 2026-07-10 (Session 2) and New Findings
+
+Owner-reported symptom: Tanzania showed heavy imputation for industry data
+despite excellent FSIC source coverage. Diagnosis traced four distinct
+workflow gaps, all fixed:
+
+1. **Stale imputed sidecar.** `imputed_features.parquet` was only written by
+   the legacy pillar path; every build since the pipeline switch shipped the
+   same stale file, so the dashboard flagged year-old numbers as "imputed"
+   even where fresh raw data existed. The current pipeline now regenerates
+   the sidecar on every build (`PillarInferencePipeline.impute`), and the
+   smoke test asserts the sidecar preserves every observed raw value.
+2. **Official-name pattern breaks.** FSIC extraction regexes written for the
+   legacy CSV names missed the official SDMX names ('short-term' hyphen,
+   'Foreign-currency-denominated loans'), silently losing
+   `liquid_assets_st_liab` and `fx_loan_exposure`. Patterns now match both
+   vocabularies; Tanzania regains observed values for both.
+3. **Orphaned metadata after redundancy drops.** The correlation-based
+   feature dropper removed value columns (roe, tier1_capital) but left their
+   `_year` columns, and the dashboard treated any missing model column as
+   imputable from the (stale) sidecar. Year companions are now dropped with
+   their features and the dashboard only falls back to the sidecar for
+   features the current model actually carries.
+4. **Credit features nuked by a unit assumption (critical, new).** The
+   heuristic flags added under item 24 revealed that the legacy
+   millions/billions unit conversion produced ~0.0% credit/GDP ratios under
+   official SDMX raw-unit data, so the 5-500% sanity gate silently dropped
+   credit features for ~175 countries — every official-API artifact shipped
+   without `credit_to_gdp_relative`, a Tier-1 classifier feature. The
+   computation now tries both unit conventions per country and records a
+   flagged scale adjustment when the non-default one is used.
+
+Additional automation: candidate builds and promotions are now gated by
+`src/scripts/smoke_test_artifacts.py` (manifest verified, >=150 countries,
+scores in range, display names present, raw/imputed coherence), and
+`promote-snapshot.yml` turns a candidate run into a reviewed promotion pull
+request.
+
+Governance note: the retrained 12-epoch classifier reports honest grouped-CV
+AUC around 0.57-0.59 (out-of-time holdout 0.56-0.80 depending on fold),
+replacing the leakage-inflated historical 0.84. Promotion of retrained
+artifacts requires owner review under items 4, 8, and 11.
 
 ### 21.1 GitHub Checkpoints
 

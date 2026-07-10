@@ -478,10 +478,21 @@ with tab_explorer:
 # ==============================================================================
 with tab_methodology:
     st.markdown("## Methodology")
-    
-    with open('README.md', 'r', encoding='utf-8') as f:
+
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(_app_dir, 'README.md'), 'r', encoding='utf-8') as f:
         readme_content = f.read()
-    
+
+    # Historical, unapproved metrics stay in the README for provenance but
+    # are not rendered into the product UI.
+    import re as _re
+    readme_content = _re.sub(
+        r'<!-- UNAPPROVED-METRICS:START.*?UNAPPROVED-METRICS:END -->',
+        '',
+        readme_content,
+        flags=_re.DOTALL,
+    )
+
     # Render content, but skip the mermaid block if it exists
     parts = readme_content.split('```mermaid')
     
@@ -490,7 +501,7 @@ with tab_methodology:
     
     # Render static Architecture Diagram
     st.markdown("### Process Architecture")
-    arch_img_path = "cache/eda/architecture_diagram.png"
+    arch_img_path = os.path.join(_app_dir, "cache", "eda", "architecture_diagram.png")
     if os.path.exists(arch_img_path):
          st.image(arch_img_path, caption="Banking System Stability Model Architecture", use_column_width=True)
     else:

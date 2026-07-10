@@ -47,7 +47,7 @@ def extract_raw_features():
     fsic_features = engineer.extract_fsic_features(fsic_df)
     
     print("  Computing credit-to-GDP gap...")
-    credit_gap = engineer.compute_credit_to_gdp_gap(mfs_df, weo_df)
+    credit_gap = engineer.compute_credit_to_gdp_relative(mfs_df, weo_df)
     
     print("  Computing sovereign-bank nexus...")
     sovereign_nexus = engineer.compute_sovereign_bank_nexus(mfs_df, weo_df)
