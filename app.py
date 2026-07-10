@@ -6,7 +6,13 @@ import plotly.graph_objects as go
 import time
 import os
 
-from src.data_loader import IMFDataLoader, FSIBSISLoader, WGILoader
+from src.data_loader import (
+    FSIBSISLoader,
+    IMFDataLoader,
+    WGILoader,
+    is_time_period_column,
+    parse_period_label,
+)
 from src.country_names import fill_missing_country_names
 from src.model_store import load_data_manifest, load_model_artifact
 from src.dashboard.styles import STYLES, score_to_tier
@@ -152,6 +158,70 @@ def load_multi_country_history(country_codes: tuple[str, ...], dataset: str) -> 
     return pd.concat(frames, ignore_index=True)
 
 
+def _fsibsis_frequency(label) -> str:
+    text = str(label).upper()
+    if 'M' in text:
+        return 'M'
+    if 'Q' in text:
+        return 'Q'
+    return 'A'
+
+
+def _fsibsis_wide_to_long(fsibsis_wide: pd.DataFrame, country_code: str) -> pd.DataFrame:
+    """Convert FSIBSIS country data from loader wide shape into app history shape."""
+    if fsibsis_wide is None or len(fsibsis_wide) == 0:
+        return pd.DataFrame()
+
+    time_cols = [
+        col for col in fsibsis_wide.columns
+        if is_time_period_column(str(col))
+    ]
+    if not time_cols or 'INDICATOR' not in fsibsis_wide.columns:
+        return pd.DataFrame()
+
+    long_df = fsibsis_wide.melt(
+        id_vars=['INDICATOR'],
+        value_vars=time_cols,
+        var_name='period_label',
+        value_name='value',
+    )
+    long_df = long_df.dropna(subset=['value'])
+    if len(long_df) == 0:
+        return pd.DataFrame()
+
+    long_df['indicator_name'] = long_df['INDICATOR']
+    long_df['indicator_code'] = long_df['INDICATOR']
+    long_df['period'] = long_df['period_label'].map(parse_period_label)
+    long_df['country_code'] = country_code
+    long_df['frequency'] = long_df['period_label'].map(_fsibsis_frequency)
+    return long_df.dropna(subset=['period'])
+
+
+@st.cache_data(show_spinner=False, max_entries=24)
+def load_fsibsis_country_history(country_code: str) -> pd.DataFrame:
+    """Load one FSIBSIS selected-country history slice on demand."""
+    fsibsis_loader = FSIBSISLoader()
+    fsibsis_loader.load()
+    fsibsis_wide = fsibsis_loader.get_country_data(country_code)
+    return _fsibsis_wide_to_long(fsibsis_wide, country_code)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def load_multi_country_fsibsis_history(country_codes: tuple[str, ...]) -> pd.DataFrame:
+    """Load FSIBSIS history slices for selected countries only."""
+    frames = []
+    fsibsis_loader = FSIBSISLoader()
+    fsibsis_loader.load()
+    for country_code in country_codes:
+        fsibsis_wide = fsibsis_loader.get_country_data(country_code)
+        fsibsis_long = _fsibsis_wide_to_long(fsibsis_wide, country_code)
+        if fsibsis_long is not None and len(fsibsis_long) > 0:
+            frames.append(fsibsis_long)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
+
+
 def render_indicator_comparison(
     scores: pd.DataFrame,
     selected_country: str,
@@ -173,7 +243,13 @@ def render_indicator_comparison(
     with control_col1:
         source_choice = st.selectbox(
             "Source",
-            ["Economic (WEO)", "Banking (FSIC)", "Monetary (MFS)", "Governance (WGI)"],
+            [
+                "Economic (WEO)",
+                "Banking ratios (FSIC)",
+                "Bank balance sheet (FSIBSIS)",
+                "Monetary (MFS)",
+                "Governance (WGI)",
+            ],
             key="compare_source",
         )
     with control_col2:
@@ -182,7 +258,7 @@ def render_indicator_comparison(
             options=available_codes,
             default=default_countries,
             format_func=country_formatter,
-            key="compare_countries",
+            key=f"compare_countries_{selected_country}",
             help="Compare one indicator across the selected country and peers. Keep the set small for hosted performance.",
         )
 
@@ -196,40 +272,18 @@ def render_indicator_comparison(
 
     source_to_dataset = {
         "Economic (WEO)": "WEO",
-        "Banking (FSIC)": "FSIC",
+        "Banking ratios (FSIC)": "FSIC",
+        "Bank balance sheet (FSIBSIS)": "FSIBSIS",
         "Monetary (MFS)": "MFS",
         "Governance (WGI)": "WGI",
     }
     dataset = source_to_dataset[source_choice]
 
-    if dataset == "WGI":
-        if wgi_panel is None or len(wgi_panel) == 0:
-            st.info("WGI data is not available.")
-            return
-        governance_cols = [
-            'voice_accountability', 'political_stability', 'govt_effectiveness',
-            'regulatory_quality', 'rule_of_law', 'control_corruption'
-        ]
-        available_cols = [c for c in governance_cols if c in wgi_panel.columns]
-        source_df = wgi_panel[wgi_panel['country_code'].isin(compare_countries)].copy()
-        if len(source_df) == 0 or not available_cols:
-            st.info("No WGI data is available for the selected countries.")
-            return
-        source_df = source_df.melt(
-            id_vars=['country_code', 'year'],
-            value_vars=available_cols,
-            var_name='indicator_code',
-            value_name='value',
-        )
-        source_df['indicator_name'] = source_df['indicator_code'].str.replace('_', ' ').str.title()
-        source_df['period'] = pd.to_datetime(source_df['year'].astype(str) + '-12-31')
-        source_df['frequency'] = 'A'
-    else:
-        with st.spinner(f"Loading {dataset} history for selected countries..."):
-            source_df = load_multi_country_history(tuple(compare_countries), dataset)
-        if source_df is None or len(source_df) == 0:
-            st.info(f"No {dataset} data is available for the selected countries.")
-            return
+    with st.spinner(f"Loading {dataset} history for selected countries..."):
+        source_df = _load_comparison_source(dataset, compare_countries, wgi_panel)
+    if source_df is None or len(source_df) == 0:
+        st.info(f"No {dataset} data is available for the selected countries.")
+        return
 
     source_df = source_df.copy()
     source_df['country_name'] = source_df['country_code'].map(country_formatter)
@@ -340,7 +394,12 @@ def render_indicator_comparison(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
-    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        theme="streamlit",
+        key=f"compare_chart_{dataset}_{selected_indicator}",
+    )
 
     latest_table = (
         chart_df.sort_values('date')
@@ -355,6 +414,7 @@ def render_indicator_comparison(
         latest_table[['Country', 'Latest Period', 'Latest Value']],
         use_container_width=True,
         hide_index=True,
+        key=f"compare_latest_{dataset}_{selected_indicator}",
     )
 
 
@@ -385,6 +445,9 @@ def _load_comparison_source(
         source_df['period'] = pd.to_datetime(source_df['year'].astype(str) + '-12-31')
         source_df['frequency'] = 'A'
         return source_df
+
+    if dataset == "FSIBSIS":
+        return load_multi_country_fsibsis_history(tuple(countries))
 
     return load_multi_country_history(tuple(countries), dataset)
 
@@ -502,7 +565,13 @@ def render_calculated_series_builder(
     with source_col:
         source_choice = st.selectbox(
             "Source",
-            ["Economic (WEO)", "Banking (FSIC)", "Monetary (MFS)", "Governance (WGI)"],
+            [
+                "Economic (WEO)",
+                "Banking ratios (FSIC)",
+                "Bank balance sheet (FSIBSIS)",
+                "Monetary (MFS)",
+                "Governance (WGI)",
+            ],
             key="calc_source",
         )
     with country_col:
@@ -511,7 +580,7 @@ def render_calculated_series_builder(
             options=available_codes,
             default=default_countries,
             format_func=country_formatter,
-            key="calc_countries",
+            key=f"calc_countries_{selected_country}",
             help="Selected countries are capped at 8 for hosted performance.",
         )
     if not calc_countries:
@@ -523,7 +592,8 @@ def render_calculated_series_builder(
 
     dataset = {
         "Economic (WEO)": "WEO",
-        "Banking (FSIC)": "FSIC",
+        "Banking ratios (FSIC)": "FSIC",
+        "Bank balance sheet (FSIBSIS)": "FSIBSIS",
         "Monetary (MFS)": "MFS",
         "Governance (WGI)": "WGI",
     }[source_choice]
@@ -1149,24 +1219,19 @@ with header_col1:
     )
 
 with header_col2:
-    default_idx = 0
-    if 'USA' in available_countries['country_code'].values:
-        default_idx = list(available_countries['country_code'].values).index('USA')
-        
-    selected_country_code = st.selectbox(
-        "Select Country",
-        options=available_country_codes,
-        format_func=format_country_option,
-        index=default_idx,
-        label_visibility="collapsed"
-    )
+    st.caption("Global summary, data exploration, and methodology are independently scoped.")
     
 with header_col3:
     pass  # Reserved for future actions
 
-# Get selected country data
-country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
-selected_country_name = country_score_row['country_name']
+default_country_code = 'USA' if 'USA' in available_country_codes else available_country_codes[0]
+if "profile_country_code" not in st.session_state:
+    st.session_state["profile_country_code"] = default_country_code
+if "explorer_focus_country" not in st.session_state:
+    st.session_state["explorer_focus_country"] = st.session_state.get(
+        "profile_country_code",
+        default_country_code,
+    )
 
 st.markdown("---")
 
@@ -1187,6 +1252,19 @@ with tab_global:
 # TAB: Country Profile
 # ==============================================================================
 with tab_profile:
+    profile_col1, profile_col2 = st.columns([2, 3])
+    with profile_col1:
+        selected_country_code = st.selectbox(
+            "Country",
+            options=available_country_codes,
+            format_func=format_country_option,
+            key="profile_country_code",
+            help="This selector controls the Country Profile tab only.",
+        )
+
+    country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
+    selected_country_name = country_score_row['country_name']
+
     # 1. HEADER: Country Name + Risk Score Summary
     st.markdown(f"## {selected_country_name}")
     
@@ -1348,11 +1426,69 @@ with tab_profile:
 # ==============================================================================
 with tab_explorer:
     st.markdown("### Historical Data Explorer")
+    st.caption(
+        "Use this workspace to browse source histories, compare countries, "
+        "and build lightweight calculated series. It is independent of the "
+        "Country Profile selector."
+    )
+
+    explorer_col1, explorer_col2 = st.columns([2, 3])
+    with explorer_col1:
+        explorer_focus_country = st.selectbox(
+            "Explorer focus country",
+            options=available_country_codes,
+            format_func=format_country_option,
+            key="explorer_focus_country",
+            help=(
+                "Used for single-country source tabs and to seed comparison "
+                "country defaults."
+            ),
+        )
+
+    explorer_peers_df = find_peers(explorer_focus_country, scores_df, n_peers=4)
+    explorer_nearest_peer_codes = (
+        explorer_peers_df['country_code'].tolist()
+        if explorer_peers_df is not None and len(explorer_peers_df) > 0
+        else []
+    )
+    explorer_default_peers = explorer_nearest_peer_codes[:4]
+
+    with explorer_col2:
+        if explorer_default_peers:
+            st.caption(
+                "Default comparison peers: "
+                + ", ".join(format_country_option(code) for code in explorer_default_peers)
+            )
+        else:
+            st.caption("No nearest-neighbor peers are available for this country.")
+
+    tool_tab_compare, tool_tab_calc = st.tabs([
+        "Compare indicators",
+        "Calculated series",
+    ])
+    with tool_tab_compare:
+        render_indicator_comparison(
+            scores=scores_df,
+            selected_country=explorer_focus_country,
+            default_peer_codes=explorer_default_peers,
+            country_formatter=format_country_option,
+            wgi_panel=wgi_data,
+        )
+    with tool_tab_calc:
+        render_calculated_series_builder(
+            scores=scores_df,
+            selected_country=explorer_focus_country,
+            default_peer_codes=explorer_default_peers,
+            country_formatter=format_country_option,
+            wgi_panel=wgi_data,
+        )
+
+    st.markdown("#### Single-country source tabs")
     load_history = st.checkbox(
-        f"Load selected-country historical data for {selected_country_code}",
+        f"Load single-country historical data for {explorer_focus_country}",
         value=False,
         help=(
-            "Loads WEO, FSI, and MFS history for the selected country only. "
+            "Loads WEO, FSI, MFS, and WGI history for the explorer focus country only. "
             "This keeps hosted startup within Streamlit resource limits."
         ),
     )
@@ -1360,46 +1496,19 @@ with tab_explorer:
         st.info(
             "Historical source data is loaded on demand. Enable the option "
             "above to inspect WEO, FSI, MFS, and WGI histories for the "
-            "selected country."
+            "explorer focus country."
         )
 
-    explorer_peers_df = find_peers(selected_country_code, scores_df, n_peers=4)
-    explorer_nearest_peer_codes = (
-        explorer_peers_df['country_code'].tolist()
-        if explorer_peers_df is not None and len(explorer_peers_df) > 0
-        else []
-    )
-    explorer_default_peers = st.session_state.get(
-        "custom_peer_codes",
-        explorer_nearest_peer_codes[:4],
-    )
-    with st.expander("Compare one indicator across countries", expanded=False):
-        render_indicator_comparison(
-            scores=scores_df,
-            selected_country=selected_country_code,
-            default_peer_codes=explorer_default_peers,
-            country_formatter=format_country_option,
-            wgi_panel=wgi_data,
-        )
-    with st.expander("Calculated series: ratios, shares, and changes", expanded=False):
-        render_calculated_series_builder(
-            scores=scores_df,
-            selected_country=selected_country_code,
-            default_peer_codes=explorer_default_peers,
-            country_formatter=format_country_option,
-            wgi_panel=wgi_data,
-        )
-    
     # Tabs for each dataset
     de_tab_weo, de_tab_fsi, de_tab_mfs, de_tab_wgi = st.tabs(["Economic (WEO)", "Banking (FSI)", "Monetary (MFS)", "Governance (WGI)"])
     
     with de_tab_weo:
-        weo_data = load_country_history(selected_country_code, 'WEO') if load_history else pd.DataFrame()
+        weo_data = load_country_history(explorer_focus_country, 'WEO') if load_history else pd.DataFrame()
         if weo_data is not None and len(weo_data) > 0:
             n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
-            st.caption(f"📊 {n_indicators} economic indicators available for {selected_country_code}")
+            st.caption(f"📊 {n_indicators} economic indicators available for {explorer_focus_country}")
             try:
-                render_time_series_deep_dive(weo_data, "WEO", selected_country_code)
+                render_time_series_deep_dive(weo_data, "WEO", explorer_focus_country)
             except Exception as e:
                 st.error(f"Chart error: {e}")
         else:
@@ -1417,12 +1526,12 @@ with tab_explorer:
         
         with fsi_tab1:
             # Load FSIC Data (Core FSI) - show ALL indicators with exact names
-            fsic_data = load_country_history(selected_country_code, 'FSIC') if load_history else pd.DataFrame()
+            fsic_data = load_country_history(explorer_focus_country, 'FSIC') if load_history else pd.DataFrame()
             
             if fsic_data is not None and len(fsic_data) > 0:
                 n_indicators = fsic_data['indicator_name'].nunique()
-                st.caption(f"📊 {n_indicators} indicators available for {selected_country_code}")
-                render_time_series_deep_dive(fsic_data, "FSIC", selected_country_code)
+                st.caption(f"📊 {n_indicators} indicators available for {explorer_focus_country}")
+                render_time_series_deep_dive(fsic_data, "FSIC", explorer_focus_country)
             else:
                 if load_history:
                     st.info("No FSIC data available for this country.")
@@ -1438,47 +1547,14 @@ with tab_explorer:
             # Load FSIBSIS Data
             try:
                 if load_fsibsis:
-                    from src.data_loader import FSIBSISLoader
-                    fsibsis_loader = FSIBSISLoader()
-                    fsibsis_loader.load()
-                    fsibsis_wide = fsibsis_loader.get_country_data(
-                        selected_country_code
-                    )
+                    fsibsis_long = load_fsibsis_country_history(explorer_focus_country)
                 else:
-                    fsibsis_wide = pd.DataFrame()
+                    fsibsis_long = pd.DataFrame()
                 
-                if fsibsis_wide is not None and len(fsibsis_wide) > 0:
-                    # Convert to long format
-                    time_cols = [
-                        c for c in fsibsis_wide.columns
-                        if c != 'INDICATOR'
-                    ]
-                    fsibsis_long = fsibsis_wide.melt(
-                        id_vars=['INDICATOR'],
-                        value_vars=time_cols,
-                        var_name='period_label',
-                        value_name='value'
-                    )
-                    fsibsis_long = fsibsis_long.dropna(subset=['value'])
-                    fsibsis_long['indicator_name'] = fsibsis_long['INDICATOR']
-                    fsibsis_long['indicator_code'] = 'FSIBSIS'
-                    from src.data_loader import parse_period_label
-                    fsibsis_long['period'] = fsibsis_long['period_label'].map(parse_period_label)
-                    fsibsis_long['country_code'] = selected_country_code
-
-                    def _fsibsis_frequency(label) -> str:
-                        text = str(label).upper()
-                        if 'Q' in text:
-                            return 'Q'
-                        if 'M' in text:
-                            return 'M'
-                        return 'A'
-
-                    fsibsis_long['frequency'] = fsibsis_long['period_label'].map(_fsibsis_frequency)
-                    
+                if fsibsis_long is not None and len(fsibsis_long) > 0:
                     n_indicators = fsibsis_long['indicator_name'].nunique()
                     st.caption(f"📊 {n_indicators} balance sheet indicators available")
-                    render_time_series_deep_dive(fsibsis_long, "FSIBSIS", selected_country_code)
+                    render_time_series_deep_dive(fsibsis_long, "FSIBSIS", explorer_focus_country)
                 else:
                     if load_fsibsis:
                         st.info("No FSIBSIS data available for this country.")
@@ -1492,11 +1568,11 @@ with tab_explorer:
     
     with de_tab_mfs:
         st.markdown("#### Monetary & Financial Statistics")
-        mfs_data = load_country_history(selected_country_code, 'MFS') if load_history else pd.DataFrame()
+        mfs_data = load_country_history(explorer_focus_country, 'MFS') if load_history else pd.DataFrame()
         if mfs_data is not None and len(mfs_data) > 0:
             n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
-            st.caption(f"📊 {n_indicators} monetary indicators available for {selected_country_code}")
-            render_time_series_deep_dive(mfs_data, "MFS", selected_country_code)
+            st.caption(f"📊 {n_indicators} monetary indicators available for {explorer_focus_country}")
+            render_time_series_deep_dive(mfs_data, "MFS", explorer_focus_country)
         else:
             if load_history:
                 st.info("No MFS data available for this country.")
@@ -1505,7 +1581,7 @@ with tab_explorer:
     
     with de_tab_wgi:
         if wgi_data is not None and len(wgi_data) > 0:
-            country_wgi = wgi_data[wgi_data['country_code'] == selected_country_code]
+            country_wgi = wgi_data[wgi_data['country_code'] == explorer_focus_country]
             if len(country_wgi) > 0:
                 # WGI data has columns: country_code, year, voice_accountability, political_stability, etc.
                 # Melt to long format for plotting

@@ -1719,3 +1719,23 @@ whether users can safely consume the improved model and dataset.
     tables after hosted Streamlit exposed duplicate auto-generated IDs in the
     raw multi-indicator loop; compile check, calculated-series tests, full
     suite (`48 passed`), and local Streamlit HTTP 200 on port 8533 passed.
+- [x] Checkpoint 13: Data Explorer scope, FSIBSIS comparison access, and UX cleanup.
+  - Pending commit: `improve data explorer scope and fsibsis tools`
+  - Scope:
+    - Moved the country selector out of the global header and into the Country
+      Profile tab so Global Summary and Methodology remain explicitly global.
+    - Added an independent Data Explorer focus-country selector used only for
+      single-country source tabs and default comparison peer seeding.
+    - Replaced the two large Data Explorer expanders with clearer analysis tabs
+      for cross-country indicator comparison and calculated series.
+    - Added FSIBSIS as a first-class source in both comparison and calculated
+      indicator tools.
+    - Added cached FSIBSIS wide-to-long conversion for annual, quarterly, and
+      monthly balance-sheet observations; the single-country FSIBSIS tab now
+      uses the same loader path as comparison/calculation tools.
+    - Made comparison/calculated country selections reset per Explorer focus
+      country to avoid stale peer selections after a country change.
+  - Verification: compile check passed; targeted FSIBSIS cache check confirmed
+    USA has 83 measures, 6,445 non-null observations, native annual/quarterly/
+    monthly periods through 2026-04-30; full suite passed (`48 passed`); local
+    Streamlit returned HTTP 200 on port 8507.
