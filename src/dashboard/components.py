@@ -532,12 +532,38 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
     # Parse period/date
     chart_data['date'] = pd.to_datetime(chart_data['period'].astype(str), errors='coerce')
     chart_data = chart_data.dropna(subset=['date', 'value']).sort_values('date')
-    
-    # Aggregate to ANNUAL data to avoid quarterly zigzag pattern
-    # Extract year and take the last (most recent) value per year
+
+    # Sources mix reporting frequencies for the same indicator, so surface
+    # one frequency at a time at its native periodicity.
+    freq_labels = {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}
+    selected_freq = None
+    if 'frequency' in chart_data.columns:
+        available_freqs = [
+            f for f in ('M', 'Q', 'A')
+            if f in set(chart_data['frequency'].dropna())
+        ]
+        if len(available_freqs) > 1:
+            selected_freq = st.radio(
+                "Periodicity",
+                available_freqs,
+                format_func=lambda f: freq_labels.get(f, f),
+                horizontal=True,
+                key=f"dd_freq_{dataset_name}_{selected_key}",
+            )
+        elif available_freqs:
+            selected_freq = available_freqs[0]
+        if selected_freq:
+            chart_data = chart_data[chart_data['frequency'] == selected_freq]
+
     if len(chart_data) > 0:
         chart_data['year'] = chart_data['date'].dt.year
-        chart_data = chart_data.groupby('year').agg({'date': 'last', 'value': 'last'}).reset_index()
+        if selected_freq is None:
+            # Frames without frequency metadata: collapse to annual to avoid
+            # mixed-frequency zigzag.
+            chart_data = chart_data.groupby('year').agg({'date': 'last', 'value': 'last'}).reset_index()
+        else:
+            # Keep native periodicity; drop duplicate observations per period.
+            chart_data = chart_data.drop_duplicates(subset='date', keep='last')
     
     # Apply Time Filter
     if len(chart_data) > 0:
@@ -580,21 +606,47 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
             # Trendline color
         )
         fig.update_traces(line_color='#60A5FA', line_width=2)
-        
+
+        # Mark where reported actuals end (WEO carries estimates/projections).
+        shows_forward_values = False
+        if 'observation_status' in chart_data.columns:
+            actual_dates = chart_data.loc[
+                chart_data['observation_status'] == 'actual', 'date'
+            ]
+            shows_forward_values = (
+                chart_data['observation_status'].isin(['estimate', 'projection']).any()
+                and len(actual_dates) > 0
+            )
+            if shows_forward_values:
+                fig.add_vline(
+                    x=actual_dates.max(), line_dash='dash', line_color='#9CA3AF'
+                )
+
         st.plotly_chart(fig, use_container_width=True)
+        if shows_forward_values:
+            st.caption(
+                "The dashed line marks the last reported actual; later values "
+                "are IMF estimates/projections."
+            )
     else:
         st.warning("No data found for this period.")
 
     # 6. Render Data Table (Pivot/Detailed)
     st.caption("Detailed Data")
-    
+
     if len(chart_data) > 0:
-        # Use 'year' column from aggregation (not 'period' which was lost during groupby)
-        display_table = chart_data[['year', 'value']].copy()
-        display_table.columns = ['Year', 'Value']
-        display_table['Value'] = display_table['Value'].apply(lambda x: f"{x:,.2f}")
-        display_table = display_table.sort_values('Year', ascending=False)
-        
+        def _period_label(ts) -> str:
+            if selected_freq == 'Q':
+                return f"{ts.year}-Q{ts.quarter}"
+            if selected_freq == 'M':
+                return ts.strftime('%Y-%m')
+            return str(ts.year)
+
+        display_table = chart_data[['date', 'value']].copy()
+        display_table['Period'] = display_table['date'].map(_period_label)
+        display_table['Value'] = display_table['value'].apply(lambda x: f"{x:,.2f}")
+        display_table = display_table.sort_values('date', ascending=False)[['Period', 'Value']]
+
         # Always display as a simple vertical table
         st.dataframe(display_table, use_container_width=True, hide_index=True)
 
