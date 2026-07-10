@@ -1,18 +1,15 @@
+# Serving dependencies for the Streamlit app only.
+# Streamlit Community Cloud ignores runtime.txt and builds with its current
+# default Python (3.13/3.14), so every range below must have binary wheels
+# for Python 3.11 through 3.14. Training-only dependencies live in
+# requirements-dev.txt.
 streamlit>=1.45,<1.60
 requests>=2.31,<3
 pandas>=2.2,<3
-numpy>=1.26,<2
-scikit-learn==1.5.2
-imbalanced-learn==0.14.0
+numpy>=1.26,<3
+scikit-learn>=1.5,<2
 plotly>=6.1.1,<7
-pyarrow>=14,<25
+pyarrow>=14,<30
 openpyxl>=3.1,<4
-scipy>=1.11,<1.17
-reportlab>=4,<5
-kaleido>=1.2,<2
-hdbscan>=0.8.33,<0.9
-xgboost==2.1.1
-shap==0.49.1
-matplotlib>=3.8,<4
+scipy>=1.11,<2
 pycountry-convert==0.7.2
-seaborn>=0.13,<0.14
