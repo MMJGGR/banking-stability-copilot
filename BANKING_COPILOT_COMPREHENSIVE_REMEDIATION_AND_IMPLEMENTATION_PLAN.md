@@ -68,9 +68,18 @@ Checkpoint evidence:
   WEO through 2025-12-31, FSIC through 2026-04-30, MFS through 2026-05-31,
   FSIBSIS through 2026-M04, and WGI through 2024-12-31.
 
-Remaining work is tracked in the delivery plan and immediate next actions below.
+Current open issues are tracked only in section 21.5, **Current Open Issues
+Backlog**. Earlier issue-register tables are retained as an audit trail of
+identified findings that have either been fixed, superseded, or explicitly
+carried forward into section 21.5.
 
-## 2. Comprehensive Issue Register
+## 2. Historical Issue Register (Cleared, Superseded, or Carried Forward)
+
+This section is not the current open backlog. It records the original findings
+that drove the remediation work. Items that remain unresolved after the latest
+checkpoints are repeated in section 21.5 with current priority and next action.
+Items not repeated in section 21.5 should be treated as cleared, superseded, or
+historical context.
 
 ### 2.1 Immediate Code and Runtime Defects
 
@@ -1249,10 +1258,12 @@ For a small team, one person may hold multiple roles, but production publication
 - Product naming and functionality are aligned.
 - Model, data, application, and operational limitations are documented.
 
-## 21. Immediate Next Actions
+## 21. Delivery Action Tracker and Current Backlog
 
-Work is executed in this priority order. A checked item has been implemented and
-locally verified; it does not imply that a candidate model has been approved for
+This section records work execution history and the current backlog. The
+checkbox lists below are delivery history; section 21.5 is the authoritative
+current open-issues list. A checked item has been implemented and locally
+verified; it does not imply that a candidate model has been approved for
 production.
 
 1. [x] Fix the critical classifier and application defects.
@@ -1481,7 +1492,9 @@ artifacts requires owner review under items 4, 8, and 11.
 
 This section is the current working backlog. Older issue-register items above
 remain useful history, but this table reflects what is still open after the
-latest `master` checkpoints through `improve methodology cards`.
+latest `master` checkpoints through `improve methodology cards`. If an older
+unchecked action or historical issue is not listed here, do not treat it as a
+current open issue without re-triage.
 
 #### 21.5.1 Production Approval and Governance
 
