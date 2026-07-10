@@ -10,6 +10,31 @@ python -m src.scripts.audit_model_policy
 streamlit run app.py
 ```
 
+## Fetch External-Liquidity Sources (BOP, IIP, IRFCL, CPIS, CDIS, FM, GFS, QEDS)
+
+Preferred route (api.imf.org must be reachable, which it is from GitHub
+Actions):
+
+```text
+Actions → Fetch external-liquidity source data → Run workflow
+```
+
+The workflow discovers each family's dataflow ID and key structure, fetches
+and normalizes observations, and uploads `external_sources_discovery.json`,
+`external_sources_report.json`, and `cache/external/*.parquet` as run
+artifacts for review. Nothing is committed automatically.
+
+After the first successful run, commit the downloaded
+`config/external_sources_discovery.json` through a reviewed PR so the
+discovered key structures are persisted in configuration (plan section 9.5).
+
+Local equivalent:
+
+```bash
+python -m src.scripts.discover_external_sources
+python -m src.scripts.fetch_external_sources --start-period 2005
+```
+
 ## Check Official Source Availability
 
 ```bash

@@ -1717,11 +1717,23 @@ Additional backlog closures in the continuation:
 
 Items that remain open and why they cannot be closed from this environment:
 
-- **Ranks 5-14 (external-liquidity data block):** `api.imf.org` is
-  unreachable through this session's egress proxy (connection blocked), so
-  BOP/IIP/IRFCL/PIP/CPIS/Fiscal Monitor/GFS retrieval, normalization, and
-  feature engineering must run where the official API is reachable (owner
-  machine or GitHub Actions).
+- **Ranks 5-14 (external-liquidity data block) — STAGED (retrieval layer
+  shipped 2026-07-10; first Actions run pending).** `api.imf.org` is
+  unreachable through the development session's egress proxy, so the
+  retrieval layer was built to run on GitHub Actions instead:
+  `discover_external_sources.py` probes candidate dataflow IDs for BOP, IIP,
+  IRFCL, CPIS, CDIS, Fiscal Monitor, GFS, and QEDS against the SDMX structure
+  endpoint and records versions and key structures;
+  `fetch_external_sources.py` downloads resolved flows through the existing
+  chunk-safe SDMX client and normalizes them into generic observation
+  Parquets; the `external-data.yml` workflow (monthly + manual dispatch)
+  runs both and uploads candidate caches as reviewed artifacts, never
+  committing. Both scripts are fixture-tested. Remaining after the first
+  successful run: commit the discovered key structures to
+  `config/external_sources_discovery.json` via PR, then build the
+  external-liquidity features themselves (debt-service ratios, gross
+  external financing needs, reserves adequacy, portfolio flows) from the
+  staged caches — that feature engineering is ranks 6-14's remaining scope.
 - **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
   external benchmark):** owner methodology decisions plus (for 18) licensed
   or external outcome data.
