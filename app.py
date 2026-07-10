@@ -349,6 +349,246 @@ def render_indicator_comparison(
     )
 
 
+def _display_value(value, integer: bool = False) -> str:
+    """Format card values without leaking None/NaN into the UI."""
+    if value is None:
+        return "—"
+    try:
+        if pd.isna(value):
+            return "—"
+    except (TypeError, ValueError):
+        pass
+    if integer:
+        try:
+            return f"{int(value):,}"
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
+def _source_role(source_name: str) -> str:
+    roles = {
+        "WEO": "Macro, fiscal, GDP and external-balance baseline",
+        "FSIC": "Core banking soundness ratios",
+        "MFS": "Monetary, credit and banking balance-sheet aggregates",
+        "FSIBSIS": "Detailed bank balance-sheet and income-statement measures",
+        "WGI": "Governance and institutional-quality scores",
+    }
+    return roles.get(source_name, "Supporting source")
+
+
+def render_model_card_summary(
+    scores: pd.DataFrame,
+    features: pd.DataFrame | None,
+    manifest: dict,
+    pca: dict | None,
+):
+    """Render a UI-native model card instead of dumping repository Markdown."""
+    snapshot_id = manifest.get("snapshot_id", "unversioned")
+    status = str(manifest.get("snapshot_status", "not recorded")).replace("_", " ").title()
+    training_date = (pca or {}).get("training_date") or manifest.get("model", {}).get("training_date")
+
+    st.markdown("### Model Card")
+    st.caption("Plain-English summary of the active scoring artifact shown in this app.")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Score Scale", "1–10", help="1 is lower relative risk; 10 is higher relative risk.")
+    c2.metric("Countries Scored", f"{len(scores):,}")
+    c3.metric("Snapshot", _display_value(snapshot_id))
+    c4.metric("Status", status)
+    st.caption(f"Training timestamp: {_display_value(training_date)}")
+
+    st.markdown("#### Intended Use")
+    use_col, no_use_col = st.columns(2)
+    with use_col:
+        st.markdown(
+            """
+Good uses:
+
+- Cross-country banking-system risk screening.
+- Peer comparison and watchlist prioritization.
+- Finding data gaps and countries needing analyst review.
+"""
+        )
+    with no_use_col:
+        st.markdown(
+            """
+Do not use for:
+
+- Automatic investment, lending, or supervisory decisions.
+- Institution-level solvency calls.
+- Precise crisis timing or causal claims.
+"""
+        )
+
+    st.markdown("#### Current Score Construction")
+    structure_rows = [
+        {
+            "Component": "Economic pillar",
+            "Current role": "50% of pillar score",
+            "What it captures": "Macro conditions, fiscal position, monetary/reserve proxies and governance inputs.",
+        },
+        {
+            "Component": "Banking / industry pillar",
+            "Current role": "50% of pillar score",
+            "What it captures": "Capital, asset quality, liquidity, profitability, concentration and sovereign-bank nexus inputs.",
+        },
+        {
+            "Component": "Crisis classifier",
+            "Current role": "10% final-score blend",
+            "What it captures": "Forward-looking three-year systemic-banking-crisis signal from historical crisis labels.",
+        },
+        {
+            "Component": "Coverage policy",
+            "Current role": "Confidence weighting and floors",
+            "What it captures": "Limits overconfidence where inputs are sparse or heavily imputed.",
+        },
+    ]
+    st.dataframe(pd.DataFrame(structure_rows), use_container_width=True, hide_index=True)
+
+    with st.expander("Model limitations and review flags", expanded=True):
+        limitations = [
+            {
+                "Issue": "Relative ranking",
+                "Why it matters": "Pillar scores are percentiles within the current country universe, so rankings can move when the universe or source coverage changes.",
+                "Status": "Disclose in app",
+            },
+            {
+                "Issue": "PCA orientation",
+                "Why it matters": "Unsupervised PCA can learn statistically strong but economically weak signs for some variables.",
+                "Status": "Needs constrained/directional scoring review",
+            },
+            {
+                "Issue": "Crisis overlay",
+                "Why it matters": "The current 90/10 blend is not a literal probability and should not be described as a direct additive penalty.",
+                "Status": "Needs formula review before formal approval",
+            },
+            {
+                "Issue": "External liquidity gap",
+                "Why it matters": "Debt service burden, gross external financing needs, current-account receipts, reserves adequacy and portfolio-flow stress are not yet fully modeled.",
+                "Status": "Priority enhancement candidate",
+            },
+            {
+                "Issue": "Imputation sensitivity",
+                "Why it matters": "Countries with missing banking or external data can be materially affected by KNN imputation.",
+                "Status": "Show coverage and missing fields",
+            },
+        ]
+        st.dataframe(pd.DataFrame(limitations), use_container_width=True, hide_index=True)
+
+    st.markdown("#### Release Governance")
+    st.info(
+        "The artifact is manifest-verified for serving. Formal production approval still requires "
+        "grouped/out-of-time validation, material score-movement review, challenger comparison, "
+        "and named approval with rollback artifacts."
+    )
+
+
+def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
+    """Render a UI-native data card focused on source quality and model gaps."""
+    st.markdown("### Data Card")
+    st.caption("Current source inventory, freshness, coverage, and priority data gaps.")
+
+    source_mode = str(manifest.get("source_mode", "not recorded")).replace("_", " ")
+    sources = manifest.get("sources", {})
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Source Mode", source_mode)
+    c2.metric("Active Sources", f"{len(sources):,}")
+    c3.metric("Snapshot Cutoff", _display_value(manifest.get("as_of_date") or manifest.get("snapshot_id")))
+
+    source_rows = []
+    for source_name, details in sorted(sources.items()):
+        source_rows.append(
+            {
+                "Source": source_name,
+                "Role": _source_role(source_name),
+                "Rows": _display_value(details.get("rows"), integer=True),
+                "Countries": _display_value(details.get("countries"), integer=True),
+                "Indicators / Measures": _display_value(details.get("indicators"), integer=True),
+                "Latest Observation": _display_value(details.get("latest_observation")),
+                "Count Basis": details.get("indicator_basis", "unique indicator codes"),
+            }
+        )
+    if source_rows:
+        st.markdown("#### Active Sources")
+        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
+
+    st.markdown("#### Snapshot Rules")
+    st.markdown(
+        """
+- The model scores one country-level cross-section per snapshot.
+- For each country and indicator, feature engineering uses the latest observation allowed by the cutoff.
+- Historical monthly, quarterly and annual histories remain available in the Data Explorer.
+- Estimates, projections, carried-forward values and imputations must not be silently presented as actuals.
+"""
+    )
+
+    st.markdown("#### Coverage Watchlist")
+    if features is not None and len(features) > 0:
+        feature_cols = [
+            c for c in features.columns
+            if c != "country_code"
+            and not c.endswith("_year")
+            and not c.endswith("_period")
+            and c != "crisis_prob"
+        ]
+        coverage = []
+        for column in feature_cols:
+            coverage.append(
+                {
+                    "Feature": column,
+                    "Direct Coverage": f"{features[column].notna().mean():.0%}",
+                    "Countries": int(features[column].notna().sum()),
+                }
+            )
+        coverage_df = (
+            pd.DataFrame(coverage)
+            .assign(_coverage=lambda df: df["Direct Coverage"].str.rstrip("%").astype(int))
+            .sort_values(["_coverage", "Feature"])
+            .drop(columns="_coverage")
+            .head(12)
+        )
+        st.dataframe(coverage_df, use_container_width=True, hide_index=True)
+        st.caption("Lowest direct-coverage model/input features. Imputed values may still exist downstream.")
+    else:
+        st.info("Feature artifact is unavailable, so coverage cannot be summarized.")
+
+    st.markdown("#### Priority Missing Data Families")
+    gap_rows = [
+        {
+            "Gap": "Debt service burden",
+            "Why it matters": "Debt affordability and refinancing stress.",
+            "Likely source": "IMF BOP / World Bank IDS / QEDS / GFS",
+            "Current status": "Not fully modeled",
+        },
+        {
+            "Gap": "Gross external financing needs",
+            "Why it matters": "Core external-liquidity pressure measure.",
+            "Likely source": "BOP + IIP/external debt + reserves",
+            "Current status": "Needs computed feature",
+        },
+        {
+            "Gap": "Current account receipts and payments",
+            "Why it matters": "Denominator for external debt-service and financing-need ratios.",
+            "Likely source": "IMF BOP",
+            "Current status": "Not in current cache stack",
+        },
+        {
+            "Gap": "International reserves adequacy",
+            "Why it matters": "Shock buffer against FX liquidity stress.",
+            "Likely source": "IMF IRFCL / MFS / BOP",
+            "Current status": "Partially proxied only",
+        },
+        {
+            "Gap": "Portfolio flows and external liabilities",
+            "Why it matters": "Market-access and fickle-capital risk.",
+            "Likely source": "IMF BOP, IIP, PIP/CPIS",
+            "Current status": "Not fully modeled",
+        },
+    ]
+    st.dataframe(pd.DataFrame(gap_rows), use_container_width=True, hide_index=True)
+
+
 def render_current_methodology(
     scores: pd.DataFrame,
     features: pd.DataFrame | None,
@@ -454,21 +694,11 @@ promotion remain separate governance steps.
 """
     )
 
-    with st.expander("Model Card"):
-        model_card = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "MODEL_CARD.md")
-        if os.path.exists(model_card):
-            with open(model_card, "r", encoding="utf-8") as source:
-                st.markdown(source.read())
-        else:
-            st.info("Model card not found.")
-
-    with st.expander("Data Card"):
-        data_card = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs", "DATA_CARD.md")
-        if os.path.exists(data_card):
-            with open(data_card, "r", encoding="utf-8") as source:
-                st.markdown(source.read())
-        else:
-            st.info("Data card not found.")
+    card_tab_model, card_tab_data = st.tabs(["Model Card", "Data Card"])
+    with card_tab_model:
+        render_model_card_summary(scores, features, manifest, pca)
+    with card_tab_data:
+        render_data_card_summary(features, manifest)
 
 
 scores_df, loader, wgi_data, model_features, pca_info = load_all_data()

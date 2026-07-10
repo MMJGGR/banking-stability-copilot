@@ -1604,3 +1604,16 @@ artifacts requires owner review under items 4, 8, and 11.
       while adding the corrected counts.
   - Verification: active manifest now reports FSIBSIS 289 measures and WGI
     6 governance indicators; compile check passed; `42 passed`.
+- [x] Checkpoint 11: Methodology model/data card display cleanup.
+  - Pending commit: `improve methodology cards`
+  - Scope:
+    - Replaced raw `docs/MODEL_CARD.md` and `docs/DATA_CARD.md` dumps in the
+      Streamlit Methodology tab with purpose-built UI cards.
+    - Added a concise Model Card covering intended use, score construction,
+      limitations, open review flags, and release governance.
+    - Added a concise Data Card covering active source roles, source freshness,
+      snapshot rules, direct-coverage watchlist, and priority missing data
+      families such as debt-service burden, gross external financing needs,
+      current-account receipts, reserves adequacy, and portfolio flows.
+  - Verification: compile check passed; `42 passed`; local Streamlit returned
+    HTTP 200 on port 8531 with no stderr.
