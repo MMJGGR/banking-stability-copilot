@@ -2044,3 +2044,14 @@ Items that remain open and why they cannot be closed from this environment:
     src/crisis_labels.py src/feature_engineering.py` passed; full test suite
     passed (`79 passed`, `1 skipped`); local Streamlit startup check returned
     HTTP 200 on port 8564.
+- [x] Checkpoint 20: Menu spacing and regional chart cleanup.
+  - Pending commit: `fix menu spacing and regional chart legend`
+  - Scope:
+    - Restored sufficient top padding so Streamlit's toolbar no longer clips
+      the primary tab/menu row after the headline removal.
+    - Replaced the regional risk bar chart's continuous colorbar with fixed
+      risk-band bar colors and no legend.
+  - Verification: `python -m py_compile src/dashboard/global_view.py
+    src/dashboard/styles.py app.py` passed; full test suite passed
+    (`79 passed`, `1 skipped`); local Streamlit startup check returned HTTP
+    200 on port 8565.

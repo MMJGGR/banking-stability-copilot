@@ -196,17 +196,33 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
             region_stats.append({'Region': reg, 'Weighted Risk': w_score, 'Countries': len(reg_df)})
             
         reg_summary = pd.DataFrame(region_stats).sort_values('Weighted Risk', ascending=False)
-        
-        fig_bar = px.bar(
-            reg_summary,
-            x='Region',
-            y='Weighted Risk',
-            color='Weighted Risk',
-            color_continuous_scale='RdYlGn_r',
-            range_color=[1, 10],
-            text_auto='.1f'
+
+        def risk_color(value: float) -> str:
+            if value >= 7:
+                return "#B91C1C"
+            if value >= 5:
+                return "#F59E0B"
+            if value >= 3:
+                return "#A3E635"
+            return "#16A34A"
+
+        fig_bar = go.Figure(
+            go.Bar(
+                x=reg_summary['Region'],
+                y=reg_summary['Weighted Risk'],
+                marker_color=[risk_color(v) for v in reg_summary['Weighted Risk']],
+                text=reg_summary['Weighted Risk'].map(lambda v: f"{v:.1f}"),
+                textposition="inside",
+                cliponaxis=False,
+            )
         )
-        fig_bar.update_layout(xaxis_title="", yaxis_title="Weighted Risk Score")
+        fig_bar.update_layout(
+            xaxis_title="",
+            yaxis_title="Weighted Risk Score",
+            showlegend=False,
+            margin={"r": 10, "t": 10, "l": 10, "b": 10},
+            yaxis=dict(range=[0, 10]),
+        )
         st.plotly_chart(fig_bar, use_container_width=True, theme="streamlit")
         
     with col_right:
