@@ -61,9 +61,9 @@ STYLES = """
         --bankenv-main-stroke: #E5E7EB;
         --bankenv-muted-stroke: #94A3B8;
         --bankenv-accent-stroke: #38BDF8;
-        width: 32px;
-        height: 32px;
-        border-radius: 9px;
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
         background: var(--bankenv-tile-bg);
         display: inline-flex;
         align-items: center;
@@ -83,8 +83,8 @@ STYLES = """
     }
 
     .bankenv-brand-mark svg {
-        width: 24px;
-        height: 24px;
+        width: 32px;
+        height: 32px;
         display: block;
     }
 
@@ -100,13 +100,9 @@ STYLES = """
         stroke: var(--bankenv-accent-stroke);
     }
 
-    .bankenv-roof-dot {
-        fill: var(--bankenv-tile-bg);
-    }
-
     .bankenv-brand-name {
         color: var(--text-color);
-        font-size: 1.05rem;
+        font-size: 1.2rem;
         font-weight: 650;
         letter-spacing: -0.01em;
     }
