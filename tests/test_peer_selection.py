@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.utils import find_peers
+from src.utils import driver_metric_value, find_peers
 
 
 def test_peer_selection_uses_scale_and_income_not_only_pillars():
@@ -72,3 +72,26 @@ def test_peer_selection_uses_scale_and_income_not_only_pillars():
     assert "SML" not in peers["country_code"].tolist()
     assert set(peers["country_code"]).issubset({"GBR", "FRA", "DEU", "JPN"})
     assert "peer_basis" in peers.columns
+
+
+def test_driver_metric_value_derives_legacy_missingness_metrics():
+    class Pipeline:
+        critical_missing_max_penalty = 1.5
+
+    drivers = [
+        {"is_critical": True, "is_imputed": True},
+        {"is_critical": True, "is_imputed": False},
+        {"is_critical": False, "is_imputed": True},
+    ]
+    score_row = pd.Series(dtype=float)
+
+    assert driver_metric_value({}, score_row, "critical_missing_share", drivers, Pipeline()) == 0.5
+    assert driver_metric_value({}, score_row, "critical_penalty", drivers, Pipeline()) == 0.75
+    assert driver_metric_value({}, score_row, "crisis_uplift", drivers, Pipeline()) == 0.0
+
+
+def test_driver_metric_value_prefers_artifact_value_when_available():
+    score_row = pd.Series({"critical_penalty": 0.25})
+
+    assert driver_metric_value({}, score_row, "critical_penalty") == 0.25
+    assert driver_metric_value({"critical_penalty": 0.5}, score_row, "critical_penalty") == 0.5

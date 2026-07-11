@@ -63,7 +63,7 @@ from src.dashboard.calculated_series import (
     restrict_frequency,
 )
 from src.dashboard.global_view import render_global_summary
-from src.utils import find_peers
+from src.utils import driver_metric_value, find_peers
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1131,23 +1131,6 @@ def _format_numeric(value) -> str:
         return "—"
 
 
-def _driver_metric_value(summary: dict, score_row: pd.Series, column: str):
-    """Return a Score Drivers metric from summary, falling back to score row."""
-    value = summary.get(column) if isinstance(summary, dict) else None
-    try:
-        missing = value is None or pd.isna(value)
-    except (TypeError, ValueError):
-        missing = value is None
-    if missing and column in score_row.index:
-        value = score_row.get(column)
-    try:
-        if value is None or pd.isna(value):
-            return None
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def render_external_model_inputs(
     selected_country: str,
     model_features: pd.DataFrame | None,
@@ -2104,25 +2087,29 @@ with tab_profile:
                 st.info(payload['error'])
             else:
                 summary = payload.get('summary', {})
+                drivers = payload.get("drivers", [])
                 sc1, sc2, sc3 = st.columns(3)
-                crisis_uplift = _driver_metric_value(
-                    summary, country_score_row, 'crisis_uplift'
+                crisis_uplift = driver_metric_value(
+                    summary, country_score_row, 'crisis_uplift',
+                    drivers=drivers, pipeline=driver_pipeline,
                 )
                 sc1.metric(
                     "Crisis Uplift",
                     "n/a" if crisis_uplift is None else f"+{crisis_uplift:.2f}",
                     help="Upward-only classifier overlay added to the pillar score.",
                 )
-                critical_missing = _driver_metric_value(
-                    summary, country_score_row, 'critical_missing_share'
+                critical_missing = driver_metric_value(
+                    summary, country_score_row, 'critical_missing_share',
+                    drivers=drivers, pipeline=driver_pipeline,
                 )
                 sc2.metric(
                     "Critical Fields Missing",
                     "n/a" if critical_missing is None else f"{critical_missing:.0%}",
                     help="Share of core banking soundness fields that had to be imputed.",
                 )
-                critical_penalty = _driver_metric_value(
-                    summary, country_score_row, 'critical_penalty'
+                critical_penalty = driver_metric_value(
+                    summary, country_score_row, 'critical_penalty',
+                    drivers=drivers, pipeline=driver_pipeline,
                 )
                 sc3.metric(
                     "Missingness Penalty",
@@ -2146,7 +2133,7 @@ with tab_profile:
                             else float(driver["peer_percentile_raw"])
                         ),
                     }
-                    for driver in payload.get("drivers", [])
+                    for driver in drivers
                 ]
                 st.dataframe(
                     pd.DataFrame(driver_rows),

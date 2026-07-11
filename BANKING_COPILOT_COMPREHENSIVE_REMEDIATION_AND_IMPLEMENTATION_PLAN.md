@@ -2216,6 +2216,21 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py` passed; full test suite
     passed (`91 passed`, `1 skipped`); local Streamlit startup check returned
     HTTP 200 on port 8577.
+- [x] Checkpoint 30: Legacy-artifact score-driver fallback.
+  - Pending commit: `derive legacy score driver metrics`
+  - Scope:
+    - Live mobile screenshot showed the Score Drivers table populated but the
+      three summary metrics displayed `n/a`, indicating the hosted app was
+      still serving or falling back to an artifact whose `country_scores` did
+      not carry the newer summary columns.
+    - Added tested fallback logic that derives critical-field missing share and
+      missingness penalty directly from the driver rows and fitted pipeline
+      when the artifact lacks explicit fields.
+    - Crisis uplift now defaults to `+0.00` for legacy artifacts without an
+      explicit additive-uplift field.
+  - Verification: `python -m py_compile app.py src/utils.py` passed; full test
+    suite passed (`93 passed`, `1 skipped`); local Streamlit startup check
+    returned HTTP 200 on port 8578.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`

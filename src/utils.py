@@ -200,3 +200,49 @@ def _numeric_scalar(value) -> float | None:
     if not np.isfinite(numeric) or numeric <= 0:
         return None
     return numeric
+
+
+def driver_metric_value(
+    summary: dict,
+    score_row: pd.Series,
+    column: str,
+    drivers: list[dict] | None = None,
+    pipeline=None,
+) -> float | None:
+    """Return Score Drivers summary metrics with legacy-artifact fallbacks."""
+    value = summary.get(column) if isinstance(summary, dict) else None
+    try:
+        missing = value is None or pd.isna(value)
+    except (TypeError, ValueError):
+        missing = value is None
+    if missing and column in score_row.index:
+        value = score_row.get(column)
+    try:
+        if value is None or pd.isna(value):
+            raise ValueError("missing")
+        return float(value)
+    except (TypeError, ValueError):
+        pass
+
+    drivers = drivers or []
+    if column in {"critical_missing_share", "critical_penalty"}:
+        critical_drivers = [
+            driver for driver in drivers
+            if driver.get("is_critical")
+        ]
+        if critical_drivers:
+            missing_share = sum(
+                1 for driver in critical_drivers
+                if driver.get("is_imputed")
+            ) / len(critical_drivers)
+        else:
+            missing_share = 0.0
+        if column == "critical_missing_share":
+            return float(missing_share)
+        max_penalty = getattr(pipeline, "critical_missing_max_penalty", 0.0)
+        return float(missing_share * max_penalty)
+
+    if column == "crisis_uplift":
+        return 0.0
+
+    return None
