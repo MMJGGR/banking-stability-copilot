@@ -98,6 +98,19 @@ EXTERNAL_SERIES_SPECS: tuple[ExternalSeriesSpec, ...] = (
         "{countries}.NNAFANIL_T.P_F.USD.A",
         "Portfolio investment net flows, USD",
     ),
+    # Direct-investment flows (functional category D_F) mirror the portfolio
+    # specs above (P_F). FDI is the stable-financing counterpart to fickle
+    # portfolio capital (backlog rank 19).
+    ExternalSeriesSpec(
+        "fdi_liability_flows_usd", "BOP", "IMF.STA", "BOP",
+        "{countries}.L_NIL_T.D_F.USD.A",
+        "Direct investment liabilities, net incurrence, USD",
+    ),
+    ExternalSeriesSpec(
+        "fdi_net_flows_usd", "BOP", "IMF.STA", "BOP",
+        "{countries}.NNAFANIL_T.D_F.USD.A",
+        "Direct investment net flows, USD",
+    ),
     ExternalSeriesSpec(
         "direct_investment_income_debits_usd", "BOP", "IMF.STA", "BOP",
         "{countries}.DB_T.D_F_D4P.USD.A",
@@ -185,6 +198,39 @@ WORLD_BANK_SERIES_SPECS: tuple[WorldBankSeriesSpec, ...] = (
         "wb_government_revenue_ex_grants_gdp_pct",
         "GC.REV.XGRT.GD.ZS",
         "Central government revenue excluding grants, percent of GDP",
+    ),
+    # Market / external stress inputs (backlog ranks 20-21). Terms of trade and
+    # merchandise export composition proxy commodity/export-concentration
+    # exposure; the real effective exchange rate proxies valuation stress.
+    WorldBankSeriesSpec(
+        "wb_terms_of_trade_index",
+        "TT.PRI.MRCH.XD.WD",
+        "Net barter terms of trade index (2015 = 100)",
+    ),
+    WorldBankSeriesSpec(
+        "wb_fuel_exports_pct",
+        "TX.VAL.FUEL.ZS.UN",
+        "Fuel exports, percent of merchandise exports",
+    ),
+    WorldBankSeriesSpec(
+        "wb_ores_metals_exports_pct",
+        "TX.VAL.MMTL.ZS.UN",
+        "Ores and metals exports, percent of merchandise exports",
+    ),
+    WorldBankSeriesSpec(
+        "wb_agri_raw_exports_pct",
+        "TX.VAL.AGRI.ZS.UN",
+        "Agricultural raw materials exports, percent of merchandise exports",
+    ),
+    WorldBankSeriesSpec(
+        "wb_food_exports_pct",
+        "TX.VAL.FOOD.ZS.UN",
+        "Food exports, percent of merchandise exports",
+    ),
+    WorldBankSeriesSpec(
+        "wb_reer_index",
+        "PX.REX.REER",
+        "Real effective exchange rate index (2010 = 100)",
     ),
 )
 
@@ -381,6 +427,44 @@ def latest_feature_matrix(observations: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def reer_appreciation_gap(
+    observations: pd.DataFrame,
+    feature_key: str = "wb_reer_index",
+    window: int = 5,
+) -> pd.DataFrame:
+    """Latest REER vs its trailing mean, as a percentage gap, per country.
+
+    A positive gap means the real effective exchange rate is above its recent
+    average (real appreciation / competitiveness and valuation stress).
+    """
+    empty = pd.DataFrame(columns=["country_code", "reer_appreciation_5y_pct"])
+    if observations is None or observations.empty:
+        return empty
+    reer = observations[observations["feature_key"] == feature_key].copy()
+    if reer.empty:
+        return empty
+    reer = reer.sort_values("period")
+    rows = []
+    for country, group in reer.groupby("country_code"):
+        values = pd.to_numeric(group["value"], errors="coerce").dropna()
+        if len(values) < 2:
+            continue
+        latest = float(values.iloc[-1])
+        prior = values.iloc[-(window + 1):-1]
+        if prior.empty:
+            continue
+        baseline = float(prior.mean())
+        if baseline == 0:
+            continue
+        rows.append({
+            "country_code": country,
+            "reer_appreciation_5y_pct": (latest / baseline - 1.0) * 100.0,
+        })
+    if not rows:
+        return empty
+    return pd.DataFrame(rows)
+
+
 def safe_ratio(numerator: pd.Series, denominator: pd.Series, scale: float = 100.0) -> pd.Series:
     if numerator is None:
         return pd.Series(pd.NA, index=denominator.index, dtype="Float64")
@@ -435,6 +519,39 @@ def build_external_liquidity_features(
     derived["portfolio_liabilities_gdp"] = safe_ratio(col("portfolio_liabilities_usd"), gdp)
     derived["portfolio_liability_flows_gdp"] = safe_ratio(col("portfolio_liability_flows_usd"), gdp)
     derived["portfolio_net_flows_gdp"] = safe_ratio(col("portfolio_net_flows_usd"), gdp)
+
+    # FDI flow stability (rank 19): FDI is the stable-financing counterpart to
+    # fickle portfolio capital.
+    fdi_liab_flows = col("fdi_liability_flows_usd")
+    portfolio_liab_flows = col("portfolio_liability_flows_usd")
+    derived["fdi_liability_flows_gdp"] = safe_ratio(fdi_liab_flows, gdp)
+    derived["fdi_net_flows_gdp"] = safe_ratio(col("fdi_net_flows_usd"), gdp)
+    # Share of gross inward financing that is FDI rather than portfolio capital.
+    inward_financing = fdi_liab_flows.abs() + portfolio_liab_flows.abs()
+    derived["stable_financing_share"] = safe_ratio(fdi_liab_flows.abs(), inward_financing)
+
+    # Terms of trade and export-concentration / commodity dependence (rank 20).
+    derived["terms_of_trade_index"] = col("wb_terms_of_trade_index")
+    commodity_components = pd.concat(
+        [
+            col("wb_fuel_exports_pct"),
+            col("wb_ores_metals_exports_pct"),
+            col("wb_agri_raw_exports_pct"),
+            col("wb_food_exports_pct"),
+        ],
+        axis=1,
+    )
+    commodity_share = commodity_components.sum(axis=1, min_count=1)
+    derived["commodity_export_share_pct"] = commodity_share.clip(upper=100)
+
+    # Real effective exchange-rate valuation stress (rank 21).
+    derived["reer_index"] = col("wb_reer_index")
+    reer_gap = reer_appreciation_gap(observations)
+    if not reer_gap.empty:
+        gap_by_country = reer_gap.set_index("country_code")["reer_appreciation_5y_pct"]
+        derived["reer_appreciation_5y_pct"] = derived["country_code"].map(gap_by_country)
+    else:
+        derived["reer_appreciation_5y_pct"] = pd.Series(pd.NA, index=derived.index, dtype="Float64")
     derived["wb_total_external_debt_service_exports_pct"] = col(
         "wb_total_external_debt_service_exports_pct"
     )
@@ -530,6 +647,10 @@ def build_external_liquidity_features(
             "wb_public_financing_need_ext_debt_service_proxy_gdp is a fiscal/debt-service stress proxy: fiscal deficit plus public-and-publicly-guaranteed external debt service over GDP; it is not a classic gross financing need measure because debt service includes interest.",
             "wb_total_external_debt_service_revenue_proxy and wb_ppg_external_debt_service_revenue_proxy combine WB debt-service USD with WB revenue/GDP and model nominal GDP.",
             "investment_income_debits_to_cxr is a broad external-income-service proxy, not contractual debt service.",
+            "stable_financing_share is FDI liability flows over gross inward financing (|FDI| + |portfolio| liability flows); it measures how much external financing is stable FDI rather than fickle portfolio capital.",
+            "commodity_export_share_pct sums World Bank fuel, ores/metals, agricultural-raw, and food merchandise-export shares as an export-concentration / commodity-dependence proxy (capped at 100).",
+            "terms_of_trade_index (WB, 2015=100) and reer_index (WB real effective exchange rate, 2010=100) are levels; reer_appreciation_5y_pct is the latest REER versus its trailing five-year mean (positive = real appreciation / valuation stress).",
+            "Equity-price and property-price stress remain uncovered: no reliable public API series is wired yet (BIS/IMF/OECD/national coverage is a follow-up).",
             "QEDS/CPIS/CDIS and principal-only amortization remain separate source-family gaps pending usable current API coverage.",
         ],
     }

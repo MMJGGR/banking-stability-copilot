@@ -7,6 +7,7 @@ from src.external_liquidity import (
     build_external_liquidity_features,
     normalize_feature_csv,
     normalize_world_bank_records,
+    reer_appreciation_gap,
 )
 
 
@@ -80,6 +81,87 @@ def test_build_external_liquidity_features_computes_core_ratios():
     assert ken["wb_government_interest_payments_revenue_pct"] == pytest.approx(15.0)
     assert report["feature_coverage"]["current_account_receipts_gdp"]["countries"] == 1
     assert report["feature_coverage"]["current_account_receipts_gdp"]["pct_model_countries"] == 50.0
+
+
+def test_build_external_liquidity_features_computes_market_and_fdi_features():
+    observations = pd.DataFrame(
+        [
+            ("KEN", "fdi_liability_flows_usd", "2025", 30.0),
+            ("KEN", "portfolio_liability_flows_usd", "2025", 10.0),
+            ("KEN", "fdi_net_flows_usd", "2025", 25.0),
+            ("KEN", "wb_terms_of_trade_index", "2025", 95.0),
+            ("KEN", "wb_fuel_exports_pct", "2025", 5.0),
+            ("KEN", "wb_ores_metals_exports_pct", "2025", 10.0),
+            ("KEN", "wb_agri_raw_exports_pct", "2025", 20.0),
+            ("KEN", "wb_food_exports_pct", "2025", 30.0),
+            ("KEN", "wb_reer_index", "2025", 110.0),
+        ],
+        columns=["country_code", "feature_key", "period_label", "value"],
+    )
+    observations["source"] = "BOP"
+    observations["feature_label"] = observations["feature_key"]
+    observations["quality"] = "observed"
+    observations["dataset_version"] = "test"
+    observations["period"] = pd.to_datetime(observations["period_label"] + "-12-31")
+    model_features = pd.DataFrame(
+        {"country_code": ["KEN"], "nominal_gdp": [100.0]}
+    )
+
+    features, _ = build_external_liquidity_features(observations, model_features)
+    ken = features.set_index("country_code").loc["KEN"]
+
+    assert ken["fdi_liability_flows_gdp"] == pytest.approx(30.0)
+    # stable financing share = |FDI| / (|FDI| + |portfolio|) = 30 / 40 * 100 = 75
+    assert ken["stable_financing_share"] == pytest.approx(75.0)
+    assert ken["terms_of_trade_index"] == pytest.approx(95.0)
+    # commodity share = 5 + 10 + 20 + 30 = 65
+    assert ken["commodity_export_share_pct"] == pytest.approx(65.0)
+    assert ken["reer_index"] == pytest.approx(110.0)
+
+
+def test_commodity_export_share_is_capped_and_nan_when_all_missing():
+    observations = pd.DataFrame(
+        [
+            ("KEN", "wb_fuel_exports_pct", "2025", 80.0),
+            ("KEN", "wb_ores_metals_exports_pct", "2025", 40.0),
+            ("MOZ", "wb_reer_index", "2025", 100.0),  # no commodity components
+        ],
+        columns=["country_code", "feature_key", "period_label", "value"],
+    )
+    observations["source"] = "WB_WDI_IDS"
+    observations["feature_label"] = observations["feature_key"]
+    observations["quality"] = "observed"
+    observations["dataset_version"] = "test"
+    observations["period"] = pd.to_datetime(observations["period_label"] + "-12-31")
+    model_features = pd.DataFrame(
+        {"country_code": ["KEN", "MOZ"], "nominal_gdp": [100.0, 200.0]}
+    )
+
+    features, _ = build_external_liquidity_features(observations, model_features)
+    indexed = features.set_index("country_code")
+    # 80 + 40 = 120, capped at 100
+    assert indexed.loc["KEN"]["commodity_export_share_pct"] == pytest.approx(100.0)
+    # MOZ has no commodity components at all -> NaN, not 0
+    assert pd.isna(indexed.loc["MOZ"]["commodity_export_share_pct"])
+
+
+def test_reer_appreciation_gap_measures_latest_vs_trailing_mean():
+    observations = pd.DataFrame(
+        [
+            ("KEN", "wb_reer_index", 2021, 100.0),
+            ("KEN", "wb_reer_index", 2022, 100.0),
+            ("KEN", "wb_reer_index", 2023, 100.0),
+            ("KEN", "wb_reer_index", 2024, 100.0),
+            ("KEN", "wb_reer_index", 2025, 110.0),  # latest, +10% vs mean of prior 100
+            ("SGL", "wb_reer_index", 2025, 90.0),   # single obs -> skipped
+        ],
+        columns=["country_code", "feature_key", "period_label", "value"],
+    )
+    observations["period"] = pd.to_datetime(observations["period_label"].astype(str) + "-12-31")
+
+    gap = reer_appreciation_gap(observations).set_index("country_code")
+    assert gap.loc["KEN"]["reer_appreciation_5y_pct"] == pytest.approx(10.0)
+    assert "SGL" not in gap.index
 
 
 def test_normalize_world_bank_records_keeps_model_country_rows():

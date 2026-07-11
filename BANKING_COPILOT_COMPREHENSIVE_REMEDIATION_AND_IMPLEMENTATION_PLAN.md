@@ -2164,3 +2164,33 @@ Items that remain open and why they cannot be closed from this environment:
     interest/revenue ~30%, Egypt/Pakistan/Sri Lanka highest interest burden,
     Japan debt/revenue ~577%); local Streamlit startup returned HTTP 200 on
     port 8599 with no stderr.
+- [x] Checkpoint 27: Market and external stress inputs (backlog ranks 19-21).
+  - Pending commit: `add market and external stress features`
+  - Owner steer: "also need market and external items."
+  - Scope (extends the staged external-liquidity block, reusing its SDMX/World
+    Bank fetch path, so no new workflow is required — `external-data.yml`
+    already runs `build_external_liquidity_features --fetch`):
+    - Rank 19 (FDI flow stability): IMF BOP direct-investment liability and net
+      flows (functional category `D_F`), plus `stable_financing_share` (FDI over
+      gross inward FDI+portfolio flows).
+    - Rank 20 (export concentration / terms of trade): World Bank net-barter
+      terms-of-trade index and a `commodity_export_share_pct` proxy summing
+      fuel, ores/metals, agricultural-raw, and food merchandise-export shares.
+    - Rank 21 (REER valuation stress): World Bank real-effective-exchange-rate
+      index plus `reer_appreciation_5y_pct` (latest REER vs trailing five-year
+      mean). Equity-price and property-price stress remain uncovered (no
+      reliable public API series wired yet) and are registered in the report
+      notes as a follow-up.
+    - Added human-readable labels and unit tests; the features flow through the
+      existing staged External Liquidity panel automatically.
+  - Model status: these remain **staged challenger inputs**, not production
+    scoring, exactly like the rest of the external and government blocks.
+    Promotion requires a challenger-vs-production comparison and owner approval
+    under `docs/GOVERNANCE.md`.
+  - Data status: the committed `data/reference/external_liquidity_features.parquet`
+    gains the new columns (currently null) on the next CI `--fetch` run, because
+    api.imf.org / api.worldbank.org are blocked in the dev environment.
+  - Verification: `python -m py_compile src/external_liquidity.py app.py`
+    passed; full test suite passed (`87 passed`, `1 skipped`); build runs
+    gracefully on the existing committed observations (new columns present,
+    null until fetched).

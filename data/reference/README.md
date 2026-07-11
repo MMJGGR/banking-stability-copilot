@@ -11,9 +11,13 @@ challenger inputs** and do not affect production scoring.
 
 - `external_liquidity_features.parquet` / `external_feature_observations.parquet`
   / `external_liquidity_features_report.json` — IMF BOP/IIP + World Bank
-  external-liquidity block. Rebuilt by
+  external-liquidity block, plus market/external stress inputs: FDI flow
+  stability (IMF BOP direct investment), export-concentration / terms-of-trade
+  and commodity dependence (World Bank), and real-effective-exchange-rate
+  valuation stress (World Bank). Rebuilt by
   `src/scripts/build_external_liquidity_features.py` (needs IMF/WB API access,
-  so it runs in GitHub Actions).
+  so it runs in GitHub Actions; the market/FDI/REER columns populate on the
+  next fetch).
 - `government_liquidity_features.parquet` /
   `government_liquidity_observations.parquet` /
   `government_liquidity_features_report.json` — IMF WEO general-government
