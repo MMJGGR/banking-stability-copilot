@@ -30,60 +30,60 @@
     },
     "cache/risk_model.pkl": {
       "bytes": 171473,
-      "sha256": "64198168e851c77fac09aa6cc29743bd17ca1b6995d68b885164e03b852dd398"
+      "sha256": "5fb1b24906c64586329d6067b0d4933b3249c9981466c51924ce985d608a8b2f"
     }
   },
   "as_of_date": "2026-06-30",
-  "generated_at": "2026-07-11T15:07:25.995194+00:00",
+  "generated_at": "2026-07-11T18:30:37.143250+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
     "snapshot_date": "2026-06-30",
-    "training_date": "2026-07-11T15:07:23.735874"
+    "training_date": "2026-07-11T18:30:34.948282"
   },
   "retrieval": {
     "FSIBSIS": {
       "bytes": 137059088,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-07-11T145845Z.csv",
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-07-11T182818Z.csv",
       "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T15:02:46.788783+00:00",
+      "retrieved_at": "2026-07-11T18:28:31.721364+00:00",
       "sha256": "38d8d8a81d66107fef4cc0bf082d29dda8074849eb026f447097e8182d2f3d4a",
       "source": "FSIBSIS"
     },
     "FSIC": {
       "bytes": 145726219,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-07-11T145645Z.csv",
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-07-11T182520Z.csv",
       "remote_version": "IMF.STA:FSIC(13.0.1)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T14:57:02.976885+00:00",
+      "retrieved_at": "2026-07-11T18:25:37.255260+00:00",
       "sha256": "47bd8c34c5ac4c72b63b58b998e662d9eea34df230961c5bb3a989b02830303e",
       "source": "FSIC"
     },
     "MFS": {
       "bytes": 478046242,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-07-11T145724Z.csv",
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-07-11T182558Z.csv",
       "remote_version": "IMF.STA:MFS_DC(8.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T14:58:32.312468+00:00",
+      "retrieved_at": "2026-07-11T18:28:06.021039+00:00",
       "sha256": "c6a764697b6b000dfcd99436c1d93983a2bba7056c5014f8667e6023af695522",
       "source": "MFS"
     },
     "WEO": {
       "bytes": 36738338,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-07-11T145639Z.csv",
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-07-11T182515Z.csv",
       "remote_version": "IMF.RES:WEO(9.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T14:56:42.795893+00:00",
+      "retrieved_at": "2026-07-11T18:25:18.242689+00:00",
       "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
       "source": "WEO"
     },
     "WGI": {
       "bytes": 2060170,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-07-11T150525Z.csv",
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-07-11T182838Z.csv",
       "remote_version": null,
       "retrieval_method": "worldbank_api",
-      "retrieved_at": "2026-07-11T15:05:25.359828+00:00",
+      "retrieved_at": "2026-07-11T18:28:39.036742+00:00",
       "sha256": "f69df5978649612597245434ecde6331fda0face4c96090b696aaa4d4585f6e4",
       "source": "WGI"
     }
