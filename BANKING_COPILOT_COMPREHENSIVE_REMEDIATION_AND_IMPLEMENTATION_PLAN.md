@@ -328,15 +328,12 @@ artifacts are checksum-validated). The predictive surface remains a candidate,
 not production, until the section 2.8 critical items and the validation
 standard in the model card are satisfied.
 
-**Naming decision (2026-07-10, owner):** option 1 selected. The product is
-renamed **Banking Stability Analytics & Research Workbench** across the UI
-and README; no conversational layer is planned. The GitHub repository name is
-retained for link stability. The previously open options were:
-
-1. **Banking Stability Analytics Dashboard / Research Workbench** — selected.
-
-2. **Banking Stability Copilot** — rejected: would require a governed
-   conversational layer that is not on the roadmap.
+**Naming decision update (2026-07-11, owner):** the external app name is
+**Banking System Stability Copilot**. The previous verbose workbench name was
+rejected as too wordy and insufficiently professional for the live frontend.
+The current
+release remains an analytics app, not a conversational agent; adding a
+conversational layer would require separate governance.
 
 ### 6.2 If Copilot Scope Is Approved
 
@@ -1320,19 +1317,19 @@ production.
     derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
     history, on-demand FSIBSIS loading, theme-safe controls, customizable
     peer sets, and cross-country indicator comparison are complete; active
-    verified snapshot display is confirmed in browser; health/freshness UI
-    and last-known-good fallback completed 2026-07-10 (session 3); snapshot
-    selection remains.
+    verified snapshot display is confirmed in browser; last-known-good
+    fallback completed 2026-07-10 (session 3); health/freshness diagnostics
+    and snapshot selection are hidden from the default frontend and gated
+    behind `SHOW_ADMIN_DIAGNOSTICS=true`.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
     operations runbook. Release-specific generated metrics remain tied to a
     future approved candidate.
-17. [x] Decided 2026-07-10 (owner): renamed to **Banking Stability Analytics
-    & Research Workbench** (UI title, page title, README). No conversational
-    layer is planned; the GitHub repository name is retained for link
-    stability (renaming it is an optional owner action in GitHub settings).
+17. [x] Updated 2026-07-11 (owner): external app name standardized as
+    **Banking System Stability Copilot** (page title, README, and working
+    plan). The rejected verbose workbench wording should not be reintroduced.
 18. [~] Monitoring, rollback, ownership, and release procedures substantially
     complete 2026-07-10 (session 3): automatic last-known-good fallback,
-    System Health panel, executable rollback runbook, CODEOWNERS, release
+    admin diagnostics, executable rollback runbook, CODEOWNERS, release
     checklist, and the proposed governance thresholds document. Outstanding:
     owner approval of `docs/GOVERNANCE.md` and post-deploy live health
     verification (backlog ranks 25-26, 30-31).
@@ -1679,9 +1676,9 @@ applied the same day:
    question).** `validate_model` now gates on the partial correlation of
    coverage with the pre-policy score, controlling for log GDP per capita and
    the six governance scores; raw correlations are reported as informational.
-3. **Product renamed (rank 38 / tracker item 17 — CLOSED).** "Banking
-   Stability Analytics & Research Workbench" across UI and README; repo name
-   retained.
+3. **Product name corrected (rank 38 / tracker item 17 — CLOSED).** The
+   external app name is **Banking System Stability Copilot**; the prior verbose
+   workbench name is rejected.
 4. **Challenger iterated per owner instruction ("iterate first, then
    re-review"), still NOT promoted.** Challenger v2 removes the level-share
    features `real_estate_loans` and `fx_loan_exposure` from the pillar

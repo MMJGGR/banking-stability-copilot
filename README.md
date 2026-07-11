@@ -1,11 +1,9 @@
-# Banking Stability Analytics & Research Workbench
+# Banking System Stability Copilot
 
-> **Product decision (2026-07-10, owner-approved):** the product is a
-> banking-stability analytics dashboard and research data utility, renamed
-> from "Banking System Stability Copilot" to match delivered functionality
-> (remediation plan backlog item 38). The GitHub repository name is retained
-> for link stability; renaming it is an optional owner action in GitHub
-> settings.
+> **Product decision:** the external app name is **Banking System Stability
+> Copilot**. The interface is intentionally utilitarian: global summary,
+> country diagnostics, data exploration, and methodology, without a
+> conversational layer in the current release.
 
 # Methodology
 ## Banking System Stability Model
