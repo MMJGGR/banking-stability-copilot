@@ -2436,3 +2436,20 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: direct `import app` succeeds locally; targeted tests passed:
     `pytest tests/test_peer_selection.py tests/test_model_store.py -q`
     (7 passed).
+- [x] Checkpoint 32: Peer selector fallback hardened for stale Streamlit helper
+  modules.
+  - Commit: `harden app peer fallback for stale deploys`
+  - Issue: the live app still showed USA default peers as Cyprus, Italy,
+    Dominica, and Fiji. That is the old two-pillar fallback behavior: when a
+    stale `src.utils.find_peers` rejects the `feature_values=` argument, the
+    app previously called the old selector without model features.
+  - Fix: `app.py` now contains an app-local robust peer selector equivalent to
+    the shared utility implementation. If Streamlit serves a mixed deployment
+    where the helper module is stale, `safe_find_peers` falls back to the
+    robust selector rather than the two-pillar legacy selector.
+  - Verification: local normal mode and simulated stale-helper mode both return
+    USA peers as United Kingdom, Germany, France, Italy, Canada, and Japan;
+    Cyprus, Dominica, and Fiji are excluded. `python -m py_compile app.py
+    src/utils.py` passed; targeted tests passed:
+    `pytest tests/test_peer_selection.py tests/test_model_store.py -q`
+    (7 passed).
