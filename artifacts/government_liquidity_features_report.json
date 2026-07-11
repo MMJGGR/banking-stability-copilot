@@ -1,0 +1,64 @@
+{
+  "feature_coverage": {
+    "government_liquidity_feature_count": {
+      "countries": 201,
+      "pct_model_countries": 100.0
+    },
+    "govt_debt_to_revenue": {
+      "countries": 193,
+      "pct_model_countries": 96.0
+    },
+    "govt_expenditure_gdp": {
+      "countries": 197,
+      "pct_model_countries": 98.0
+    },
+    "govt_fiscal_balance_gdp": {
+      "countries": 197,
+      "pct_model_countries": 98.0
+    },
+    "govt_gross_debt_gdp": {
+      "countries": 193,
+      "pct_model_countries": 96.0
+    },
+    "govt_interest_gdp": {
+      "countries": 190,
+      "pct_model_countries": 94.5
+    },
+    "govt_interest_to_revenue": {
+      "countries": 190,
+      "pct_model_countries": 94.5
+    },
+    "govt_overall_deficit_gdp": {
+      "countries": 201,
+      "pct_model_countries": 100.0
+    },
+    "govt_primary_balance_gdp": {
+      "countries": 190,
+      "pct_model_countries": 94.5
+    },
+    "govt_primary_deficit_gdp": {
+      "countries": 201,
+      "pct_model_countries": 100.0
+    },
+    "govt_revenue_gdp": {
+      "countries": 197,
+      "pct_model_countries": 98.0
+    },
+    "govt_structural_balance_gdp": {
+      "countries": 85,
+      "pct_model_countries": 42.3
+    }
+  },
+  "generated_at": "2026-07-11T12:52:01.762401+00:00",
+  "model_countries": 201,
+  "notes": [
+    "Features are staged challenger inputs and are not wired into production scoring.",
+    "Source: IMF WEO general-government fiscal series (GGXWDG_NGDP, GGXCNL_NGDP, GGXONLB_NGDP, GGR_NGDP, GGX_NGDP, GGSB_NPGDP). The cutoff and observation-status selection match the production WEO feature path (actuals and estimates only; projections excluded).",
+    "govt_interest_gdp is derived as primary balance minus overall balance because the overall balance already nets out interest; it is an implied interest bill, not a reported interest-expense series.",
+    "govt_interest_to_revenue and govt_debt_to_revenue are the rating-agency-style affordability ratios (interest burden and debt stock relative to revenue capacity).",
+    "govt_overall_deficit_gdp and govt_primary_deficit_gdp are financing-requirement flow signals; a full gross financing need also needs debt amortization/rollover, which WEO does not carry and remains an IMF Fiscal Monitor / GFS source gap.",
+    "govt_structural_balance_gdp (GGSB_NPGDP) has limited country coverage in WEO."
+  ],
+  "observation_countries": 197,
+  "observation_rows": 34505
+}

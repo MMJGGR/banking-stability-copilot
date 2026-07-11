@@ -3,6 +3,27 @@
 This directory holds small, manually retrieved reference files whose
 provenance must be pinned by checksum.
 
+## Staged challenger feature datasets
+
+Compact derived feature files the hosted app reads directly, so it never loads
+the large upstream IMF/World Bank flows at startup. They are **staged
+challenger inputs** and do not affect production scoring.
+
+- `external_liquidity_features.parquet` / `external_feature_observations.parquet`
+  / `external_liquidity_features_report.json` — IMF BOP/IIP + World Bank
+  external-liquidity block. Rebuilt by
+  `src/scripts/build_external_liquidity_features.py` (needs IMF/WB API access,
+  so it runs in GitHub Actions).
+- `government_liquidity_features.parquet` /
+  `government_liquidity_observations.parquet` /
+  `government_liquidity_features_report.json` — IMF WEO general-government
+  (sovereign fiscal) liquidity block: gross debt, primary/structural balance,
+  implied interest burden, and interest-to-revenue / debt-to-revenue
+  affordability ratios. Rebuilt by
+  `src/scripts/build_government_liquidity_features.py`; needs no external API
+  because the WEO series come from the cache, so it can be rebuilt locally with
+  `--reference-dir data/reference`.
+
 ## Laeven-Valencia crisis episode dataset (required for label provenance)
 
 The training labels in `src/crisis_labels.py` are transcribed from:

@@ -2121,3 +2121,43 @@ Items that remain open and why they cannot be closed from this environment:
     src/external_liquidity.py` passed; full test suite passed (`79 passed`,
     `1 skipped`) with repo root on `PYTHONPATH`; local Streamlit startup check
     returned HTTP 200 on port 8573.
+- [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
+  block.
+  - Pending commit: `add staged government liquidity features`
+  - Owner steer: "It should be full government liquidity not only external."
+    The prior staged block covered only *external* liquidity (BOP/IIP + WB
+    external debt service); the government's own fiscal liquidity was not a
+    first-class family. This addresses part of backlog ranks 6/12/13
+    (debt-service burden, fiscal affordability, gross financing need) at the
+    staged-challenger level.
+  - Scope:
+    - Added `src/government_liquidity.py` and
+      `src/scripts/build_government_liquidity_features.py`. The block is derived
+      from the already-cached IMF WEO general-government series
+      (`GGXWDG_NGDP`, `GGXCNL_NGDP`, `GGXONLB_NGDP`, `GGR_NGDP`, `GGX_NGDP`,
+      `GGSB_NPGDP`), so it needs no external API and is buildable/testable
+      locally. Cutoff and observation-status selection match the production WEO
+      feature path (actuals + estimates only; projections excluded).
+    - Derived features: gross debt/GDP, fiscal/primary/structural balance,
+      implied interest burden (primary minus overall balance), the
+      rating-agency affordability ratios interest-to-revenue and
+      debt-to-revenue, and overall/primary deficit financing-flow signals.
+    - Surfaced app-wide by generalizing the staged-insight render helpers: a new
+      "Government liquidity" Data Explorer tab, a Methodology "Staged
+      Government-Liquidity Dataset" summary, and an updated missing-data-family
+      row. Features are staged challenger inputs and do not change production
+      scoring.
+    - Packaged compact outputs under `data/reference/` for the hosted app; added
+      a build step to `.github/workflows/external-data.yml`; documented the
+      block in `docs/DATA_CARD.md` and `data/reference/README.md`.
+  - Remaining fiscal gap (registered, not closed): a full gross financing need
+    needs debt amortization/rollover from IMF Fiscal Monitor / GFS, which WEO
+    does not carry.
+  - Verification: `python -m py_compile app.py src/government_liquidity.py
+    src/scripts/build_government_liquidity_features.py` passed; full test suite
+    passed (`84 passed`, `1 skipped`); real build against the resolved WEO cache
+    covered 94-100% of model countries for the core affordability ratios
+    (structural balance ~42%) with economically sensible values (e.g. Kenya
+    interest/revenue ~30%, Egypt/Pakistan/Sri Lanka highest interest burden,
+    Japan debt/revenue ~577%); local Streamlit startup returned HTTP 200 on
+    port 8599 with no stderr.

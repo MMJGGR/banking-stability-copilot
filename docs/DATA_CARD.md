@@ -67,6 +67,30 @@ Known weak features include:
 Country-level outputs must disclose coverage, freshness, carry-forward, and
 imputation.
 
+## Staged Challenger Datasets
+
+These blocks are packaged as compact reference files under `data/reference/`
+and surfaced in the Data Explorer and Methodology tabs. They are **staged
+challenger inputs**: they do not affect production scoring until a promoted
+model artifact includes them and a challenger comparison is reviewed.
+
+| Dataset | Source | What it adds | Coverage (model countries) |
+|---|---|---|---|
+| External liquidity | IMF BOP/IIP + World Bank WDI/IDS | Current-account receipts/payments, reserve adequacy, net IIP, external and portfolio liabilities, external debt service, a gross-external-financing-need proxy | ~79-90% |
+| Government liquidity | IMF WEO general government (`GGXWDG_NGDP`, `GGXCNL_NGDP`, `GGXONLB_NGDP`, `GGR_NGDP`, `GGX_NGDP`, `GGSB_NPGDP`) | Gross public debt, primary/structural balance, implied interest burden, and the rating-agency affordability ratios interest-to-revenue and debt-to-revenue | ~94-100% for core ratios; structural balance ~42% |
+
+Government-liquidity build notes:
+
+- The cutoff and observation-status selection match the production WEO feature
+  path (actuals and estimates only; projections excluded).
+- `govt_interest_gdp` is derived as primary balance minus overall balance
+  because the overall balance already nets out interest; it is an implied
+  interest bill, not a reported interest-expense series.
+- A full gross financing need additionally requires debt amortization/rollover,
+  which WEO does not carry; that remains an IMF Fiscal Monitor / GFS source gap.
+- Built by `python -m src.scripts.build_government_liquidity_features`; no
+  external API calls are required because the WEO series come from the cache.
+
 ## Refresh and Fallback Policy
 
 Retrieval order:

@@ -40,3 +40,6 @@ Thumbs.db
 
 # External-liquidity candidate caches are workflow artifacts, never committed
 cache/external/
+
+# Government-liquidity candidate caches are workflow artifacts, never committed
+cache/government/

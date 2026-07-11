@@ -84,6 +84,40 @@ EXTERNAL_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "wb_debt_service_report.json",
 )
 EXTERNAL_SOURCE_LABEL = "External liquidity (staged)"
+GOVT_FEATURES_PATHS = (
+    EXTERNAL_REFERENCE_DIR / "government_liquidity_features.parquet",
+    BASE_DIR / "cache" / "government" / "government_liquidity_features.parquet",
+)
+GOVT_OBSERVATIONS_PATHS = (
+    EXTERNAL_REFERENCE_DIR / "government_liquidity_observations.parquet",
+    BASE_DIR / "cache" / "government" / "government_liquidity_observations.parquet",
+)
+GOVT_REPORT_PATHS = (
+    EXTERNAL_REFERENCE_DIR / "government_liquidity_features_report.json",
+    BASE_DIR / "artifacts" / "government_liquidity_features_report.json",
+)
+GOVT_SOURCE_LABEL = "Government liquidity (staged)"
+GOVT_FEATURE_COUNT_COL = "government_liquidity_feature_count"
+GOVT_FEATURE_LABELS = {
+    "govt_gross_debt_gdp": "General government gross debt / GDP",
+    "govt_fiscal_balance_gdp": "Fiscal balance / GDP",
+    "govt_primary_balance_gdp": "Primary balance / GDP",
+    "govt_revenue_gdp": "General government revenue / GDP",
+    "govt_expenditure_gdp": "General government expenditure / GDP",
+    "govt_structural_balance_gdp": "Structural balance / potential GDP",
+    "govt_interest_gdp": "Interest burden / GDP (implied)",
+    "govt_interest_to_revenue": "Interest burden / revenue",
+    "govt_debt_to_revenue": "Gross debt / revenue",
+    "govt_overall_deficit_gdp": "Overall deficit / GDP",
+    "govt_primary_deficit_gdp": "Primary deficit / GDP",
+    "gross_debt_gdp": "General government gross debt / GDP",
+    "fiscal_balance_gdp": "Fiscal balance / GDP",
+    "primary_balance_gdp": "Primary balance / GDP",
+    "revenue_gdp": "General government revenue / GDP",
+    "expenditure_gdp": "General government expenditure / GDP",
+    "structural_balance_potential_gdp": "Structural balance / potential GDP",
+}
+EXTERNAL_FEATURE_COUNT_COL = "external_liquidity_feature_count"
 EXTERNAL_FEATURE_LABELS = {
     "current_account_receipts_gdp": "Current-account receipts / GDP",
     "current_account_payments_gdp": "Current-account payments / GDP",
@@ -323,6 +357,53 @@ def load_external_insight_data() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         observations["indicator_code"] = observations["feature_key"]
         observations["indicator_name"] = observations["feature_label"].fillna(
             observations["feature_key"].map(EXTERNAL_FEATURE_LABELS)
+        )
+        observations["period"] = pd.to_datetime(observations["period"], errors="coerce")
+        observations["frequency"] = "A"
+        observations = observations.dropna(subset=["period", "value"])
+
+    return features, observations, report
+
+
+@st.cache_data(show_spinner=False)
+def load_government_insight_data() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Load compact staged general-government (fiscal) liquidity data.
+
+    Mirrors ``load_external_insight_data``: the hosted app reads a compact
+    derived reference dataset when present and falls back to local workflow
+    artifacts during development. The large WEO cache is never loaded here.
+    """
+    features = pd.DataFrame()
+    observations = pd.DataFrame()
+    report = {}
+
+    for path in GOVT_FEATURES_PATHS:
+        if path.exists():
+            features = pd.read_parquet(path)
+            break
+
+    for path in GOVT_OBSERVATIONS_PATHS:
+        if path.exists():
+            observations = pd.read_parquet(path)
+            break
+
+    for path in GOVT_REPORT_PATHS:
+        if path.exists():
+            try:
+                report = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                report = {}
+            break
+
+    if "country_code" in features.columns:
+        features["country_code"] = features["country_code"].astype(str).str.upper()
+
+    if not observations.empty:
+        observations = observations.copy()
+        observations["country_code"] = observations["country_code"].astype(str).str.upper()
+        observations["indicator_code"] = observations["feature_key"]
+        observations["indicator_name"] = observations["feature_label"].fillna(
+            observations["feature_key"].map(GOVT_FEATURE_LABELS)
         )
         observations["period"] = pd.to_datetime(observations["period"], errors="coerce")
         observations["frequency"] = "A"
@@ -1009,15 +1090,19 @@ def render_calculated_series_builder(
     )
 
 
-def _external_feature_columns(features: pd.DataFrame) -> list[str]:
+def _staged_feature_columns(features: pd.DataFrame, count_col: str) -> list[str]:
     if features is None or features.empty:
         return []
     return [
         column for column in features.columns
         if column != "country_code"
         and not column.endswith("_period")
-        and column != "external_liquidity_feature_count"
+        and column != count_col
     ]
+
+
+def _external_feature_columns(features: pd.DataFrame) -> list[str]:
+    return _staged_feature_columns(features, EXTERNAL_FEATURE_COUNT_COL)
 
 
 def _format_numeric(value) -> str:
@@ -1063,34 +1148,37 @@ def render_external_model_inputs(
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
-def render_external_insight_panel(
+def render_staged_insight_panel(
     scores: pd.DataFrame,
     selected_country: str,
     default_peer_codes: list[str],
     country_formatter,
     model_features: pd.DataFrame | None,
+    *,
+    features: pd.DataFrame,
+    report: dict,
+    label_map: dict,
+    count_col: str,
+    key_prefix: str,
+    empty_msg: str,
 ):
-    """Render compact staged external-liquidity features for exploration."""
-    external_features, _, report = load_external_insight_data()
-    if external_features.empty:
-        st.info("No staged external-liquidity feature dataset is packaged with this deployment.")
+    """Render a compact staged feature block (external or government liquidity)."""
+    if features.empty:
+        st.info(empty_msg)
         return
 
-    feature_cols = _external_feature_columns(external_features)
+    feature_cols = _staged_feature_columns(features, count_col)
     model_cols = set(model_features.columns) if model_features is not None else set()
     used_cols = [column for column in feature_cols if column in model_cols]
     coverage = report.get("feature_coverage", {}) if isinstance(report, dict) else {}
 
-    if "external_liquidity_feature_count" in external_features.columns:
+    if count_col in features.columns:
         countries_with_staged_data = int(
-            (pd.to_numeric(
-                external_features["external_liquidity_feature_count"],
-                errors="coerce",
-            ).fillna(0) > 0).sum()
+            (pd.to_numeric(features[count_col], errors="coerce").fillna(0) > 0).sum()
         )
     else:
         countries_with_staged_data = int(
-            external_features[feature_cols].notna().any(axis=1).sum()
+            features[feature_cols].notna().any(axis=1).sum()
         )
 
     m1, m2, m3 = st.columns(3)
@@ -1102,12 +1190,12 @@ def render_external_insight_panel(
         "after a promoted model artifact includes them."
     )
 
-    country_row = external_features[external_features["country_code"] == selected_country]
+    country_row = features[features["country_code"] == selected_country]
     if not country_row.empty:
         rows = []
         for column in feature_cols:
             rows.append({
-                "Feature": EXTERNAL_FEATURE_LABELS.get(column, column.replace("_", " ").title()),
+                "Feature": label_map.get(column, column.replace("_", " ").title()),
                 "Value": _format_numeric(country_row.iloc[0].get(column)),
                 "Coverage": (
                     f"{coverage.get(column, {}).get('pct_model_countries', 0):.1f}%"
@@ -1134,8 +1222,8 @@ def render_external_insight_panel(
         selected_feature = st.selectbox(
             "Compare staged feature",
             options=feature_cols,
-            format_func=lambda x: EXTERNAL_FEATURE_LABELS.get(x, x.replace("_", " ").title()),
-            key="external_feature_compare",
+            format_func=lambda x: label_map.get(x, x.replace("_", " ").title()),
+            key=f"{key_prefix}_feature_compare",
         )
     with compare_col2:
         compare_countries = st.multiselect(
@@ -1143,7 +1231,7 @@ def render_external_insight_panel(
             options=available_codes,
             default=default_countries,
             format_func=country_formatter,
-            key=f"external_feature_countries_{selected_country}",
+            key=f"{key_prefix}_feature_countries_{selected_country}",
         )
 
     if not compare_countries:
@@ -1152,8 +1240,8 @@ def render_external_insight_panel(
         st.warning("Showing the first 12 selected countries.")
         compare_countries = compare_countries[:12]
 
-    chart_df = external_features[
-        external_features["country_code"].isin(compare_countries)
+    chart_df = features[
+        features["country_code"].isin(compare_countries)
     ][["country_code", selected_feature]].copy()
     chart_df["value"] = pd.to_numeric(chart_df[selected_feature], errors="coerce")
     chart_df = chart_df.dropna(subset=["value"])
@@ -1167,7 +1255,7 @@ def render_external_insight_panel(
         chart_df,
         x="country_name",
         y="value",
-        title=EXTERNAL_FEATURE_LABELS.get(selected_feature, selected_feature.replace("_", " ").title()),
+        title=label_map.get(selected_feature, selected_feature.replace("_", " ").title()),
     )
     fig.update_layout(
         height=380,
@@ -1182,17 +1270,73 @@ def render_external_insight_panel(
         fig,
         use_container_width=True,
         theme="streamlit",
-        key=f"external_feature_chart_{selected_feature}",
+        key=f"{key_prefix}_feature_chart_{selected_feature}",
     )
 
 
-def render_external_methodology_summary(model_features: pd.DataFrame | None):
-    external_features, observations, report = load_external_insight_data()
-    if external_features.empty:
-        st.info("No staged external-liquidity feature package is available in this deployment.")
+def render_external_insight_panel(
+    scores: pd.DataFrame,
+    selected_country: str,
+    default_peer_codes: list[str],
+    country_formatter,
+    model_features: pd.DataFrame | None,
+):
+    """Render compact staged external-liquidity features for exploration."""
+    features, _, report = load_external_insight_data()
+    render_staged_insight_panel(
+        scores=scores,
+        selected_country=selected_country,
+        default_peer_codes=default_peer_codes,
+        country_formatter=country_formatter,
+        model_features=model_features,
+        features=features,
+        report=report,
+        label_map=EXTERNAL_FEATURE_LABELS,
+        count_col=EXTERNAL_FEATURE_COUNT_COL,
+        key_prefix="external",
+        empty_msg="No staged external-liquidity feature dataset is packaged with this deployment.",
+    )
+
+
+def render_government_insight_panel(
+    scores: pd.DataFrame,
+    selected_country: str,
+    default_peer_codes: list[str],
+    country_formatter,
+    model_features: pd.DataFrame | None,
+):
+    """Render compact staged general-government (fiscal) liquidity features."""
+    features, _, report = load_government_insight_data()
+    render_staged_insight_panel(
+        scores=scores,
+        selected_country=selected_country,
+        default_peer_codes=default_peer_codes,
+        country_formatter=country_formatter,
+        model_features=model_features,
+        features=features,
+        report=report,
+        label_map=GOVT_FEATURE_LABELS,
+        count_col=GOVT_FEATURE_COUNT_COL,
+        key_prefix="government",
+        empty_msg="No staged government-liquidity feature dataset is packaged with this deployment.",
+    )
+
+
+def render_staged_methodology_summary(
+    features: pd.DataFrame,
+    observations: pd.DataFrame,
+    report: dict,
+    model_features: pd.DataFrame | None,
+    *,
+    label_map: dict,
+    count_col: str,
+    empty_msg: str,
+):
+    if features.empty:
+        st.info(empty_msg)
         return
 
-    feature_cols = _external_feature_columns(external_features)
+    feature_cols = _staged_feature_columns(features, count_col)
     model_cols = set(model_features.columns) if model_features is not None else set()
     used_cols = [column for column in feature_cols if column in model_cols]
     coverage = report.get("feature_coverage", {}) if isinstance(report, dict) else {}
@@ -1200,20 +1344,20 @@ def render_external_methodology_summary(model_features: pd.DataFrame | None):
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Staged Features", f"{len(feature_cols):,}")
     c2.metric("Observation Rows", f"{len(observations):,}")
-    c3.metric("Countries", f"{external_features['country_code'].nunique():,}")
+    c3.metric("Countries", f"{features['country_code'].nunique():,}")
     c4.metric("Used In Active Score", f"{len(used_cols):,}")
 
     rows = []
     for column in feature_cols:
         rows.append({
-            "Feature": EXTERNAL_FEATURE_LABELS.get(column, column.replace("_", " ").title()),
+            "Feature": label_map.get(column, column.replace("_", " ").title()),
             "Coverage": (
                 f"{coverage.get(column, {}).get('pct_model_countries', 0):.1f}%"
-                if column in coverage else f"{external_features[column].notna().mean():.1%}"
+                if column in coverage else f"{features[column].notna().mean():.1%}"
             ),
             "Countries": (
                 coverage.get(column, {}).get("countries")
-                if column in coverage else int(external_features[column].notna().sum())
+                if column in coverage else int(features[column].notna().sum())
             ),
             "Score Role": "Active model input" if column in used_cols else "Staged insight only",
         })
@@ -1222,6 +1366,26 @@ def render_external_methodology_summary(model_features: pd.DataFrame | None):
     notes = report.get("notes", []) if isinstance(report, dict) else []
     if notes:
         st.caption(" ".join(str(note) for note in notes[:3]))
+
+
+def render_external_methodology_summary(model_features: pd.DataFrame | None):
+    features, observations, report = load_external_insight_data()
+    render_staged_methodology_summary(
+        features, observations, report, model_features,
+        label_map=EXTERNAL_FEATURE_LABELS,
+        count_col=EXTERNAL_FEATURE_COUNT_COL,
+        empty_msg="No staged external-liquidity feature package is available in this deployment.",
+    )
+
+
+def render_government_methodology_summary(model_features: pd.DataFrame | None):
+    features, observations, report = load_government_insight_data()
+    render_staged_methodology_summary(
+        features, observations, report, model_features,
+        label_map=GOVT_FEATURE_LABELS,
+        count_col=GOVT_FEATURE_COUNT_COL,
+        empty_msg="No staged government-liquidity feature package is available in this deployment.",
+    )
 
 
 def _display_value(value, integer: bool = False) -> str:
@@ -1431,8 +1595,17 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
     st.markdown("#### Staged External-Liquidity Dataset")
     render_external_methodology_summary(features)
 
+    st.markdown("#### Staged Government-Liquidity Dataset")
+    render_government_methodology_summary(features)
+
     st.markdown("#### Priority Missing Data Families")
     gap_rows = [
+        {
+            "Gap": "Sovereign fiscal liquidity / debt affordability",
+            "Why it matters": "Interest-to-revenue and debt-to-revenue drive rating-agency sovereign risk.",
+            "Likely source": "IMF WEO general government (staged); GFN needs Fiscal Monitor/GFS",
+            "Current status": "Staged from WEO (94-100% coverage); not production-scored",
+        },
         {
             "Gap": "Debt service burden",
             "Why it matters": "Debt affordability and refinancing stress.",
@@ -2061,10 +2234,11 @@ with tab_explorer:
         else:
             st.caption("No nearest-neighbor peers are available for this country.")
 
-    tool_tab_compare, tool_tab_calc, tool_tab_external = st.tabs([
+    tool_tab_compare, tool_tab_calc, tool_tab_external, tool_tab_govt = st.tabs([
         "Compare indicators",
         "Calculated series",
         "External liquidity",
+        "Government liquidity",
     ])
     with tool_tab_compare:
         render_indicator_comparison(
@@ -2084,6 +2258,14 @@ with tab_explorer:
         )
     with tool_tab_external:
         render_external_insight_panel(
+            scores=scores_df,
+            selected_country=explorer_focus_country,
+            default_peer_codes=explorer_default_peers,
+            country_formatter=format_country_option,
+            model_features=model_features,
+        )
+    with tool_tab_govt:
+        render_government_insight_panel(
             scores=scores_df,
             selected_country=explorer_focus_country,
             default_peer_codes=explorer_default_peers,
