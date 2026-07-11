@@ -1987,12 +1987,12 @@ Items that remain open and why they cannot be closed from this environment:
       scores or country rankings until a feature-impact review is completed.
   - Verification so far: targeted unit tests passed
     (`tests/test_external_liquidity_features.py`: `3 passed`) after removing
-    duplicate-prone WB current-account and reserve series. A three-country
-    smoke fetch for USA/KEN/MOZ succeeded and confirmed WB debt-service fields
-    populate for Kenya and Mozambique while the USA remains absent from IDS
-    debt-service coverage, consistent with the expected high-income-country
-    coverage gap. Added `--skip-imf` so WB debt-service coverage can be
-    tested without re-fetching the existing IMF external-liquidity block.
+    duplicate-prone WB current-account and reserve series. Added `--skip-imf`
+    so WB debt-service coverage can be tested without re-fetching the existing
+    IMF external-liquidity block. Later packaging checks found the committed
+    staged WB debt-service artifact has weak country coverage and no Kenya or
+    Mozambique WB debt-service values; the IMF BOP/IIP staged features do
+    cover both countries.
     WB-only 201-country run completed locally using the non-duplicative source
     set: government interest/revenue covers 142/201 countries (70.6%),
     revenue/GDP covers 143/201 (71.1%), total and PPG external debt-service/GDP
@@ -2094,3 +2094,30 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/dashboard/styles.py`
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8569.
+- [x] Checkpoint 25: App-wide staged external-liquidity visibility.
+  - Pending commit: `surface staged external liquidity appwide`
+  - Scope:
+    - Packaged compact derived external-liquidity reference files under
+      `data/reference/` so the hosted Streamlit app can display the new data
+      without downloading large IMF/WB flows at startup.
+    - Added the staged external-liquidity source to Data Explorer comparison
+      and calculated-series tools, plus a dedicated External Liquidity panel
+      with latest country values, coverage, cross-country comparison, and
+      explicit score-role labelling.
+    - Added Methodology/Data Card coverage for the staged dataset and changed
+      gap statuses from generic missing items to staged/proxy/not-yet-scored
+      where applicable.
+    - Added a Country Profile hook that will display external-liquidity fields
+      only if a future promoted production model includes those fields in its
+      approved feature artifact.
+    - Confirmed active artifacts still do not use the staged external-liquidity
+      fields in production scoring. The app therefore exposes them for insight,
+      not as hidden score drivers.
+    - Documented artifact mismatch risk for Kenya/Mozambique interpretation:
+      `cache/risk_model.pkl` currently scores Kenya higher risk than
+      Mozambique, while the dated 2026-06-30 and directional challenger
+      artifacts score Mozambique higher.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py
+    src/external_liquidity.py` passed; full test suite passed (`79 passed`,
+    `1 skipped`) with repo root on `PYTHONPATH`; local Streamlit startup check
+    returned HTTP 200 on port 8573.
