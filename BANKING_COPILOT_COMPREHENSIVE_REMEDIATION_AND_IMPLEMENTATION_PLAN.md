@@ -2453,3 +2453,24 @@ Items that remain open and why they cannot be closed from this environment:
     src/utils.py` passed; targeted tests passed:
     `pytest tests/test_peer_selection.py tests/test_model_store.py -q`
     (7 passed).
+- [x] Checkpoint 31: Fix stale serving after model republish (live-app bug).
+  - Symptom: after promoting the liquidity model, the live app showed wrong
+    Country Profile data (e.g. USA Score Drivers all zero, though the live model
+    has USA critical-missing 12.5% / penalty +0.38) and stale peers.
+  - Root cause: the cached loaders (`load_all_data`, `load_inference_pipeline`,
+    `compute_country_drivers`) were keyed only on static values ("Active",
+    country_code), with the model/pipeline excluded from the key (underscore
+    args). Republishing the artifact did not bust them, so the app served the
+    pre-update computation (the pre-existing `# timestamp: force_reload` comment
+    was a manual workaround for exactly this). A stale on-disk LFS artifact
+    could additionally fail checksum and degrade to an older archived bundle.
+  - Fix: added `_serving_version()` (the manifest's `cache/risk_model.pkl`
+    sha256, read fresh each run) and threaded it as a cache key into the three
+    loaders, so any republish auto-busts them. Added a `force` re-download to
+    `ensure_lfs_file`, and `load_model_artifact` now force-refreshes a
+    checksum-mismatched artifact before degrading to a fallback bundle, so a
+    stale resolved LFS file self-heals instead of serving an old archive.
+  - Verified: build_driver_table on the live model gives USA 12.5% / +0.38, MOZ
+    25% / +0.38, KEN 0% (full coverage) — the panel logic was already correct;
+    the bug was purely stale caching/serving. Full suite 94 passed, 1 skipped;
+    Streamlit boot HTTP 200.

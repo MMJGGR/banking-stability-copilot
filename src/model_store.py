@@ -41,9 +41,19 @@ def load_model_artifact(path=None, verify_checksum: bool = True) -> dict:
         if expected:
             actual = _sha256_file(artifact_path)
             if actual != expected:
-                raise ValueError(
-                    "Risk model checksum does not match the serving manifest"
-                )
+                # The on-disk artifact may be a stale resolved LFS file (a host
+                # that persisted an outdated working tree). Force a re-download
+                # of the current tracked object and re-verify before rejecting
+                # it and degrading to an older archived bundle.
+                try:
+                    ensure_lfs_file(artifact_path, force=True)
+                    actual = _sha256_file(artifact_path)
+                except Exception:
+                    pass
+                if actual != expected:
+                    raise ValueError(
+                        "Risk model checksum does not match the serving manifest"
+                    )
 
     with artifact_path.open("rb") as model_file:
         artifact = pickle.load(model_file)

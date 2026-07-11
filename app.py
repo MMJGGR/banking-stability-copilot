@@ -472,15 +472,42 @@ st.markdown(STYLES, unsafe_allow_html=True)
 # ==============================================================================
 # DATA LOADING (Cached)
 # ==============================================================================
+def _serving_version() -> str:
+    """Identity of the active serving artifact, read fresh each run.
+
+    Threaded into the cached loaders below as a cache key so that republishing
+    the model (which changes its checksum in the git-tracked manifest) busts
+    every dependent cache. Without this, `@st.cache_*` results keyed only on
+    static values ("Active", country_code) would serve a stale computation from
+    before the update until the process restarts.
+    """
+    try:
+        manifest = model_store.load_data_manifest()
+        sha = (
+            manifest.get("artifacts", {})
+            .get("cache/risk_model.pkl", {})
+            .get("sha256")
+        )
+        if sha:
+            return str(sha)
+        return str(
+            manifest.get("model", {}).get("training_date")
+            or manifest.get("snapshot_id")
+            or ""
+        )
+    except Exception:
+        return ""
+
+
 @st.cache_resource
-def load_all_data():
+def load_all_data(version: str = ""):
     """Load model artifacts and lightweight reference data.
 
     Loads the checksum-verified active artifact when possible; otherwise
     degrades to the newest archived last-known-good snapshot bundle so a bad
-    refresh cannot take the application down.
+    refresh cannot take the application down. ``version`` is the active
+    artifact identity; changing it busts this cache on republish.
     """
-    # timestamp: force_reload_2026_01_12_v2
     try:
         model, served_manifest, serving_status = (
             load_model_artifact_with_fallback()
@@ -515,9 +542,13 @@ def load_archived_snapshot_cached(name: str):
     return load_archived_snapshot(name)
 
 
-@st.cache_resource(max_entries=4)
-def load_inference_pipeline(snapshot: str):
-    """Load the fitted pillar pipeline for driver-table attribution."""
+@st.cache_resource(max_entries=8)
+def load_inference_pipeline(snapshot: str, version: str = ""):
+    """Load the fitted pillar pipeline for driver-table attribution.
+
+    ``version`` is the active artifact identity; changing it busts this cache
+    when the model is republished.
+    """
     import pickle
     from pathlib import Path
 
@@ -537,10 +568,14 @@ def load_inference_pipeline(snapshot: str):
     return pipeline
 
 
-@st.cache_data(show_spinner=False, max_entries=32)
+@st.cache_data(show_spinner=False, max_entries=64)
 def compute_country_drivers(snapshot: str, country_code: str,
-                            _model: dict, _pipeline) -> dict:
-    """Per-feature score attribution for one country (rank 22)."""
+                            version: str, _model: dict, _pipeline) -> dict:
+    """Per-feature score attribution for one country (rank 22).
+
+    ``version`` is the active artifact identity so a republished model busts
+    this cache (``_model``/``_pipeline`` are excluded from the cache key).
+    """
     from src.scripts.explain_country_scores import build_driver_table
 
     report = build_driver_table([country_code], model=_model, pipeline=_pipeline)
@@ -2065,10 +2100,11 @@ promotion remain separate governance steps.
         render_data_card_summary(features, manifest)
 
 
+_serving_ver = _serving_version()
 (
     scores_df, loader, wgi_data, model_features, pca_info,
     served_manifest, serving_status,
-) = load_all_data()
+) = load_all_data(_serving_ver)
 # In fallback mode the manifest describing what is actually being served is
 # the archived bundle's manifest, not the active one on disk.
 data_manifest = served_manifest or load_data_manifest()
@@ -2351,9 +2387,10 @@ with tab_profile:
                 'trained': True,
                 'countries_trained': len(scores_df),
             }
-            driver_pipeline = load_inference_pipeline(selected_snapshot)
+            driver_version = _serving_ver if selected_snapshot == "Active" else selected_snapshot
+            driver_pipeline = load_inference_pipeline(selected_snapshot, driver_version)
             payload = compute_country_drivers(
-                selected_snapshot, selected_country_code,
+                selected_snapshot, selected_country_code, driver_version,
                 driver_model, driver_pipeline,
             )
             if 'error' in payload:
