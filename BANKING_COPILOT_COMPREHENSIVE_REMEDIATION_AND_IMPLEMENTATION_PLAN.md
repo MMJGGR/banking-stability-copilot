@@ -2421,3 +2421,18 @@ Items that remain open and why they cannot be closed from this environment:
     positives fell (TN 491 -> 660 at the Youden threshold); recall 0.83,
     precision 0.10. Still a weak-but-improved early-warning signal feeding the
     10% upward-only overlay. Full suite: 90 passed, 1 skipped.
+- [x] Checkpoint 31: Live-app import crash guarded for mixed Streamlit deploys.
+  - Commit: `guard app utility imports for live deploys`
+  - Issue: live `bankenv.streamlit.app` showed an `ImportError` during
+    `app.py` startup at `from src.utils import driver_metric...`. Local and
+    GitHub `master` already contained `driver_metric_value`, so the failure was
+    consistent with Streamlit serving a refreshed `app.py` against a stale or
+    cached helper module during redeploy.
+  - Fix: `app.py` now imports `src.utils` as a module, binds `find_peers` from
+    that module, and uses a local compatibility fallback for
+    `driver_metric_value` if the helper function is unavailable. This prevents
+    the whole app from failing at import time while preserving the shared helper
+    when the deployment is coherent.
+  - Verification: direct `import app` succeeds locally; targeted tests passed:
+    `pytest tests/test_peer_selection.py tests/test_model_store.py -q`
+    (7 passed).

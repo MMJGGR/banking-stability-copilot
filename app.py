@@ -63,7 +63,67 @@ from src.dashboard.calculated_series import (
     restrict_frequency,
 )
 from src.dashboard.global_view import render_global_summary
-from src.utils import driver_metric_value, find_peers
+from src import utils as dashboard_utils
+
+
+def _fallback_driver_metric_value(
+    summary: dict,
+    score_row: pd.Series,
+    column: str,
+    drivers: list[dict] | None = None,
+    pipeline=None,
+) -> float | None:
+    """Fallback for mixed Streamlit deployments with an older ``src.utils``.
+
+    Streamlit Cloud can briefly run a refreshed ``app.py`` against cached helper
+    modules during redeploys. Keeping this small compatibility shim in the app
+    prevents a full startup crash if ``src.utils.driver_metric_value`` has not
+    landed yet.
+    """
+    value = summary.get(column) if isinstance(summary, dict) else None
+    try:
+        missing = value is None or pd.isna(value)
+    except (TypeError, ValueError):
+        missing = value is None
+    if missing and column in score_row.index:
+        value = score_row.get(column)
+    try:
+        if value is None or pd.isna(value):
+            raise ValueError("missing")
+        return float(value)
+    except (TypeError, ValueError):
+        pass
+
+    drivers = drivers or []
+    if column in {"critical_missing_share", "critical_penalty"}:
+        critical_drivers = [
+            driver for driver in drivers
+            if driver.get("is_critical")
+        ]
+        if critical_drivers:
+            missing_share = sum(
+                1 for driver in critical_drivers
+                if driver.get("is_imputed")
+            ) / len(critical_drivers)
+        else:
+            missing_share = 0.0
+        if column == "critical_missing_share":
+            return float(missing_share)
+        max_penalty = getattr(pipeline, "critical_missing_max_penalty", 0.0)
+        return float(missing_share * max_penalty)
+
+    if column == "crisis_uplift":
+        return 0.0
+
+    return None
+
+
+find_peers = dashboard_utils.find_peers
+driver_metric_value = getattr(
+    dashboard_utils,
+    "driver_metric_value",
+    _fallback_driver_metric_value,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
