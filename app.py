@@ -693,56 +693,103 @@ def load_government_insight_data() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         observations["frequency"] = "A"
         observations = observations.dropna(subset=["period", "value"])
 
-    if not features.empty:
-        derived_columns = [
-            column for column in GOVT_FEATURE_LABELS
-            if column in features.columns and column != GOVT_FEATURE_COUNT_COL
-        ]
-        if derived_columns:
-            latest_period_by_country = pd.Series(dtype="datetime64[ns]")
-            if not observations.empty:
-                latest_period_by_country = observations.groupby("country_code")["period"].max()
-            fallback_period = (
-                observations["period"].max()
-                if not observations.empty and observations["period"].notna().any()
-                else pd.Timestamp("2026-06-30")
-            )
-            derived = features[["country_code", *derived_columns]].melt(
-                id_vars="country_code",
-                var_name="indicator_code",
-                value_name="value",
-            )
-            derived = derived.dropna(subset=["value"])
-            if not derived.empty:
-                derived["country_code"] = derived["country_code"].astype(str).str.upper()
-                derived["indicator_name"] = derived["indicator_code"].map(GOVT_FEATURE_LABELS)
-                derived["period"] = derived["country_code"].map(latest_period_by_country)
-                derived["period"] = pd.to_datetime(derived["period"], errors="coerce").fillna(
-                    fallback_period
-                )
-                derived["period_label"] = derived["period"].dt.year.astype(str)
-                derived["feature_key"] = derived["indicator_code"]
-                derived["feature_label"] = derived["indicator_name"]
-                derived["frequency"] = "A"
-                derived["source"] = "Government liquidity features"
-                derived["quality"] = "derived_snapshot"
-                keep_columns = [
-                    "source",
-                    "feature_key",
-                    "feature_label",
-                    "quality",
-                    "country_code",
-                    "period_label",
-                    "period",
-                    "value",
-                    "indicator_code",
-                    "indicator_name",
-                    "frequency",
-                ]
-                derived = derived[keep_columns]
-                observations = pd.concat([observations, derived], ignore_index=True)
+    observations = _append_government_derived_observations(observations)
 
     return features, observations, report
+
+
+def _append_government_derived_observations(observations: pd.DataFrame) -> pd.DataFrame:
+    """Append historical fiscal-liquidity ratios derived from raw WEO series.
+
+    Explorer charts need source-like time series, not latest feature snapshots.
+    The derived government features below are therefore calculated for every
+    country/period where the underlying WEO fiscal observations align.
+    """
+    if observations is None or observations.empty:
+        return observations
+
+    required = {
+        "country_code",
+        "period",
+        "period_label",
+        "frequency",
+        "feature_key",
+        "value",
+    }
+    if not required.issubset(observations.columns):
+        return observations
+
+    base = observations.copy()
+    base["value"] = pd.to_numeric(base["value"], errors="coerce")
+    pivot = (
+        base.dropna(subset=["value"])
+        .sort_values("period")
+        .pivot_table(
+            index=["country_code", "period", "period_label", "frequency"],
+            columns="feature_key",
+            values="value",
+            aggfunc="last",
+        )
+        .reset_index()
+    )
+    if pivot.empty:
+        return observations
+
+    def col(name: str) -> pd.Series:
+        if name in pivot.columns:
+            return pd.to_numeric(pivot[name], errors="coerce")
+        return pd.Series(pd.NA, index=pivot.index, dtype="Float64")
+
+    def safe_ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
+        denominator = denominator.replace({0: pd.NA})
+        return numerator / denominator * 100
+
+    fiscal_balance = col("fiscal_balance_gdp")
+    primary_balance = col("primary_balance_gdp")
+    revenue = col("revenue_gdp")
+    gross_debt = col("gross_debt_gdp")
+    interest_gdp = primary_balance - fiscal_balance
+
+    derived_values = {
+        "govt_interest_gdp": interest_gdp,
+        "govt_interest_to_revenue": safe_ratio(interest_gdp, revenue),
+        "govt_debt_to_revenue": safe_ratio(gross_debt, revenue),
+        "govt_overall_deficit_gdp": (
+            (-fiscal_balance).where(fiscal_balance < 0, 0).where(fiscal_balance.notna())
+        ),
+        "govt_primary_deficit_gdp": (
+            (-primary_balance).where(primary_balance < 0, 0).where(primary_balance.notna())
+        ),
+    }
+
+    rows = []
+    id_columns = ["country_code", "period", "period_label", "frequency"]
+    for feature_key, values in derived_values.items():
+        series = pivot[id_columns].copy()
+        series["value"] = pd.to_numeric(values, errors="coerce")
+        series = series.dropna(subset=["value"])
+        if series.empty:
+            continue
+        series["source"] = "Government liquidity features"
+        series["feature_key"] = feature_key
+        series["feature_label"] = GOVT_FEATURE_LABELS.get(feature_key, feature_key)
+        series["quality"] = "derived_series"
+        series["indicator_code"] = feature_key
+        series["indicator_name"] = series["feature_label"]
+        if "observation_status" in observations.columns:
+            series["observation_status"] = "derived"
+        rows.append(series)
+
+    if not rows:
+        return observations
+
+    derived = pd.concat(rows, ignore_index=True)
+    output_columns = list(observations.columns)
+    for column in output_columns:
+        if column not in derived.columns:
+            derived[column] = pd.NA
+    derived = derived[output_columns]
+    return pd.concat([observations, derived], ignore_index=True)
 
 
 def _fsibsis_frequency(label) -> str:

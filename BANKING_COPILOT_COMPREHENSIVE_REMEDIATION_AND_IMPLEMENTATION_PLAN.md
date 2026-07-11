@@ -2587,3 +2587,24 @@ Items that remain open and why they cannot be closed from this environment:
     passed; `PYTHONPATH=. pytest tests/test_peer_selection.py
     tests/test_calculated_series.py tests/test_model_store.py -q` passed
     (13 passed).
+- [x] Checkpoint 37: Convert Explorer government ratios from snapshot dots to
+  historical calculated series.
+  - Scope: Data Explorer presentation/calculation only; no scoring, model
+    artifact, peer-selection, or upstream retrieval logic changed.
+  - Issue: Checkpoint 36 exposed derived government-liquidity fields in the
+    Explorer source selector by appending latest feature-snapshot rows. That
+    made computed fields such as `govt_interest_to_revenue` visible, but their
+    charts rendered as a single point with an odd x-axis instead of a proper
+    time series.
+  - Change: Explorer now derives government ratios from the raw WEO fiscal
+    observation history for every aligned country/period. The derived series
+    include `govt_interest_gdp`, `govt_interest_to_revenue`,
+    `govt_debt_to_revenue`, `govt_overall_deficit_gdp`, and
+    `govt_primary_deficit_gdp`.
+  - Verification: local source-feed check confirmed `govt_interest_to_revenue`
+    now has 6,194 annual observations across 190 countries from 1980-2025,
+    including 44 annual KEN observations and 25 USA observations in the selected
+    comparison source; `python -m py_compile app.py src/dashboard/components.py
+    src/dashboard/styles.py` passed; `PYTHONPATH=. pytest
+    tests/test_peer_selection.py tests/test_calculated_series.py
+    tests/test_model_store.py -q` passed (13 passed).
