@@ -20,6 +20,7 @@ from src.external_liquidity import (
     EXTERNAL_FEATURE_OBSERVATIONS,
     EXTERNAL_FEATURE_REPORT,
     EXTERNAL_FEATURE_VALUES,
+    EXTERNAL_SERIES_SPECS,
     build_external_liquidity_features,
     fetch_feature_observations,
     model_country_codes,
@@ -33,6 +34,16 @@ def main() -> None:
     parser.add_argument("--countries", nargs="*", default=None, help="Optional ISO3 country subset.")
     parser.add_argument("--start-period", default="2005")
     parser.add_argument("--batch-size", type=int, default=25)
+    parser.add_argument(
+        "--skip-world-bank",
+        action="store_true",
+        help="Fetch IMF BOP/IIP series only; skip WB WDI/IDS debt-service features.",
+    )
+    parser.add_argument(
+        "--skip-imf",
+        action="store_true",
+        help="Fetch WB WDI/IDS debt-service features only; skip IMF BOP/IIP series.",
+    )
     parser.add_argument("--observations", default=str(EXTERNAL_FEATURE_OBSERVATIONS))
     parser.add_argument("--features", default=str(EXTERNAL_FEATURE_VALUES))
     parser.add_argument("--report", default=str(EXTERNAL_FEATURE_REPORT))
@@ -43,11 +54,15 @@ def main() -> None:
     report_path = Path(args.report)
 
     countries = [c.upper() for c in args.countries] if args.countries else model_country_codes()
+    if args.skip_imf and args.skip_world_bank:
+        raise SystemExit("At least one source family must be enabled.")
     if args.fetch:
         observations = fetch_feature_observations(
             country_codes=countries,
             start_period=args.start_period,
+            specs=() if args.skip_imf else EXTERNAL_SERIES_SPECS,
             batch_size=args.batch_size,
+            include_world_bank=not args.skip_world_bank,
         )
     else:
         if not observations_path.exists():

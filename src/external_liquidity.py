@@ -20,7 +20,7 @@ import requests
 
 from src.config import BASE_DIR, CACHE_DIR
 from src.model_store import load_model_artifact
-from src.sources.sdmx import IMF_SDMX_BASE, SDMX_CSV_ACCEPT, _parse_sdmx_period
+from src.sources.sdmx import IMF_SDMX_BASE, SDMX_CSV_ACCEPT, WORLD_BANK_BASE, _parse_sdmx_period
 
 
 EXTERNAL_FEATURE_OBSERVATIONS = Path(CACHE_DIR) / "external" / "external_feature_observations.parquet"
@@ -47,6 +47,19 @@ class ExternalSeriesSpec:
             f"{IMF_SDMX_BASE}/data/dataflow/"
             f"{self.agency}/{self.dataflow_id}/+/{self.key_for_countries(country_codes)}"
         )
+
+
+@dataclass(frozen=True)
+class WorldBankSeriesSpec:
+    feature_key: str
+    indicator_code: str
+    label: str
+    source_id: int | None = 2
+    source: str = "WB_WDI_IDS"
+    quality: str = "observed"
+
+    def indicator_url(self) -> str:
+        return f"{WORLD_BANK_BASE}/country/all/indicator/{self.indicator_code}"
 
 
 EXTERNAL_SERIES_SPECS: tuple[ExternalSeriesSpec, ...] = (
@@ -128,6 +141,54 @@ EXTERNAL_SERIES_SPECS: tuple[ExternalSeriesSpec, ...] = (
 )
 
 
+WORLD_BANK_SERIES_SPECS: tuple[WorldBankSeriesSpec, ...] = (
+    # WB additions are deliberately limited to missing debt-service and
+    # debt-affordability metrics. Current-account, reserves, and broad
+    # external-liquidity measures already exist from IMF/WEO/MFS/BOP/IIP and
+    # should not be duplicated with alternate WB versions.
+    WorldBankSeriesSpec(
+        "wb_total_external_debt_service_usd",
+        "DT.TDS.DECT.CD",
+        "Debt service on external debt, total, current USD",
+    ),
+    WorldBankSeriesSpec(
+        "wb_total_external_debt_service_exports_pct",
+        "DT.TDS.DECT.EX.ZS",
+        "Total debt service, percent of exports of goods, services and primary income",
+    ),
+    WorldBankSeriesSpec(
+        "wb_total_external_debt_service_gni_pct",
+        "DT.TDS.DECT.GN.ZS",
+        "Total debt service, percent of GNI",
+    ),
+    WorldBankSeriesSpec(
+        "wb_ppg_external_debt_service_usd",
+        "DT.TDS.DPPG.CD",
+        "Public and publicly guaranteed external debt service, current USD",
+    ),
+    WorldBankSeriesSpec(
+        "wb_ppg_external_debt_service_exports_pct",
+        "DT.TDS.DPPG.XP.ZS",
+        "Public and publicly guaranteed external debt service, percent of exports",
+    ),
+    WorldBankSeriesSpec(
+        "wb_ppg_external_debt_service_gni_pct",
+        "DT.TDS.DPPG.GN.ZS",
+        "Public and publicly guaranteed external debt service, percent of GNI",
+    ),
+    WorldBankSeriesSpec(
+        "wb_government_interest_payments_revenue_pct",
+        "GC.XPN.INTP.RV.ZS",
+        "Central government interest payments, percent of revenue",
+    ),
+    WorldBankSeriesSpec(
+        "wb_government_revenue_ex_grants_gdp_pct",
+        "GC.REV.XGRT.GD.ZS",
+        "Central government revenue excluding grants, percent of GDP",
+    ),
+)
+
+
 def batched(values: Iterable[str], size: int) -> Iterable[list[str]]:
     batch: list[str] = []
     for value in values:
@@ -165,12 +226,108 @@ def normalize_feature_csv(content: bytes, spec: ExternalSeriesSpec) -> pd.DataFr
     ].reset_index(drop=True)
 
 
+def normalize_world_bank_records(
+    records: list[dict],
+    spec: WorldBankSeriesSpec,
+) -> pd.DataFrame:
+    if not records:
+        return pd.DataFrame(
+            columns=[
+                "source", "feature_key", "feature_label", "quality",
+                "dataset_version", "country_code", "period_label", "period",
+                "value",
+            ]
+        )
+    frame = pd.DataFrame.from_records(records)
+    values = pd.to_numeric(frame["value"], errors="coerce")
+    normalized = pd.DataFrame(
+        {
+            "source": spec.source,
+            "feature_key": spec.feature_key,
+            "feature_label": spec.label,
+            "quality": spec.quality,
+            "dataset_version": f"WorldBank source={spec.source_id or 'default'} indicator={spec.indicator_code}",
+            "country_code": frame["countryiso3code"].astype(str).str.strip().str.upper(),
+            "period_label": frame["date"].astype(str).str.strip(),
+            "period": frame["date"].map(_parse_sdmx_period),
+            "value": values,
+        }
+    )
+    return normalized[
+        normalized["value"].notna()
+        & normalized["period"].notna()
+        & normalized["country_code"].str.fullmatch(r"[A-Z]{3}")
+    ].reset_index(drop=True)
+
+
+def fetch_world_bank_feature_observations(
+    country_codes: list[str],
+    start_period: str = "2005",
+    specs: tuple[WorldBankSeriesSpec, ...] = WORLD_BANK_SERIES_SPECS,
+    timeout: int = 60,
+) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    country_codes = sorted({str(code).upper() for code in country_codes if pd.notna(code)})
+    country_set = set(country_codes)
+    start_ts = _parse_sdmx_period(start_period)
+    end_year = datetime.now(timezone.utc).year
+    start_year = start_ts.year if start_ts is not pd.NaT else 2005
+
+    for spec in specs:
+        page = 1
+        records: list[dict] = []
+        while True:
+            params = {
+                "format": "json",
+                "per_page": 20000,
+                "page": page,
+                "date": f"{start_year}:{end_year}",
+            }
+            if spec.source_id is not None:
+                params["source"] = spec.source_id
+            try:
+                response = requests.get(spec.indicator_url(), params=params, timeout=timeout)
+                response.raise_for_status()
+            except requests.RequestException:
+                break
+            payload = response.json()
+            if not isinstance(payload, list) or len(payload) < 2:
+                break
+            meta, page_records = payload[0], payload[1] or []
+            records.extend(
+                record
+                for record in page_records
+                if str(record.get("countryiso3code", "")).strip().upper() in country_set
+                and record.get("value") is not None
+            )
+            if page >= int(meta.get("pages", 1)):
+                break
+            page += 1
+        normalized = normalize_world_bank_records(records, spec)
+        if start_ts is not pd.NaT and not normalized.empty:
+            normalized = normalized[normalized["period"] >= start_ts]
+        if not normalized.empty:
+            frames.append(normalized)
+
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "source", "feature_key", "feature_label", "quality",
+                "dataset_version", "country_code", "period_label", "period",
+                "value",
+            ]
+        )
+    return pd.concat(frames, ignore_index=True)
+
+
 def fetch_feature_observations(
     country_codes: list[str],
     start_period: str = "2005",
     specs: tuple[ExternalSeriesSpec, ...] = EXTERNAL_SERIES_SPECS,
+    world_bank_specs: tuple[WorldBankSeriesSpec, ...] = WORLD_BANK_SERIES_SPECS,
     batch_size: int = 25,
     timeout: int = 120,
+    include_world_bank: bool = True,
 ) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
     country_codes = sorted({str(code).upper() for code in country_codes if pd.notna(code)})
@@ -188,6 +345,15 @@ def fetch_feature_observations(
                 normalized = normalized[normalized["period"] >= start_ts]
             if not normalized.empty:
                 frames.append(normalized)
+    if include_world_bank:
+        wb_observations = fetch_world_bank_feature_observations(
+            country_codes,
+            start_period=start_period,
+            specs=world_bank_specs,
+            timeout=min(timeout, 60),
+        )
+        if not wb_observations.empty:
+            frames.append(wb_observations)
     if not frames:
         return pd.DataFrame(
             columns=[
@@ -233,7 +399,10 @@ def build_external_liquidity_features(
         model_country_set = set(
             model["country_scores"]["country_code"].dropna().astype(str).str.upper()
         )
-    base = model_features[["country_code", "nominal_gdp"]].copy()
+    base_columns = ["country_code", "nominal_gdp"]
+    if "fiscal_balance_gdp" in model_features.columns:
+        base_columns.append("fiscal_balance_gdp")
+    base = model_features[base_columns].copy()
     base["country_code"] = base["country_code"].astype(str).str.upper()
     if model_country_set is not None:
         base = base[base["country_code"].isin(model_country_set)]
@@ -266,6 +435,45 @@ def build_external_liquidity_features(
     derived["portfolio_liabilities_gdp"] = safe_ratio(col("portfolio_liabilities_usd"), gdp)
     derived["portfolio_liability_flows_gdp"] = safe_ratio(col("portfolio_liability_flows_usd"), gdp)
     derived["portfolio_net_flows_gdp"] = safe_ratio(col("portfolio_net_flows_usd"), gdp)
+    derived["wb_total_external_debt_service_exports_pct"] = col(
+        "wb_total_external_debt_service_exports_pct"
+    )
+    derived["wb_total_external_debt_service_gni_pct"] = col(
+        "wb_total_external_debt_service_gni_pct"
+    )
+    derived["wb_ppg_external_debt_service_exports_pct"] = col(
+        "wb_ppg_external_debt_service_exports_pct"
+    )
+    derived["wb_ppg_external_debt_service_gni_pct"] = col(
+        "wb_ppg_external_debt_service_gni_pct"
+    )
+    derived["wb_total_external_debt_service_gdp"] = safe_ratio(
+        col("wb_total_external_debt_service_usd"),
+        gdp,
+    )
+    derived["wb_ppg_external_debt_service_gdp"] = safe_ratio(
+        col("wb_ppg_external_debt_service_usd"),
+        gdp,
+    )
+    revenue_usd = (
+        col("wb_government_revenue_ex_grants_gdp_pct")
+        / 100
+        * gdp
+    )
+    derived["wb_total_external_debt_service_revenue_proxy"] = safe_ratio(
+        col("wb_total_external_debt_service_usd"),
+        revenue_usd,
+    )
+    derived["wb_ppg_external_debt_service_revenue_proxy"] = safe_ratio(
+        col("wb_ppg_external_debt_service_usd"),
+        revenue_usd,
+    )
+    derived["wb_government_interest_payments_revenue_pct"] = col(
+        "wb_government_interest_payments_revenue_pct"
+    )
+    derived["wb_government_revenue_ex_grants_gdp_pct"] = col(
+        "wb_government_revenue_ex_grants_gdp_pct"
+    )
 
     investment_income_debits = (
         col("direct_investment_income_debits_usd").fillna(0)
@@ -281,6 +489,14 @@ def build_external_liquidity_features(
     derived["gross_external_financing_need_proxy_gdp"] = safe_ratio(
         current_account_deficit + col("portfolio_liability_flows_usd").abs(),
         gdp,
+    )
+    fiscal_deficit = -pd.to_numeric(
+        features.get("fiscal_balance_gdp", pd.Series(pd.NA, index=features.index)),
+        errors="coerce",
+    )
+    fiscal_deficit = fiscal_deficit.where(fiscal_deficit > 0, 0)
+    derived["wb_public_financing_need_ext_debt_service_proxy_gdp"] = (
+        fiscal_deficit + derived["wb_ppg_external_debt_service_gdp"]
     )
     derived["external_liquidity_feature_count"] = (
         derived.drop(columns=["country_code"]).notna().sum(axis=1)
@@ -310,8 +526,11 @@ def build_external_liquidity_features(
         "notes": [
             "Features are staged challenger inputs and are not wired into production scoring.",
             "gross_external_financing_need_proxy_gdp is a proxy: current-account deficit plus absolute portfolio-liability flow over GDP.",
+            "WB additions intentionally avoid duplicating current-account, reserves, and broad external-liquidity metrics already covered by IMF/WEO/MFS/BOP/IIP.",
+            "wb_public_financing_need_ext_debt_service_proxy_gdp is a fiscal/debt-service stress proxy: fiscal deficit plus public-and-publicly-guaranteed external debt service over GDP; it is not a classic gross financing need measure because debt service includes interest.",
+            "wb_total_external_debt_service_revenue_proxy and wb_ppg_external_debt_service_revenue_proxy combine WB debt-service USD with WB revenue/GDP and model nominal GDP.",
             "investment_income_debits_to_cxr is a broad external-income-service proxy, not contractual debt service.",
-            "QEDS/CPIS/CDIS remain separate source-family gaps pending usable current IMF API IDs or fallback providers.",
+            "QEDS/CPIS/CDIS and principal-only amortization remain separate source-family gaps pending usable current API coverage.",
         ],
     }
     return derived, report

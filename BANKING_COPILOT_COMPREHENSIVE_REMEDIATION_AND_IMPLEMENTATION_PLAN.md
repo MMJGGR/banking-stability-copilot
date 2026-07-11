@@ -1970,3 +1970,39 @@ Items that remain open and why they cannot be closed from this environment:
     Full test suite passed (`78 passed`, `1 skipped`). These features remain
     staged challenger inputs and do not change production predictions until a
     challenger comparison is reviewed.
+- [x] Checkpoint 16: Non-duplicative debt-service and financing-pressure
+  source extension.
+  - Pending commit: `add debt service financing pressure features`
+  - Scope:
+    - Add World Bank WDI/IDS only where it fills gaps not already covered by
+      WEO/MFS/BOP/IIP: total external debt service, public-and-publicly-
+      guaranteed external debt service, government interest payments as a
+      share of revenue, and government revenue/GDP as a denominator.
+    - Do not add WB current-account, reserves, or broad external-liquidity
+      fallback series because those are already represented by the existing
+      WEO/MFS/BOP/IIP pipeline and staged external-liquidity block.
+    - Derive fiscal-first financing-pressure candidates:
+      `wb_total_external_debt_service_gdp`,
+      `wb_ppg_external_debt_service_gdp`,
+      `wb_total_external_debt_service_revenue_proxy`,
+      `wb_ppg_external_debt_service_revenue_proxy`, and
+      `wb_public_financing_need_ext_debt_service_proxy_gdp`.
+    - Keep the features staged as challenger inputs; do not change production
+      scores or country rankings until a feature-impact review is completed.
+  - Verification so far: targeted unit tests passed
+    (`tests/test_external_liquidity_features.py`: `3 passed`) after removing
+    duplicate-prone WB current-account and reserve series. A three-country
+    smoke fetch for USA/KEN/MOZ succeeded and confirmed WB debt-service fields
+    populate for Kenya and Mozambique while the USA remains absent from IDS
+    debt-service coverage, consistent with the expected high-income-country
+    coverage gap. Added `--skip-imf` so WB debt-service coverage can be
+    tested without re-fetching the existing IMF external-liquidity block.
+    WB-only 201-country run completed locally using the non-duplicative source
+    set: government interest/revenue covers 142/201 countries (70.6%),
+    revenue/GDP covers 143/201 (71.1%), total and PPG external debt-service/GDP
+    cover 120/201 (59.7%), direct debt-service/export and debt-service/GNI
+    measures cover 111-119/201 (55.2%-59.2%), and the debt-service/revenue
+    proxy covers 85/201 (42.3%). Full combined IMF+WB local fetch exceeded the
+    local command timeout and should run in GitHub Actions or be split by
+    source family before using it as a release gate. Full test suite passed
+    (`79 passed`, `1 skipped`).
