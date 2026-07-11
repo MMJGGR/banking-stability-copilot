@@ -2006,3 +2006,18 @@ Items that remain open and why they cannot be closed from this environment:
     local command timeout and should run in GitHub Actions or be split by
     source family before using it as a release gate. Full test suite passed
     (`79 passed`, `1 skipped`).
+- [x] Checkpoint 17: Live Streamlit startup import hotfix.
+  - Pending commit: `fix streamlit startup import compatibility`
+  - Scope:
+    - Replaced the fragile multi-symbol `src.model_store` import in `app.py`
+      with a module import plus backward-compatible fallbacks for archive-aware
+      snapshot helpers. This prevents a live startup failure when Streamlit
+      serves a stale/partial module cache that lacks newer model-store helper
+      symbols.
+    - Removed `key=` arguments from `st.dataframe` calls because explicit keys
+      are needed for Plotly duplicate-element fixes, but dataframe keys are not
+      supported consistently across the Streamlit versions covered by the
+      serving dependency range.
+  - Verification: `python -m py_compile app.py src/model_store.py` passed; full
+    test suite passed (`79 passed`, `1 skipped`); local Streamlit startup check
+    returned HTTP 200 on port 8562.

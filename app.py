@@ -15,13 +15,34 @@ from src.data_loader import (
 )
 from src.country_names import fill_missing_country_names
 from src.health import build_health_report
-from src.model_store import (
-    SNAPSHOT_ARCHIVE,
-    list_archived_snapshots,
-    load_archived_snapshot,
-    load_data_manifest,
-    load_model_artifact_with_fallback,
-)
+from src import model_store
+
+SNAPSHOT_ARCHIVE = getattr(model_store, "SNAPSHOT_ARCHIVE", None)
+load_data_manifest = model_store.load_data_manifest
+
+if hasattr(model_store, "load_model_artifact_with_fallback"):
+    load_model_artifact_with_fallback = model_store.load_model_artifact_with_fallback
+else:
+    def load_model_artifact_with_fallback():
+        """Backward-compatible active-model loader for stale deployments."""
+        return model_store.load_model_artifact(), model_store.load_data_manifest(), {
+            "mode": "active",
+            "fallback_reason": "archive-aware loader unavailable",
+        }
+
+
+if hasattr(model_store, "list_archived_snapshots"):
+    list_archived_snapshots = model_store.list_archived_snapshots
+else:
+    def list_archived_snapshots() -> list:
+        return []
+
+
+if hasattr(model_store, "load_archived_snapshot"):
+    load_archived_snapshot = model_store.load_archived_snapshot
+else:
+    def load_archived_snapshot(name: str):
+        raise FileNotFoundError("Archived snapshots are unavailable in this deployment")
 from src.dashboard.styles import STYLES, score_to_tier
 from src.dashboard.components import (
     render_summary_card, 
@@ -469,7 +490,6 @@ def render_indicator_comparison(
         latest_table[['Country', 'Latest Period', 'Latest Value']],
         use_container_width=True,
         hide_index=True,
-        key=f"compare_latest_{dataset}_{selected_indicator}",
     )
 
 
@@ -591,7 +611,6 @@ def _render_calculated_chart(
         latest[['Country', 'Latest Period', 'Latest Value']],
         use_container_width=True,
         hide_index=True,
-        key=f"{chart_key}_latest" if chart_key else None,
     )
 
 
