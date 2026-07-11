@@ -2474,3 +2474,17 @@ Items that remain open and why they cannot be closed from this environment:
     25% / +0.38, KEN 0% (full coverage) — the panel logic was already correct;
     the bug was purely stale caching/serving. Full suite 94 passed, 1 skipped;
     Streamlit boot HTTP 200.
+- [x] Checkpoint 32: Country Profile fixes — peer state leak, reserves units,
+  unified liquidity section.
+  - Peer cross-contamination: the Country Profile peer multiselect used a static
+    widget key (`custom_peer_codes`), so Streamlit persisted one country's
+    selection across country changes (viewing the US then Kenya showed the US's
+    peers — Germany/UK/France/Italy — instead of Kenya's nearest neighbours).
+    Keyed the widget per country (`custom_peer_codes_{code}`) so it re-seeds.
+  - Reserves units: `reserves_to_goods_services_imports` is a percent of annual
+    imports; it now displays as months of imports (value x 12 / 100), e.g.
+    Kenya 36.18% -> 4.3 months. The model still uses the underlying ratio.
+  - Sectioning: replaced the two stray "External/Government Liquidity Inputs"
+    tables with a single "Liquidity Inputs Used In Score" table carrying a
+    Category column (External / Government).
+  - Verified: compile OK, full suite 94 passed / 1 skipped, Streamlit boot 200.
