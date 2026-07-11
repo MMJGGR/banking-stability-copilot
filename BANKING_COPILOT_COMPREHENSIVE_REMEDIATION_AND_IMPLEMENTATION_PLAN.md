@@ -2513,3 +2513,27 @@ Items that remain open and why they cannot be closed from this environment:
     `pytest tests/test_peer_selection.py tests/test_calculated_series.py
     tests/test_model_store.py -q` passed (13 passed); direct `import app`
     succeeded.
+- [x] Checkpoint 34: Normalize liquidity as ordinary model/source features.
+  - Scope: UX-only; no scoring, data retrieval, promoted artifacts, or peer
+    selection logic was changed.
+  - Issue: liquidity appeared in several places as if it were a separate app
+    module: Country Evidence had both Model Inputs and a separate Liquidity tab,
+    and Explorer had standalone External/Government liquidity tabs even though
+    the same series were already available through the normal source selectors.
+  - Changes:
+    - Removed the separate Country Evidence Liquidity tab.
+    - Folded active government and external liquidity fields into the normal
+      Country Evidence -> Model inputs table.
+    - Kept reserves coverage displayed as months of imports while preserving
+      the underlying model value.
+    - Removed standalone Explorer External liquidity and Government liquidity
+      tabs; liquidity remains accessible through Compare and Calculate source
+      choices.
+    - Consolidated Methodology/Data Card liquidity coverage under one
+      `Liquidity Feature Coverage` section with External/Government subtabs.
+    - Aligned model-input terminology with the app's public labels:
+      Operating Environment and Banking System.
+  - Verification: `python -m py_compile app.py src/dashboard/components.py
+    src/dashboard/styles.py` passed; `pytest tests/test_peer_selection.py
+    tests/test_calculated_series.py tests/test_model_store.py -q` passed
+    (13 passed); direct `import app` succeeded.

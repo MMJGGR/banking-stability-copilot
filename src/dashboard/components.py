@@ -108,6 +108,23 @@ FSIC_NAME_PATTERNS = {
 # Combined mapping for backwards compatibility
 FEATURE_TO_INDICATOR = {**WEO_INDICATORS}
 
+
+def _format_snapshot_value(key: str, value, fmt: str) -> str:
+    """Format displayed model inputs without changing model values."""
+    if key == "reserves_to_goods_services_imports":
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return "—"
+        if pd.isna(numeric):
+            return "—"
+        return f"{numeric * 12 / 100:,.1f} months"
+    try:
+        return fmt.format(value)
+    except Exception:
+        return str(value)
+
+
 def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame = None, 
                          loader=None, country_code: str = None, wgi_data: pd.DataFrame = None,
                          model_features: pd.DataFrame = None, pca_info: Dict = None):
@@ -148,15 +165,17 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
         except Exception as e:
             pass
     
-    # Fallback: If parquet not available, try model_features (for testing/dev)
-    if not actual_values and model_features is not None and country_code:
+    # Fill from model_features for promoted fields that are not present in the
+    # legacy crisis_features sidecar, including newer liquidity inputs.
+    if model_features is not None and country_code:
         try:
             model_row = model_features[model_features['country_code'] == country_code]
             if len(model_row) > 0:
                 row = model_row.iloc[0]
                 for col in model_features.columns:
-                    if col != 'country_code' and pd.notna(row.get(col)):
+                    if col != 'country_code' and col not in actual_values and pd.notna(row.get(col)):
                         actual_values[col] = row[col]
+                        model_columns.add(col)
         except Exception:
             pass
 
@@ -165,16 +184,18 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     # NOTE: Shows the KEY indicators used in the model - not all features
     # Dropped features (tier1, private/total credit_to_gdp) removed
     indicator_groups = {
-        "Economic Fundamentals": [
+        "Operating Environment": [
             ("gdp_per_capita", "GDP per Capita", "${:,.0f}"),
             ("gdp_growth", "GDP Growth", "{:.1f}%"),
             ("inflation", "Inflation Rate", "{:.1f}%"),
             ("govt_debt_gdp", "Govt Debt/GDP", "{:.1f}%"),
             ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
+            ("govt_interest_to_revenue", "Govt Interest/Revenue", "{:.1f}%"),
+            ("govt_debt_to_revenue", "Govt Debt/Revenue", "{:.1f}%"),
             ("credit_to_gdp_relative", "Credit-to-GDP Gap", "{:+.1f}pp"), # Moved from Liquidity
             ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW
         ],
-        "Banking Sector Health": [
+        "Banking System": [
             ("capital_adequacy", "Capital Adequacy Ratio", "{:.1f}%"),
             ("npl_ratio", "NPL Ratio", "{:.1f}%"),
             ("roe", "Return on Equity", "{:.1f}%"),
@@ -187,6 +208,11 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
             ("bank_liability_to_nfa", "Bank Liab/NFA", "{:.1f}x"), # NEW
             ("customer_deposits_loans", "Deposits/Loans", "{:.1f}%"),
             ("deposit_funding_ratio", "Deposit Funding Ratio", "{:.1f}%"),
+            ("net_iip_gdp", "Net IIP/GDP", "{:.1f}%"),
+            ("external_liabilities_gdp", "External Liabilities/GDP", "{:.1f}%"),
+            ("gross_external_financing_need_proxy_gdp", "Gross External Financing Need/GDP", "{:.1f}%"),
+            ("reserves_to_goods_services_imports", "Reserves Coverage", "{}"),
+            ("investment_income_debits_to_cxr", "Investment Income Debits/CXR", "{:.1f}%"),
         ],
     }
     
@@ -225,10 +251,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 
                 if value is not None and not pd.isna(value):
                     # Actual data available
-                    try:
-                        formatted = fmt.format(value)
-                    except:
-                        formatted = str(value)
+                    formatted = _format_snapshot_value(key, value, fmt)
                     st.markdown(f"<div class='snapshot-row'><span class='snapshot-label'>{display_name}</span><span class='snapshot-value'>{formatted}</span></div>", unsafe_allow_html=True)
                 elif imputed_val is not None and not pd.isna(imputed_val):
                     # Check for Smart Proxy (Verified Data)
@@ -238,10 +261,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                         if sec_val is not None and pd.notna(sec_val) and abs(imputed_val - sec_val) < 0.1:
                             is_proxy = True
                     
-                    try:
-                        formatted = fmt.format(imputed_val)
-                    except:
-                        formatted = str(imputed_val)
+                    formatted = _format_snapshot_value(key, imputed_val, fmt)
                     
                     if is_proxy:
                         # Show as Actual (Verified Proxy)
@@ -258,13 +278,13 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     
     # Add expandable Model Features & Weights section
     with st.expander("Model Features & Weights"):
-        st.markdown("**Risk Score = 50% Economic Pillar + 50% Industry Pillar**")
+        st.markdown("**Risk Score = 50% Operating Environment + 50% Banking System**")
         st.markdown("Each pillar uses PCA to combine features. Missing values are imputed via KNN (or median fallback).")
         st.caption("✓ = actual data, ≈ = imputed value used in model")
         
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown("**Economic Pillar (50%)**")
+            st.markdown("**Operating Environment (50%)**")
             economic_features = [
                 ("gdp_growth", "GDP Growth", "{:.1f}%"),
                 ("gdp_per_capita", "GDP per Capita", "${:,.0f}"),
@@ -272,6 +292,8 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("current_account_gdp", "Current Account/GDP", "{:.1f}%"),
                 ("govt_debt_gdp", "Govt Debt/GDP", "{:.1f}%"),
                 ("fiscal_balance_gdp", "Fiscal Balance/GDP", "{:.1f}%"),
+                ("govt_interest_to_revenue", "Govt Interest/Revenue", "{:.1f}%"),
+                ("govt_debt_to_revenue", "Govt Debt/Revenue", "{:.1f}%"),
                 ("unemployment", "Unemployment", "{:.1f}%"),
                 ("credit_to_gdp_relative", "Credit-to-GDP Gap", "{:+.1f}pp"),
                 ("sovereign_liability_to_reserves", "Sov Liab/Reserves", "{:.1f}x"), # NEW (Ratio)
@@ -292,24 +314,18 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                         year_str = f" ({year})"
                 
                 if val is not None and not pd.isna(val):
-                    try:
-                        formatted = fmt.format(val)
-                    except:
-                        formatted = f"{val:.2f}"
+                    formatted = _format_snapshot_value(key, val, fmt)
                     st.caption(f"✓ {name}: **{formatted}**{year_str}")
                 else:
                     imp_val = imputed_values.get(key)
                     if imp_val is not None and not pd.isna(imp_val):
-                        try:
-                            formatted = fmt.format(imp_val)
-                        except:
-                            formatted = f"{imp_val:.2f}"
+                        formatted = _format_snapshot_value(key, imp_val, fmt)
                         st.caption(f"≈ {name}: {formatted} (imputed)")
                     else:
                         st.caption(f"— {name}: (no data)")
         
         with col2:
-            st.markdown("**Industry Pillar (50%)**")
+            st.markdown("**Banking System (50%)**")
             industry_features = [
                 ("capital_adequacy", "Capital Adequacy", "{:.1f}%"),
                 ("capital_quality", "Capital Quality (T1/CAR)", "{:.1f}%"),  # NEW
@@ -332,6 +348,11 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                 ("npl_provisions", "NPL Coverage Ratio", "{:.1f}%"),
                 ("large_exposure_ratio", "Large Exposure Ratio", "{:.1f}%"),
                 ("deposit_funding_ratio", "Deposit Funding Ratio", "{:.1f}%"),
+                ("net_iip_gdp", "Net IIP/GDP", "{:.1f}%"),
+                ("external_liabilities_gdp", "External Liabilities/GDP", "{:.1f}%"),
+                ("gross_external_financing_need_proxy_gdp", "Gross External Financing Need/GDP", "{:.1f}%"),
+                ("reserves_to_goods_services_imports", "Reserves Coverage", "{}"),
+                ("investment_income_debits_to_cxr", "Investment Income Debits/CXR", "{:.1f}%"),
                 # Note: regulatory_quality, rule_of_law, control_corruption dropped due to high correlation
             ]
             for key, name, fmt in industry_features:
@@ -346,10 +367,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                         year_str = f" ({year})"
                 
                 if val is not None and not pd.isna(val):
-                    try:
-                        formatted = fmt.format(val)
-                    except:
-                        formatted = f"{val:.2f}"
+                    formatted = _format_snapshot_value(key, val, fmt)
                     st.caption(f"✓ {name}: **{formatted}**{year_str}")
                 else:
                     imp_val = imputed_values.get(key)
@@ -361,10 +379,7 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                              if sec_val is not None and pd.notna(sec_val) and abs(imp_val - sec_val) < 0.1:
                                  is_proxy = True
                         
-                        try:
-                            formatted = fmt.format(imp_val)
-                        except:
-                            formatted = f"{imp_val:.2f}"
+                        formatted = _format_snapshot_value(key, imp_val, fmt)
                             
                         if is_proxy:
                             st.caption(f"✓ {name}: **{formatted}** (Securities)")

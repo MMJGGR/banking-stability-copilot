@@ -1929,11 +1929,12 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
     else:
         st.info("Feature artifact is unavailable, so coverage cannot be summarized.")
 
-    st.markdown("#### External-Liquidity Dataset")
-    render_external_methodology_summary(features)
-
-    st.markdown("#### Government-Liquidity Dataset")
-    render_government_methodology_summary(features)
+    st.markdown("#### Liquidity Feature Coverage")
+    liq_tab_external, liq_tab_government = st.tabs(["External", "Government"])
+    with liq_tab_external:
+        render_external_methodology_summary(features)
+    with liq_tab_government:
+        render_government_methodology_summary(features)
 
     st.markdown("#### Priority Missing Data Families")
     gap_rows = [
@@ -2026,10 +2027,11 @@ classifier is trained on annual historical epochs and produces a
 forward-looking three-year risk signal, not a monthly or quarterly crisis
 probability.
 
-Liquidity fields are packaged for analysis in the Data Explorer and Data Card.
-Fields marked as active model inputs are included in the current production
-score; other packaged liquidity fields remain insight-only until a promoted
-model artifact includes them in its approved feature set.
+Liquidity fields are treated as normal model/source features. Active liquidity
+inputs appear in the same country model-input view as other fields, and the
+underlying external and government series are available in the Explorer source
+selectors for comparison and calculations. Fields not included in the promoted
+model artifact remain insight-only.
 """
     )
 
@@ -2461,10 +2463,9 @@ with tab_profile:
 
     with st.container(border=True):
         st.markdown("### Country Evidence")
-        evidence_tab_inputs, evidence_tab_governance, evidence_tab_liquidity = st.tabs([
+        evidence_tab_inputs, evidence_tab_governance = st.tabs([
             "Model inputs",
             "Governance",
-            "Liquidity",
         ])
 
         with evidence_tab_inputs:
@@ -2506,10 +2507,6 @@ with tab_profile:
                     st.caption("No WGI data for this country.")
             else:
                 st.caption("WGI data not loaded.")
-
-        with evidence_tab_liquidity:
-            render_liquidity_model_inputs(selected_country_code, model_features)
-
     with st.container(border=True):
         st.markdown("### Peer Countries")
 
@@ -2596,7 +2593,8 @@ with tab_explorer:
         st.markdown("### Explorer Workspace")
         st.caption(
             "Compare indicators across countries, build simple ratios or changes, "
-            "and inspect source histories on demand."
+            "and inspect source histories on demand. Liquidity series are available "
+            "as normal source choices in Compare and Calculate."
         )
         explorer_col1, explorer_col2 = st.columns([2, 3])
         with explorer_col1:
@@ -2633,11 +2631,9 @@ with tab_explorer:
             else:
                 st.caption("No nearest-neighbor peers are available for this country.")
 
-    tool_tab_compare, tool_tab_calc, tool_tab_external, tool_tab_govt = st.tabs([
+    tool_tab_compare, tool_tab_calc = st.tabs([
         "Compare",
         "Calculate",
-        "External liquidity",
-        "Government liquidity",
     ])
     with tool_tab_compare:
         render_indicator_comparison(
@@ -2655,23 +2651,6 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    with tool_tab_external:
-        render_external_insight_panel(
-            scores=scores_df,
-            selected_country=explorer_focus_country,
-            default_peer_codes=explorer_default_peers,
-            country_formatter=format_country_option,
-            model_features=model_features,
-        )
-    with tool_tab_govt:
-        render_government_insight_panel(
-            scores=scores_df,
-            selected_country=explorer_focus_country,
-            default_peer_codes=explorer_default_peers,
-            country_formatter=format_country_option,
-            model_features=model_features,
-        )
-
     st.markdown("#### Single-country source tabs")
     load_history = st.checkbox(
         f"Load single-country historical data for {explorer_focus_country}",
