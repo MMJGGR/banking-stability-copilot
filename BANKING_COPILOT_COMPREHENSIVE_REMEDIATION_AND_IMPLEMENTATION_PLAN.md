@@ -2488,3 +2488,28 @@ Items that remain open and why they cannot be closed from this environment:
     tables with a single "Liquidity Inputs Used In Score" table carrying a
     Category column (External / Government).
   - Verified: compile OK, full suite 94 passed / 1 skipped, Streamlit boot 200.
+- [x] Checkpoint 33: App organization and visual-density cleanup.
+  - Scope: UX-only; no scoring, data retrieval, model artifact, or peer-selection
+    logic was changed.
+  - Changes:
+    - Shortened top-level tab labels to reduce mobile header truncation
+      (`Global`, `Country`, `Explorer`, `Methodology`).
+    - Reworked Country Profile into clearer sections: country score summary,
+      score components, country evidence, and peers.
+    - Renamed user-facing pillar labels to clearer business language:
+      `Operating Environment` and `Banking System`.
+    - Collapsed Score Drivers by default so technical attribution is available
+      without dominating the country page.
+    - Grouped model inputs, governance indicators, and liquidity inputs under a
+      single Country Evidence block with sub-tabs.
+    - Cleaned Peer Countries table labels and caption text without changing the
+      peer algorithm.
+    - Added an Explorer Workspace header with concise task framing and shortened
+      Explorer tool tabs (`Compare`, `Calculate`, `External liquidity`,
+      `Government liquidity`).
+    - Tightened spacing and tab padding in `src/dashboard/styles.py`, including
+      mobile-specific tab and metric sizing.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py` passed;
+    `pytest tests/test_peer_selection.py tests/test_calculated_series.py
+    tests/test_model_store.py -q` passed (13 passed); direct `import app`
+    succeeded.

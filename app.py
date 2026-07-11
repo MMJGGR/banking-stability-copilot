@@ -2311,7 +2311,7 @@ st.markdown(
 # MAIN NAVIGATION: Tabs
 # ==============================================================================
 tab_global, tab_profile, tab_explorer, tab_methodology = st.tabs([
-    "Global Summary", "Country Profile", "Data Explorer", "Methodology"
+    "Global", "Country", "Explorer", "Methodology"
 ])
 
 # ==============================================================================
@@ -2324,62 +2324,56 @@ with tab_global:
 # TAB: Country Profile
 # ==============================================================================
 with tab_profile:
-    profile_col1, profile_col2 = st.columns([2, 3])
-    with profile_col1:
-        selected_country_code = st.selectbox(
-            "Country",
-            options=available_country_codes,
-            format_func=format_country_option,
-            key="profile_country_code",
-            help="This selector controls the Country Profile tab only.",
-        )
+    selected_country_code = st.selectbox(
+        "Country",
+        options=available_country_codes,
+        format_func=format_country_option,
+        key="profile_country_code",
+        help="This selector controls the Country tab only.",
+    )
 
     country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
     selected_country_name = country_score_row['country_name']
 
-    # 1. HEADER: Country Name + Risk Score Summary
-    st.markdown(f"## {selected_country_name}")
-    
     risk_score = country_score_row['risk_score']
     tier = score_to_tier(risk_score)
     percentile = (scores_df['risk_score'] < risk_score).mean()
-    
-    # Risk Summary Row (inline metrics instead of card)
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Risk Score", f"{risk_score:.1f}/10")
-    with m2:
-        tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
-        st.metric("Risk Tier", tier_labels.get(tier, "N/A"))
-    with m3:
-        st.metric("Global Rank", f"Top {percentile:.0%}")
-    with m4:
-        coverage = country_score_row.get('data_coverage', 0)
-        st.metric("Data Coverage", f"{coverage:.0%}")
-    
-    # Confidence warning if needed
-    if country_score_row.get('risk_floor_applied', False):
-        st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
-    
-    st.markdown("---")
-    
-    # 2. MODEL BREAKDOWN (replaces spider chart in header)
-    st.markdown("### Model Breakdown")
-    bd1, bd2, bd3 = st.columns(3)
-    with bd1:
-        econ_score = country_score_row['economic_pillar']
-        st.metric("Economic Pillar", f"{econ_score:.1f}/10", 
-                  delta=f"{econ_score - scores_df['economic_pillar'].mean():.1f} vs avg")
-    with bd2:
-        ind_score = country_score_row['industry_pillar']
-        st.metric("Industry Pillar", f"{ind_score:.1f}/10",
-                  delta=f"{ind_score - scores_df['industry_pillar'].mean():.1f} vs avg")
-    with bd3:
-        if 'combined_pillar' in country_score_row:
-            comb_score = country_score_row['combined_pillar']
-            st.metric("Combined Pillar", f"{comb_score:.1f}/10")
 
-    with st.expander("Score Drivers — feature-level attribution"):
+    with st.container(border=True):
+        st.markdown(f"## {selected_country_name}")
+        tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Risk Score", f"{risk_score:.1f}/10")
+        m2.metric("Risk Tier", tier_labels.get(tier, "N/A"))
+        m3.metric("Risk Percentile", f"{percentile:.0%}", help="Share of scored countries with a lower risk score.")
+        coverage = country_score_row.get('data_coverage', 0)
+        m4.metric("Data Coverage", f"{coverage:.0%}")
+        if country_score_row.get('risk_floor_applied', False):
+            st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
+
+    with st.container(border=True):
+        st.markdown("### Score Components")
+        bd1, bd2, bd3 = st.columns(3)
+        with bd1:
+            econ_score = country_score_row['economic_pillar']
+            st.metric(
+                "Operating Environment",
+                f"{econ_score:.1f}/10",
+                delta=f"{econ_score - scores_df['economic_pillar'].mean():.1f} vs avg",
+            )
+        with bd2:
+            ind_score = country_score_row['industry_pillar']
+            st.metric(
+                "Banking System",
+                f"{ind_score:.1f}/10",
+                delta=f"{ind_score - scores_df['industry_pillar'].mean():.1f} vs avg",
+            )
+        with bd3:
+            if 'combined_pillar' in country_score_row:
+                comb_score = country_score_row['combined_pillar']
+                st.metric("Combined Pillar", f"{comb_score:.1f}/10")
+
+    with st.expander("Score drivers", expanded=False):
         try:
             driver_model = {
                 'country_scores': scores_df,
@@ -2465,175 +2459,183 @@ with tab_profile:
                 f"{driver_error}"
             )
 
-    render_liquidity_model_inputs(selected_country_code, model_features)
+    with st.container(border=True):
+        st.markdown("### Country Evidence")
+        evidence_tab_inputs, evidence_tab_governance, evidence_tab_liquidity = st.tabs([
+            "Model inputs",
+            "Governance",
+            "Liquidity",
+        ])
 
-    st.markdown("---")
-    
-    # 3. KEY DATA: Left = Model Inputs, Right = WGI Governance
-    left_col, right_col = st.columns([1, 1])
-    
-    with left_col:
-        st.markdown("### Key Model Inputs")
-        render_data_snapshot({}, loader=loader, country_code=selected_country_code, 
-                           wgi_data=wgi_data, model_features=model_features, pca_info=pca_info)
-    
-    with right_col:
-        st.markdown("### Governance Indicators (WGI)")
-        if wgi_data is not None and len(wgi_data) > 0:
-            country_wgi = wgi_data[wgi_data['country_code'] == selected_country_code]
-            if len(country_wgi) > 0:
-                latest_wgi = country_wgi.sort_values('year').iloc[-1]
-                
-                wgi_columns = {
-                    'voice_accountability': 'Voice & Accountability',
-                    'political_stability': 'Political Stability',
-                    'govt_effectiveness': 'Govt Effectiveness',
-                    'regulatory_quality': 'Regulatory Quality',
-                    'rule_of_law': 'Rule of Law',
-                    'control_corruption': 'Corruption Control'
-                }
-                
-                # Display in 2-column grid
-                wgi_col1, wgi_col2 = st.columns(2)
-                items = list(wgi_columns.items())
-                for i, (col, name) in enumerate(items):
-                    target_col = wgi_col1 if i % 2 == 0 else wgi_col2
-                    with target_col:
-                        if col in latest_wgi.index and pd.notna(latest_wgi[col]):
-                            val = latest_wgi[col]
-                            st.metric(name, f"{val:.0f}/100")
-                        else:
-                            st.metric(name, "--")
+        with evidence_tab_inputs:
+            render_data_snapshot(
+                {},
+                loader=loader,
+                country_code=selected_country_code,
+                wgi_data=wgi_data,
+                model_features=model_features,
+                pca_info=pca_info,
+            )
+
+        with evidence_tab_governance:
+            if wgi_data is not None and len(wgi_data) > 0:
+                country_wgi = wgi_data[wgi_data['country_code'] == selected_country_code]
+                if len(country_wgi) > 0:
+                    latest_wgi = country_wgi.sort_values('year').iloc[-1]
+
+                    wgi_columns = {
+                        'voice_accountability': 'Voice & Accountability',
+                        'political_stability': 'Political Stability',
+                        'govt_effectiveness': 'Govt Effectiveness',
+                        'regulatory_quality': 'Regulatory Quality',
+                        'rule_of_law': 'Rule of Law',
+                        'control_corruption': 'Corruption Control'
+                    }
+
+                    wgi_col1, wgi_col2 = st.columns(2)
+                    items = list(wgi_columns.items())
+                    for i, (col, name) in enumerate(items):
+                        target_col = wgi_col1 if i % 2 == 0 else wgi_col2
+                        with target_col:
+                            if col in latest_wgi.index and pd.notna(latest_wgi[col]):
+                                val = latest_wgi[col]
+                                st.metric(name, f"{val:.0f}/100")
+                            else:
+                                st.metric(name, "--")
+                else:
+                    st.caption("No WGI data for this country.")
             else:
-                st.caption("No WGI data for this country.")
-        else:
-            st.caption("WGI data not loaded.")
+                st.caption("WGI data not loaded.")
 
-    st.markdown("---")
-    
-    # 4. PEER COMPARISON (moved from separate page)
-    st.markdown("### Peer Countries")
-    
-    peers_df = safe_find_peers(
-        selected_country_code,
-        scores_df,
-        6,
-        model_features,
-    )
-    nearest_peer_codes = (
-        peers_df['country_code'].tolist()
-        if peers_df is not None and len(peers_df) > 0
-        else []
-    )
-    peer_options = [
-        code for code in available_country_codes
-        if code != selected_country_code
-    ]
-    custom_peer_codes = st.multiselect(
-        "Peer set",
-        options=peer_options,
-        default=nearest_peer_codes[:4],
-        format_func=format_country_option,
-        # Key per country: a static key would persist one country's selection
-        # across country changes, so switching from the US to Kenya would keep
-        # the US peer set instead of re-seeding Kenya's nearest neighbors.
-        key=f"custom_peer_codes_{selected_country_code}",
-        help=(
-            "Defaults to nearest-neighbor peers from the model feature space. "
-            "Edit this list to compare with a custom peer group."
-        ),
-    )
-    peer_codes = custom_peer_codes or nearest_peer_codes[:4]
-    
-    if peer_codes:
-        # Comparison table with key proximity indicators
-        comparison_cols = ['country_name', 'risk_score', 'economic_pillar', 'industry_pillar', 'data_coverage']
-        display_names = {
-            'country_name': 'Country',
-            'risk_score': 'Risk Score',
-            'economic_pillar': 'Econ Pillar',
-            'industry_pillar': 'Industry Pillar',
-            'data_coverage': 'Coverage'
-        }
-        
-        # Add selected country for comparison
-        selected_row = country_score_row[comparison_cols].to_frame().T
-        peer_rows = scores_df[scores_df['country_code'].isin(peer_codes)].copy()
-        peer_rows['_peer_order'] = pd.Categorical(
-            peer_rows['country_code'],
-            categories=peer_codes,
-            ordered=True,
+        with evidence_tab_liquidity:
+            render_liquidity_model_inputs(selected_country_code, model_features)
+
+    with st.container(border=True):
+        st.markdown("### Peer Countries")
+
+        peers_df = safe_find_peers(
+            selected_country_code,
+            scores_df,
+            6,
+            model_features,
         )
-        peer_rows = peer_rows.sort_values('_peer_order')
-        peers_comparison = pd.concat([selected_row, peer_rows[comparison_cols]], ignore_index=True)
-        peers_comparison = peers_comparison.rename(columns=display_names)
-        peers_comparison.insert(
-            0,
-            'Role',
-            ['Selected'] + [
-                'Nearest' if code in nearest_peer_codes else 'Custom'
-                for code in peer_rows['country_code'].tolist()
-            ],
+        nearest_peer_codes = (
+            peers_df['country_code'].tolist()
+            if peers_df is not None and len(peers_df) > 0
+            else []
         )
-        
-        # Format
-        peers_comparison['Risk Score'] = peers_comparison['Risk Score'].apply(lambda x: f"{x:.1f}")
-        peers_comparison['Econ Pillar'] = peers_comparison['Econ Pillar'].apply(lambda x: f"{x:.1f}")
-        peers_comparison['Industry Pillar'] = peers_comparison['Industry Pillar'].apply(lambda x: f"{x:.1f}")
-        peers_comparison['Coverage'] = peers_comparison['Coverage'].apply(lambda x: f"{x:.0%}")
-        
-        st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
-        
-        st.caption(
-            "Default peers are selected from model score proximity, economic "
-            "scale, development level, banking structure, and liquidity "
-            "features; the peer set can be edited above."
+        peer_options = [
+            code for code in available_country_codes
+            if code != selected_country_code
+        ]
+        custom_peer_codes = st.multiselect(
+            "Peer set",
+            options=peer_options,
+            default=nearest_peer_codes[:4],
+            format_func=format_country_option,
+            # Key per country: a static key would persist one country's selection
+            # across country changes, so switching from the US to Kenya would keep
+            # the US peer set instead of re-seeding Kenya's nearest neighbors.
+            key=f"custom_peer_codes_{selected_country_code}",
+            help=(
+                "Defaults to nearest-neighbor peers from the model feature space. "
+                "Edit this list to compare with a custom peer group."
+            ),
         )
-    else:
-        st.caption("Unable to find peer countries.")
+        peer_codes = custom_peer_codes or nearest_peer_codes[:4]
+
+        if peer_codes:
+            comparison_cols = ['country_name', 'risk_score', 'economic_pillar', 'industry_pillar', 'data_coverage']
+            display_names = {
+                'country_name': 'Country',
+                'risk_score': 'Risk Score',
+                'economic_pillar': 'Operating Env.',
+                'industry_pillar': 'Banking System',
+                'data_coverage': 'Coverage'
+            }
+
+            selected_row = country_score_row[comparison_cols].to_frame().T
+            peer_rows = scores_df[scores_df['country_code'].isin(peer_codes)].copy()
+            peer_rows['_peer_order'] = pd.Categorical(
+                peer_rows['country_code'],
+                categories=peer_codes,
+                ordered=True,
+            )
+            peer_rows = peer_rows.sort_values('_peer_order')
+            peers_comparison = pd.concat([selected_row, peer_rows[comparison_cols]], ignore_index=True)
+            peers_comparison = peers_comparison.rename(columns=display_names)
+            peers_comparison.insert(
+                0,
+                'Role',
+                ['Selected'] + [
+                    'Nearest' if code in nearest_peer_codes else 'Custom'
+                    for code in peer_rows['country_code'].tolist()
+                ],
+            )
+
+            peers_comparison['Risk Score'] = peers_comparison['Risk Score'].apply(lambda x: f"{x:.1f}")
+            peers_comparison['Operating Env.'] = peers_comparison['Operating Env.'].apply(lambda x: f"{x:.1f}")
+            peers_comparison['Banking System'] = peers_comparison['Banking System'].apply(lambda x: f"{x:.1f}")
+            peers_comparison['Coverage'] = peers_comparison['Coverage'].apply(lambda x: f"{x:.0%}")
+
+            st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
+
+            st.caption(
+                "Defaults use model score proximity, economic scale, development "
+                "level, banking structure, and liquidity features. Edit the peer "
+                "set above for a custom comparison."
+            )
+        else:
+            st.caption("Unable to find peer countries.")
 
 # ==============================================================================
 # TAB: Data Explorer
 # ==============================================================================
 with tab_explorer:
-    explorer_col1, explorer_col2 = st.columns([2, 3])
-    with explorer_col1:
-        explorer_focus_country = st.selectbox(
-            "Explorer focus country",
-            options=available_country_codes,
-            format_func=format_country_option,
-            key="explorer_focus_country",
-            help=(
-                "Used for single-country source tabs and to seed comparison "
-                "country defaults."
-            ),
+    with st.container(border=True):
+        st.markdown("### Explorer Workspace")
+        st.caption(
+            "Compare indicators across countries, build simple ratios or changes, "
+            "and inspect source histories on demand."
         )
-
-    explorer_peers_df = safe_find_peers(
-        explorer_focus_country,
-        scores_df,
-        4,
-        model_features,
-    )
-    explorer_nearest_peer_codes = (
-        explorer_peers_df['country_code'].tolist()
-        if explorer_peers_df is not None and len(explorer_peers_df) > 0
-        else []
-    )
-    explorer_default_peers = explorer_nearest_peer_codes[:4]
-
-    with explorer_col2:
-        if explorer_default_peers:
-            st.caption(
-                "Default peers: "
-                + ", ".join(format_country_option(code) for code in explorer_default_peers)
+        explorer_col1, explorer_col2 = st.columns([2, 3])
+        with explorer_col1:
+            explorer_focus_country = st.selectbox(
+                "Focus country",
+                options=available_country_codes,
+                format_func=format_country_option,
+                key="explorer_focus_country",
+                help=(
+                    "Used for single-country source tabs and to seed comparison "
+                    "country defaults."
+                ),
             )
-        else:
-            st.caption("No nearest-neighbor peers are available for this country.")
+
+        explorer_peers_df = safe_find_peers(
+            explorer_focus_country,
+            scores_df,
+            4,
+            model_features,
+        )
+        explorer_nearest_peer_codes = (
+            explorer_peers_df['country_code'].tolist()
+            if explorer_peers_df is not None and len(explorer_peers_df) > 0
+            else []
+        )
+        explorer_default_peers = explorer_nearest_peer_codes[:4]
+
+        with explorer_col2:
+            if explorer_default_peers:
+                st.caption(
+                    "Default comparison peers: "
+                    + ", ".join(format_country_option(code) for code in explorer_default_peers)
+                )
+            else:
+                st.caption("No nearest-neighbor peers are available for this country.")
 
     tool_tab_compare, tool_tab_calc, tool_tab_external, tool_tab_govt = st.tabs([
-        "Compare indicators",
-        "Calculated series",
+        "Compare",
+        "Calculate",
         "External liquidity",
         "Government liquidity",
     ])

@@ -44,15 +44,16 @@ STYLES = """
     }
     
     .block-container {
-        padding-top: 3rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 2rem !important;
+        max-width: 1180px;
     }
 
     .bankenv-brand {
         display: inline-flex;
         align-items: center;
         gap: 0.55rem;
-        margin: 0 0 0.65rem 0;
+        margin: 0 0 0.35rem 0;
         line-height: 1;
     }
 
@@ -113,7 +114,7 @@ STYLES = """
     div[data-testid="stMetricValue"] {
         font-family: 'Inter', 'Roboto Mono', monospace;
         font-weight: 700;
-        font-size: 1.5rem !important;
+        font-size: 1.42rem !important;
     }
     
     /* =========================================
@@ -235,9 +236,31 @@ STYLES = """
     }
     
     .stTabs [data-baseweb="tab"] {
-        padding: 0.75rem 1.5rem;
+        padding: 0.65rem 1rem;
         font-weight: 500;
         border-radius: 4px;
+    }
+
+    @media (max-width: 640px) {
+        .block-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            padding-top: 1.25rem !important;
+        }
+
+        .bankenv-brand-mark {
+            width: 40px;
+            height: 40px;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.55rem 0.7rem;
+            font-size: 0.92rem;
+        }
+
+        div[data-testid="stMetricValue"] {
+            font-size: 1.32rem !important;
+        }
     }
     
     .stTabs [data-baseweb="tab"]:hover {
