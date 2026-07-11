@@ -693,6 +693,55 @@ def load_government_insight_data() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         observations["frequency"] = "A"
         observations = observations.dropna(subset=["period", "value"])
 
+    if not features.empty:
+        derived_columns = [
+            column for column in GOVT_FEATURE_LABELS
+            if column in features.columns and column != GOVT_FEATURE_COUNT_COL
+        ]
+        if derived_columns:
+            latest_period_by_country = pd.Series(dtype="datetime64[ns]")
+            if not observations.empty:
+                latest_period_by_country = observations.groupby("country_code")["period"].max()
+            fallback_period = (
+                observations["period"].max()
+                if not observations.empty and observations["period"].notna().any()
+                else pd.Timestamp("2026-06-30")
+            )
+            derived = features[["country_code", *derived_columns]].melt(
+                id_vars="country_code",
+                var_name="indicator_code",
+                value_name="value",
+            )
+            derived = derived.dropna(subset=["value"])
+            if not derived.empty:
+                derived["country_code"] = derived["country_code"].astype(str).str.upper()
+                derived["indicator_name"] = derived["indicator_code"].map(GOVT_FEATURE_LABELS)
+                derived["period"] = derived["country_code"].map(latest_period_by_country)
+                derived["period"] = pd.to_datetime(derived["period"], errors="coerce").fillna(
+                    fallback_period
+                )
+                derived["period_label"] = derived["period"].dt.year.astype(str)
+                derived["feature_key"] = derived["indicator_code"]
+                derived["feature_label"] = derived["indicator_name"]
+                derived["frequency"] = "A"
+                derived["source"] = "Government liquidity features"
+                derived["quality"] = "derived_snapshot"
+                keep_columns = [
+                    "source",
+                    "feature_key",
+                    "feature_label",
+                    "quality",
+                    "country_code",
+                    "period_label",
+                    "period",
+                    "value",
+                    "indicator_code",
+                    "indicator_name",
+                    "frequency",
+                ]
+                derived = derived[keep_columns]
+                observations = pd.concat([observations, derived], ignore_index=True)
+
     return features, observations, report
 
 

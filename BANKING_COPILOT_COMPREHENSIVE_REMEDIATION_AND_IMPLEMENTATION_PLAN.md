@@ -2567,3 +2567,23 @@ Items that remain open and why they cannot be closed from this environment:
     src/dashboard/styles.py` passed; `pytest tests/test_peer_selection.py
     tests/test_calculated_series.py tests/test_model_store.py -q` passed
     (13 passed); direct `import app` succeeded.
+- [x] Checkpoint 36: Expose derived government-liquidity features in Explorer.
+  - Scope: data presentation only; no scoring, model artifact, peer-selection,
+    or upstream retrieval logic changed.
+  - Issue: Data Explorer's government source used only raw WEO-style
+    observations, so derived fiscal-liquidity features already packaged in
+    `government_liquidity_features.parquet` did not appear in Compare/Calculate.
+    This specifically hid `govt_interest_to_revenue` from Explorer even though
+    it was present in model inputs and methodology coverage.
+  - Change: `load_government_insight_data()` now appends derived snapshot
+    observations from the packaged government feature table into the same
+    normalized government source feed used by Explorer. This exposes
+    `govt_interest_to_revenue`, `govt_debt_to_revenue`,
+    `govt_overall_deficit_gdp`, and `govt_primary_deficit_gdp` through the
+    normal source selector without adding a standalone liquidity UI section.
+  - Verification: local source-feed check confirmed `govt_interest_to_revenue`
+    appears for KEN, MOZ, and USA in the GOVT comparison source; `python -m
+    py_compile app.py src/dashboard/components.py src/dashboard/styles.py`
+    passed; `PYTHONPATH=. pytest tests/test_peer_selection.py
+    tests/test_calculated_series.py tests/test_model_store.py -q` passed
+    (13 passed).
