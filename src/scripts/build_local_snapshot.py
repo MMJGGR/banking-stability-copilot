@@ -89,6 +89,9 @@ def build_local_snapshot(as_of_date: str, retrain_classifier: bool = False) -> d
     cutoff = pd.Timestamp(as_of_date).normalize().date().isoformat()
     fsic_df, weo_df, mfs_df = _load_cached_sources()
 
+    from src.liquidity_features import assemble_liquidity_features
+    extra_features = assemble_liquidity_features(as_of_date=cutoff)
+
     model = BankingRiskModel()
     results = model.train(
         fsic_df=fsic_df,
@@ -96,6 +99,7 @@ def build_local_snapshot(as_of_date: str, retrain_classifier: bool = False) -> d
         mfs_df=mfs_df,
         as_of_date=cutoff,
         retrain_classifier=retrain_classifier,
+        extra_features=extra_features,
     )
     passed_checks, failed_checks = validate_model(
         results, features_df=model.feature_values

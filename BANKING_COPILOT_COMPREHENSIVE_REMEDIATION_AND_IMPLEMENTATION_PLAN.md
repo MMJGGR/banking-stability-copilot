@@ -2239,3 +2239,47 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile` on the changed modules passed; full
     test suite passed (`90 passed`, `1 skipped`) including new challenger-logic
     unit tests.
+- [x] Checkpoint 29: Liquidity challenger PROMOTED to the active model + durable
+  wiring (owner: "proceed with both").
+  - Pending commit: `promote liquidity model and refresh active artifacts`
+  - Scope:
+    - Added `src/liquidity_features.py` as the single source of truth for the
+      promoted liquidity features and wired both production training entry
+      points (`refresh_data.py`, `build_local_snapshot.py`) to assemble and
+      pass them, so every future refresh keeps the features (they are no longer
+      challenger-only).
+    - Rebuilt and VERIFIED the serving artifacts locally at cutoff 2026-06-30
+      with the liquidity features live (`cache/risk_model.pkl`,
+      `cache/inference_pipeline.pkl`, `cache/crisis_features.parquet`,
+      `cache/imputed_features.parquet`, refreshed manifest and policy audit).
+      Publication of these LFS artifacts must run through CI: this dev
+      environment's proxy returns Forbidden on `lfs.github.com` uploads, so the
+      code wiring is pushed and the artifacts are regenerated + committed via
+      Git LFS by `refresh-data.yml` / `promote-snapshot.yml` in GitHub Actions.
+    - Local validation: 3 passed / 0 failed; snapshot status verified; partial
+      coverage-bias correlation -0.38 (within the approved gate). The seven
+      liquidity features are live in the feature matrix (coverage 162-193/201).
+    - Kenya/Mozambique in the rebuilt model: MOZ 8.5 (rank 35) > KEN 8.0
+      (rank 49) — the rank-1 acceptance case is resolved once the CI-built
+      artifact is published.
+  - Wiring scope (important): the features are inputs to the PILLAR (structural
+    risk score). They are NOT inputs to the supervised crisis classifier, which
+    retains its literature-based feature set. External BOP/IIP features cannot
+    join the classifier because it trains on a year-matched historical panel and
+    those series exist only for the latest cross-section; the government
+    affordability ratios (interest/revenue, debt/revenue) are year-matchable
+    from WEO and remain a candidate classifier extension.
+  - Crisis classifier confusion matrix (grouped out-of-fold, 2,178
+    country-epochs, 8.5% base rate, 158 countries): AUC 0.564 — a deliberately
+    weak early-warning signal, consistent with the documented 0.57-0.59. At the
+    default 0.5 threshold the calibrated model fires on nobody; at the
+    Youden-optimal threshold (~0.07) recall 0.87 / precision 0.10. It enters the
+    hybrid score only as a 10% upward-only overlay.
+  - Data vintage of the active snapshot: WEO IMF.RES:WEO(9.0.0), actuals through
+    2025-12-31 (Oct-2025 vintage); FSIC 13.0.1 through 2026-04; MFS_DC 8.0.0
+    through 2026-05; FSIBSIS 18.0.0 through 2026-M04; World Bank WGI through
+    2024. Retrieved 2026-07-09/10.
+  - Workflow status: source-check.yml (weekly) detects new vintages and opens an
+    issue; refresh-data.yml (monthly + manual dispatch) builds a candidate
+    snapshot that now includes the liquidity features; publication remains a
+    reviewed step by design. Auto-update is intentionally gated, not silent.

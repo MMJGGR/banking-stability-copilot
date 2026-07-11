@@ -59,30 +59,12 @@ def _resolve_caches() -> None:
 
 
 def _build_extra_features(as_of_date: str) -> pd.DataFrame:
-    from src.government_liquidity import (
-        build_government_liquidity_features,
-        load_weo_fiscal_observations,
-        model_country_codes,
+    from src.government_liquidity import model_country_codes
+    from src.liquidity_features import assemble_liquidity_features
+
+    return assemble_liquidity_features(
+        as_of_date=as_of_date, model_countries=model_country_codes()
     )
-
-    countries = model_country_codes()
-    gov_obs = load_weo_fiscal_observations(as_of_date=as_of_date, model_countries=countries)
-    gov_features, _ = build_government_liquidity_features(gov_obs)
-    gov = gov_features[["country_code"] + [
-        c for c in GOVT_CHALLENGER_FEATURES if c in gov_features.columns
-    ]]
-
-    ext_path = Path(BASE_DIR) / "data" / "reference" / "external_liquidity_features.parquet"
-    if ext_path.exists():
-        ext_all = pd.read_parquet(ext_path)
-        ext_cols = [c for c in EXTERNAL_CHALLENGER_FEATURES if c in ext_all.columns]
-        ext = ext_all[["country_code"] + ext_cols].copy()
-        ext["country_code"] = ext["country_code"].astype(str).str.upper()
-    else:
-        ext = pd.DataFrame(columns=["country_code"])
-
-    extra = gov.merge(ext, on="country_code", how="outer")
-    return extra
 
 
 def _train_scores(fsic, weo, mfs, as_of_date, extra_features=None) -> pd.DataFrame:

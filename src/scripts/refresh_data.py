@@ -175,6 +175,9 @@ def main():
     else:
         fetched, fsic_df, weo_df, mfs_df = _fetch_legacy_sources(download_dir)
 
+    from src.liquidity_features import assemble_liquidity_features
+    extra_features = assemble_liquidity_features(as_of_date=args.as_of)
+
     model = BankingRiskModel()
     results = model.train(
         fsic_df,
@@ -182,6 +185,7 @@ def main():
         mfs_df,
         as_of_date=args.as_of,
         retrain_classifier=args.retrain_classifier,
+        extra_features=extra_features,
     )
     passed_checks, failed_checks = validate_model(
         results, features_df=model.feature_values
