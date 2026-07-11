@@ -760,6 +760,7 @@ def _extract_weo_at_year(weo_df, target_year, countries):
         'primary_balance_gdp': 'GGXONLB_NGDP',
         'unemployment': 'LUR',
         'gdp_per_capita': 'NGDPDPC',
+        'revenue_gdp': 'GGR_NGDP',  # general government revenue (denominator)
         # external_debt_gdp (D_NGDPD) removed 2026-07-09: aggregate-only
         # coverage in the current WEO vintage (no real-country observations).
     }
@@ -791,6 +792,19 @@ def _extract_weo_at_year(weo_df, target_year, countries):
     
     # Filter to requested countries
     result = result[result['country_code'].isin(countries)]
+
+    # Sovereign fiscal-affordability ratios (year-matched, so they are valid
+    # classifier inputs unlike the latest-only external-liquidity block). These
+    # mirror the promoted pillar features govt_interest_to_revenue /
+    # govt_debt_to_revenue. Interest = primary balance - overall balance.
+    if {'primary_balance_gdp', 'fiscal_balance_gdp', 'revenue_gdp'}.issubset(result.columns):
+        revenue = result['revenue_gdp'].where(result['revenue_gdp'] > 0)
+        interest_gdp = result['primary_balance_gdp'] - result['fiscal_balance_gdp']
+        result['govt_interest_to_revenue'] = interest_gdp / revenue * 100
+        if 'govt_debt_gdp' in result.columns:
+            result['govt_debt_to_revenue'] = result['govt_debt_gdp'] / revenue * 100
+    # revenue level is only a denominator, not a classifier feature.
+    result = result.drop(columns=['revenue_gdp'], errors='ignore')
     return result
 
 
@@ -915,6 +929,8 @@ MONOTONE_DIRECTION = {
     'real_estate_loans': 1,      # Property concentration risk
     'sovereign_exposure_ratio': 1,  # Sovereign-bank nexus
     'external_debt_gdp': 1,      # External vulnerability
+    'govt_interest_to_revenue': 1,  # Debt affordability (interest bill vs revenue)
+    'govt_debt_to_revenue': 1,      # Debt burden vs revenue capacity
     'debt_buildup_3yr': 1,       # Rapid debt accumulation
     'inflation_acceleration': 1, # Accelerating prices
     'large_exposure_ratio': 1,   # Concentration risk

@@ -2283,3 +2283,17 @@ Items that remain open and why they cannot be closed from this environment:
     issue; refresh-data.yml (monthly + manual dispatch) builds a candidate
     snapshot that now includes the liquidity features; publication remains a
     reviewed step by design. Auto-update is intentionally gated, not silent.
+- [x] Checkpoint 30: Sovereign affordability ratios added to the crisis
+  classifier (owner: "add to classifier").
+  - Pending commit: `add affordability ratios to crisis classifier`
+  - The two government affordability ratios are year-matchable from historical
+    WEO, so unlike the latest-only external block they are valid inputs to the
+    classifier's temporal epoch panel. `_extract_weo_at_year` now also pulls
+    GGR_NGDP (revenue) and derives `govt_interest_to_revenue` and
+    `govt_debt_to_revenue` per epoch (interest = primary - overall balance;
+    revenue kept only as a denominator, not a feature). Both are declared +1 in
+    `MONOTONE_DIRECTION` and added to `FEATURE_PRIORITY`.
+  - Effect: grouped out-of-fold AUC improved from 0.564 to 0.616 and false
+    positives fell (TN 491 -> 660 at the Youden threshold); recall 0.83,
+    precision 0.10. Still a weak-but-improved early-warning signal feeding the
+    10% upward-only overlay. Full suite: 90 passed, 1 skipped.
