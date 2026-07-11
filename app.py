@@ -1131,6 +1131,23 @@ def _format_numeric(value) -> str:
         return "—"
 
 
+def _driver_metric_value(summary: dict, score_row: pd.Series, column: str):
+    """Return a Score Drivers metric from summary, falling back to score row."""
+    value = summary.get(column) if isinstance(summary, dict) else None
+    try:
+        missing = value is None or pd.isna(value)
+    except (TypeError, ValueError):
+        missing = value is None
+    if missing and column in score_row.index:
+        value = score_row.get(column)
+    try:
+        if value is None or pd.isna(value):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def render_external_model_inputs(
     selected_country: str,
     model_features: pd.DataFrame | None,
@@ -2088,22 +2105,28 @@ with tab_profile:
             else:
                 summary = payload.get('summary', {})
                 sc1, sc2, sc3 = st.columns(3)
-                crisis_uplift = summary.get('crisis_uplift')
+                crisis_uplift = _driver_metric_value(
+                    summary, country_score_row, 'crisis_uplift'
+                )
                 sc1.metric(
                     "Crisis Uplift",
-                    "—" if crisis_uplift is None else f"+{crisis_uplift:.2f}",
+                    "n/a" if crisis_uplift is None else f"+{crisis_uplift:.2f}",
                     help="Upward-only classifier overlay added to the pillar score.",
                 )
-                critical_missing = summary.get('critical_missing_share')
+                critical_missing = _driver_metric_value(
+                    summary, country_score_row, 'critical_missing_share'
+                )
                 sc2.metric(
                     "Critical Fields Missing",
-                    "—" if critical_missing is None else f"{critical_missing:.0%}",
+                    "n/a" if critical_missing is None else f"{critical_missing:.0%}",
                     help="Share of core banking soundness fields that had to be imputed.",
                 )
-                critical_penalty = summary.get('critical_penalty')
+                critical_penalty = _driver_metric_value(
+                    summary, country_score_row, 'critical_penalty'
+                )
                 sc3.metric(
                     "Missingness Penalty",
-                    "—" if critical_penalty is None else f"+{critical_penalty:.2f}",
+                    "n/a" if critical_penalty is None else f"+{critical_penalty:.2f}",
                     help="Disclosed risk-score penalty for imputed critical fields.",
                 )
                 driver_rows = [

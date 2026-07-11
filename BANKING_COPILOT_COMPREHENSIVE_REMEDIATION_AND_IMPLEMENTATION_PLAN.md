@@ -2201,6 +2201,21 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/utils.py` passed; full test
     suite passed (`91 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8576.
+- [x] Checkpoint 29: Score-driver summary metric fallback.
+  - Pending commit: `fix score driver summary metrics`
+  - Scope:
+    - Score Drivers table was rendering, but the three summary metrics could
+      display as large blank dashes on the hosted app when the driver payload
+      omitted `crisis_uplift`, `critical_missing_share`, or
+      `critical_penalty`.
+    - Added a fallback from the driver payload to the selected country score
+      row, so the metrics display the active artifact values already shown in
+      `country_scores`.
+    - Changed the true-missing display from an em dash to `n/a` so legacy
+      artifacts do not look like blank metrics on mobile/dark mode.
+  - Verification: `python -m py_compile app.py` passed; full test suite
+    passed (`91 passed`, `1 skipped`); local Streamlit startup check returned
+    HTTP 200 on port 8577.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`
