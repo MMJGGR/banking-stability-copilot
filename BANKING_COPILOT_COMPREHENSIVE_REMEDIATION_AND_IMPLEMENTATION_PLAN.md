@@ -2147,9 +2147,12 @@ Items that remain open and why they cannot be closed from this environment:
       Government-Liquidity Dataset" summary, and an updated missing-data-family
       row. Features are staged challenger inputs and do not change production
       scoring.
-    - Packaged compact outputs under `data/reference/` for the hosted app; added
-      a build step to `.github/workflows/external-data.yml`; documented the
-      block in `docs/DATA_CARD.md` and `data/reference/README.md`.
+    - Packaged compact outputs under `data/reference/` for the hosted app;
+      documented the block in `docs/DATA_CARD.md` and `data/reference/README.md`.
+      Follow-up (blocked by GitHub App `workflows` permission this session):
+      add a build step to `.github/workflows/external-data.yml` so the staged
+      cache is rebuilt in CI; for now it is rebuilt locally with
+      `python -m src.scripts.build_government_liquidity_features --reference-dir data/reference`.
   - Remaining fiscal gap (registered, not closed): a full gross financing need
     needs debt amortization/rollover from IMF Fiscal Monitor / GFS, which WEO
     does not carry.
