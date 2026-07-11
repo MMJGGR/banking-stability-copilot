@@ -55,13 +55,6 @@ jobs:
             --start-period "${{ inputs.start_period || '2018' }}" \
             --batch-size 25
 
-      - name: Build staged government-liquidity features (from WEO cache)
-        shell: bash
-        # No external API calls: the general-government WEO series are resolved
-        # from the public LFS media endpoint, so this runs in an lfs:false
-        # checkout. Staged challenger inputs, never production-scored.
-        run: python -m src.scripts.build_government_liquidity_features
-
       - name: Write job summary
         if: always()
         shell: bash
@@ -73,10 +66,6 @@ jobs:
             echo '```'
             echo '```json'
             cat artifacts/external_liquidity_features_report.json 2>/dev/null || echo "no feature report"
-            echo '```'
-            echo "## Government-liquidity source run"
-            echo '```json'
-            cat artifacts/government_liquidity_features_report.json 2>/dev/null || echo "no feature report"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -90,6 +79,4 @@ jobs:
           path: |
             config/external_sources_discovery.json
             artifacts/external_liquidity_features_report.json
-            artifacts/government_liquidity_features_report.json
             cache/external/*.parquet
-            cache/government/*.parquet
