@@ -2231,6 +2231,20 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/utils.py` passed; full test
     suite passed (`93 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8578.
+- [x] Checkpoint 31: Peer-engine mixed-deploy compatibility hotfix.
+  - Pending commit: `guard peer selector stale imports`
+  - Scope:
+    - Live Streamlit error showed new `app.py` calling
+      `find_peers(..., feature_values=model_features)` while the imported
+      `src.utils.find_peers` still had the old three-argument signature.
+    - Added `safe_find_peers()` in `app.py` to use the new multi-factor peer
+      engine when available and fall back to the old signature instead of
+      crashing during mixed/stale Streamlit redeploys.
+    - Routed Country Profile and Data Explorer peer defaults through the safe
+      wrapper.
+  - Verification: `python -m py_compile app.py` passed; full test suite
+    passed (`93 passed`, `1 skipped`); local Streamlit startup check returned
+    HTTP 200 on port 8579.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`

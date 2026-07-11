@@ -1913,6 +1913,32 @@ def format_country_option(country_code: str) -> str:
     name = country_name_lookup.get(country_code, country_code)
     return f"{name} ({country_code})"
 
+
+def safe_find_peers(
+    target_country: str,
+    scores: pd.DataFrame,
+    n_peers: int,
+    features: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """Call the current peer engine, tolerating stale Streamlit imports.
+
+    Streamlit Cloud can briefly serve a mixed redeploy where ``app.py`` is new
+    but ``src.utils.find_peers`` is still the old three-argument function.
+    Falling back prevents the page from crashing while the full redeploy
+    settles.
+    """
+    try:
+        return find_peers(
+            target_country,
+            scores,
+            n_peers=n_peers,
+            feature_values=features,
+        )
+    except TypeError as exc:
+        if "feature_values" not in str(exc):
+            raise
+        return find_peers(target_country, scores, n_peers=n_peers)
+
 HEALTH_LABELS = {
     "ok": "Healthy",
     "stale": "Stale data",
@@ -2203,12 +2229,11 @@ with tab_profile:
     # 4. PEER COMPARISON (moved from separate page)
     st.markdown("### Peer Countries")
     
-    # Note: find_peers expects (target_country, scores_df, n_peers)
-    peers_df = find_peers(
+    peers_df = safe_find_peers(
         selected_country_code,
         scores_df,
-        n_peers=6,
-        feature_values=model_features,
+        6,
+        model_features,
     )
     nearest_peer_codes = (
         peers_df['country_code'].tolist()
@@ -2296,11 +2321,11 @@ with tab_explorer:
             ),
         )
 
-    explorer_peers_df = find_peers(
+    explorer_peers_df = safe_find_peers(
         explorer_focus_country,
         scores_df,
-        n_peers=4,
-        feature_values=model_features,
+        4,
+        model_features,
     )
     explorer_nearest_peer_codes = (
         explorer_peers_df['country_code'].tolist()
