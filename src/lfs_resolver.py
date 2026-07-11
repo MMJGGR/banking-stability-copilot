@@ -30,10 +30,17 @@ def is_lfs_pointer(path: Path) -> bool:
         return source.read(len(LFS_POINTER_PREFIX)) == LFS_POINTER_PREFIX
 
 
-def ensure_lfs_file(path, repository_root=None, timeout=120) -> Path:
-    """Replace a Git LFS pointer with the real public media file if needed."""
+def ensure_lfs_file(path, repository_root=None, timeout=120, force=False) -> Path:
+    """Replace a Git LFS pointer with the real public media file if needed.
+
+    When ``force`` is true the object is re-downloaded even if the on-disk file
+    is not a pointer. This self-heals a stale resolved artifact: some hosts
+    (e.g. Streamlit Community Cloud) persist a working tree where a previous run
+    overwrote the pointer with now-outdated content, so a plain pointer check
+    would never refresh it after the tracked object changes.
+    """
     path = Path(path)
-    if not is_lfs_pointer(path):
+    if not force and not is_lfs_pointer(path):
         return path
 
     root = Path(repository_root) if repository_root is not None else Path(__file__).resolve().parents[1]
