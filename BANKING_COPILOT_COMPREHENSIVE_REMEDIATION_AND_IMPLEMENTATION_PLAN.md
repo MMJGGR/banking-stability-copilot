@@ -2537,3 +2537,33 @@ Items that remain open and why they cannot be closed from this environment:
     src/dashboard/styles.py` passed; `pytest tests/test_peer_selection.py
     tests/test_calculated_series.py tests/test_model_store.py -q` passed
     (13 passed); direct `import app` succeeded.
+- [x] Checkpoint 35: Remove redundant model/source explanation surfaces.
+  - Scope: UX-only; no scoring, data retrieval, model artifact, or peer logic
+    changed.
+  - Issue: Country Evidence showed normal model inputs plus a separate
+    `Model Features & Weights` expander with overlapping feature lists and
+    methodology text. Score Drivers separately displayed `Critical Fields
+    Missing` and `Missingness Penalty` even though the penalty is derived from
+    the imputed critical-field share. Explorer also showed raw single-country
+    source tabs as a full section beside cross-country Compare/Calculate tools,
+    and Methodology repeated sources/features before rendering Model/Data Cards.
+  - Changes:
+    - Removed the duplicate `Model Features & Weights` expander from Country
+      Evidence. Country now shows the model inputs once; methodology/model-card
+      content remains in the Methodology tab.
+    - Combined critical missingness and penalty into one Score Drivers metric:
+      `Critical Field Imputation`, with the imputed share as the value and the
+      related score penalty as the delta.
+    - Moved raw single-country source histories into a collapsed `Source
+      history` expander and only renders the raw source tabs after the user
+      enables loading.
+    - Simplified Methodology to a concise overview plus `Model Card` and
+      `Data Card`; removed duplicated top-level Active Sources / Feature Set /
+      Validation sections that were repeated in the cards.
+    - Renamed `Active Sources` to `Snapshot Sources` in the Data Card because
+      that count reflects manifest-backed snapshot sources, not every packaged
+      derived dataset.
+  - Verification: `python -m py_compile app.py src/dashboard/components.py
+    src/dashboard/styles.py` passed; `pytest tests/test_peer_selection.py
+    tests/test_calculated_series.py tests/test_model_store.py -q` passed
+    (13 passed); direct `import app` succeeded.

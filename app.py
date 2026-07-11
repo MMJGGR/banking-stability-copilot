@@ -47,7 +47,7 @@ else:
         raise FileNotFoundError("Archived snapshots are unavailable in this deployment")
 from src.dashboard.styles import STYLES, score_to_tier
 from src.dashboard.components import (
-    render_summary_card, 
+    render_summary_card,
     render_data_snapshot,
     render_time_series_deep_dive,
     WEO_INDICATORS,
@@ -412,35 +412,35 @@ def render_markdown_with_images(markdown_text: str):
     """
     import re
     import os
-    
+
     # Get the directory where app.py is located (project root)
     app_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Pattern to find images: ![alt text](path)
     # capturing groups: 1=alt, 2=path
     pattern = r'!\[(.*?)\]\((.*?)\)'
-    
+
     # Split text by images
     parts = re.split(pattern, markdown_text)
-    
+
     # re.split returns [text, alt, path, text, alt, path, ...]
     # We iterate and render
-    
+
     i = 0
     while i < len(parts):
         text_segment = parts[i]
         if text_segment.strip():
             st.markdown(text_segment)
-        
+
         # If there are more parts, next are alt and path
         if i + 2 < len(parts):
             alt_text = parts[i+1]
             image_path = parts[i+2]
-            
+
             # Resolve relative paths from app directory
             if not os.path.isabs(image_path):
                 image_path = os.path.join(app_dir, image_path)
-            
+
             # Check if file exists to prevent errors
             if os.path.exists(image_path):
                 try:
@@ -452,7 +452,7 @@ def render_markdown_with_images(markdown_text: str):
             else:
                 # Image not found - show placeholder message
                 st.info(f"{alt_text} (image will appear after model training)")
-                
+
             i += 3 # skip (text, alt, path)
         else:
             i += 1
@@ -1869,7 +1869,7 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
     sources = manifest.get("sources", {})
     c1, c2, c3 = st.columns(3)
     c1.metric("Source Mode", source_mode)
-    c2.metric("Active Sources", f"{len(sources):,}")
+    c2.metric("Snapshot Sources", f"{len(sources):,}")
     c3.metric("Snapshot Cutoff", _display_value(manifest.get("as_of_date") or manifest.get("snapshot_id")))
 
     source_rows = []
@@ -1886,7 +1886,11 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
             }
         )
     if source_rows:
-        st.markdown("#### Active Sources")
+        st.markdown("#### Snapshot Sources")
+        st.caption(
+            "Manifest-backed sources used to build the active snapshot. "
+            "Derived feature packages, including liquidity coverage, are shown below."
+        )
         st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
 
     st.markdown("#### Snapshot Rules")
@@ -2032,68 +2036,6 @@ inputs appear in the same country model-input view as other fields, and the
 underlying external and government series are available in the Explorer source
 selectors for comparison and calculations. Fields not included in the promoted
 model artifact remain insight-only.
-"""
-    )
-
-    st.markdown("### Active Sources")
-    source_rows = []
-    for source_name, details in sorted(manifest.get('sources', {}).items()):
-        indicators = details.get("indicators")
-        source_rows.append({
-            "Source": source_name,
-            "Rows": details.get("rows"),
-            "Countries": details.get("countries"),
-            "Latest Observation": details.get("latest_observation"),
-            "Indicators / Measures": indicators if indicators is not None else "—",
-            "Count Basis": details.get("indicator_basis", "unique indicator codes"),
-        })
-    if source_rows:
-        st.dataframe(
-            pd.DataFrame(source_rows),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.info("No source manifest is available.")
-
-    st.markdown("### Feature Set")
-    if features is not None and len(features) > 0:
-        feature_cols = [
-            c for c in features.columns
-            if c != 'country_code' and not c.endswith('_year') and not c.endswith('_period')
-        ]
-        coverage_rows = []
-        for column in feature_cols:
-            coverage = features[column].notna().mean()
-            coverage_rows.append({
-                "Feature": column,
-                "Coverage": f"{coverage:.0%}",
-                "Countries": int(features[column].notna().sum()),
-            })
-        coverage_df = pd.DataFrame(coverage_rows).sort_values(
-            ["Coverage", "Feature"],
-            ascending=[True, True],
-        )
-        st.caption(
-            f"{len(feature_cols)} model/input features tracked across "
-            f"{features['country_code'].nunique():,} countries in the feature artifact."
-        )
-        st.dataframe(
-            coverage_df,
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        st.info("Feature artifact is unavailable.")
-
-    st.markdown("### Validation And Governance")
-    st.markdown(
-        """
-Historical README performance claims are not rendered here. Approved releases
-must use country-grouped and out-of-time validation, include material
-score-movement review, and record source/model checksums. The current active
-artifact is verified by manifest, but formal policy approval and release
-promotion remain separate governance steps.
 """
     )
 
@@ -2396,7 +2338,7 @@ with tab_profile:
             else:
                 summary = payload.get('summary', {})
                 drivers = payload.get("drivers", [])
-                sc1, sc2, sc3 = st.columns(3)
+                sc1, sc2 = st.columns(2)
                 crisis_uplift = driver_metric_value(
                     summary, country_score_row, 'crisis_uplift',
                     drivers=drivers, pipeline=driver_pipeline,
@@ -2410,19 +2352,22 @@ with tab_profile:
                     summary, country_score_row, 'critical_missing_share',
                     drivers=drivers, pipeline=driver_pipeline,
                 )
-                sc2.metric(
-                    "Critical Fields Missing",
-                    "n/a" if critical_missing is None else f"{critical_missing:.0%}",
-                    help="Share of core banking soundness fields that had to be imputed.",
-                )
                 critical_penalty = driver_metric_value(
                     summary, country_score_row, 'critical_penalty',
                     drivers=drivers, pipeline=driver_pipeline,
                 )
-                sc3.metric(
-                    "Missingness Penalty",
-                    "n/a" if critical_penalty is None else f"+{critical_penalty:.2f}",
-                    help="Disclosed risk-score penalty for imputed critical fields.",
+                imputation_delta = (
+                    None if critical_penalty is None
+                    else f"+{critical_penalty:.2f} score penalty"
+                )
+                sc2.metric(
+                    "Critical Field Imputation",
+                    "n/a" if critical_missing is None else f"{critical_missing:.0%}",
+                    delta=imputation_delta,
+                    help=(
+                        "Share of core banking soundness fields imputed; the "
+                        "delta is the related risk-score penalty."
+                    ),
                 )
                 driver_rows = [
                     {
@@ -2604,7 +2549,7 @@ with tab_explorer:
                 format_func=format_country_option,
                 key="explorer_focus_country",
                 help=(
-                    "Used for single-country source tabs and to seed comparison "
+                    "Used for source history and to seed comparison "
                     "country defaults."
                 ),
             )
@@ -2651,139 +2596,141 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    st.markdown("#### Single-country source tabs")
-    load_history = st.checkbox(
-        f"Load single-country historical data for {explorer_focus_country}",
-        value=False,
-        help=(
-            "Loads WEO, FSI, MFS, and WGI history for the explorer focus country only. "
-            "This keeps hosted startup within Streamlit resource limits."
-        ),
-    )
-    if not load_history:
-        st.info(
-            "Historical source data is loaded on demand. Enable the option "
-            "above to inspect WEO, FSI, MFS, and WGI histories for the "
-            "explorer focus country."
+    with st.expander("Source history", expanded=False):
+        st.caption("Load raw single-country source histories only when needed.")
+        load_history = st.checkbox(
+            f"Load single-country historical data for {explorer_focus_country}",
+            value=False,
+            help=(
+                "Loads WEO, FSI, MFS, and WGI history for the explorer focus country only. "
+                "This keeps hosted startup within Streamlit resource limits."
+            ),
         )
-
-    # Tabs for each dataset
-    de_tab_weo, de_tab_fsi, de_tab_mfs, de_tab_wgi = st.tabs(["Economic (WEO)", "Banking (FSI)", "Monetary (MFS)", "Governance (WGI)"])
-    
-    with de_tab_weo:
-        weo_data = load_country_history(explorer_focus_country, 'WEO') if load_history else pd.DataFrame()
-        if weo_data is not None and len(weo_data) > 0:
-            n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
-            st.caption(f"{n_indicators} economic indicators available for {explorer_focus_country}")
-            try:
-                render_time_series_deep_dive(weo_data, "WEO", explorer_focus_country)
-            except Exception as e:
-                st.error(f"Chart error: {e}")
-        else:
-            if load_history:
-                st.info("No WEO data available for this country.")
-            else:
-                st.caption("Enable selected-country historical data above to load WEO history.")
-
-    
-    with de_tab_fsi:
-        st.markdown("#### Financial Soundness Indicators")
-        
-        # Sub-tabs for FSIC and FSIBSIS
-        fsi_tab1, fsi_tab2 = st.tabs(["Core FSI (FSIC)", "Balance Sheet (FSIBSIS)"])
-        
-        with fsi_tab1:
-            # Load FSIC Data (Core FSI) - show ALL indicators with exact names
-            fsic_data = load_country_history(explorer_focus_country, 'FSIC') if load_history else pd.DataFrame()
-            
-            if fsic_data is not None and len(fsic_data) > 0:
-                n_indicators = fsic_data['indicator_name'].nunique()
-                st.caption(f"{n_indicators} indicators available for {explorer_focus_country}")
-                render_time_series_deep_dive(fsic_data, "FSIC", explorer_focus_country)
-            else:
-                if load_history:
-                    st.info("No FSIC data available for this country.")
-                else:
-                    st.caption("Enable selected-country historical data above to load FSIC history.")
-        
-        with fsi_tab2:
-            load_fsibsis = st.checkbox(
-                "Load balance-sheet history",
-                value=False,
-                help="Loads the larger FSIBSIS dataset only when needed.",
+        if not load_history:
+            st.info(
+                "Historical source data is loaded on demand. Enable the option "
+                "above to inspect WEO, FSI, MFS, and WGI histories for the "
+                "explorer focus country."
             )
-            # Load FSIBSIS Data
-            try:
-                if load_fsibsis:
-                    fsibsis_long = load_fsibsis_country_history(explorer_focus_country)
+
+        else:
+            # Tabs for each dataset
+            de_tab_weo, de_tab_fsi, de_tab_mfs, de_tab_wgi = st.tabs(["Economic (WEO)", "Banking (FSI)", "Monetary (MFS)", "Governance (WGI)"])
+
+            with de_tab_weo:
+                weo_data = load_country_history(explorer_focus_country, 'WEO') if load_history else pd.DataFrame()
+                if weo_data is not None and len(weo_data) > 0:
+                    n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
+                    st.caption(f"{n_indicators} economic indicators available for {explorer_focus_country}")
+                    try:
+                        render_time_series_deep_dive(weo_data, "WEO", explorer_focus_country)
+                    except Exception as e:
+                        st.error(f"Chart error: {e}")
                 else:
-                    fsibsis_long = pd.DataFrame()
-                
-                if fsibsis_long is not None and len(fsibsis_long) > 0:
-                    n_indicators = fsibsis_long['indicator_name'].nunique()
-                    st.caption(f"{n_indicators} balance-sheet indicators available")
-                    render_time_series_deep_dive(fsibsis_long, "FSIBSIS", explorer_focus_country)
-                else:
-                    if load_fsibsis:
-                        st.info("No FSIBSIS data available for this country.")
+                    if load_history:
+                        st.info("No WEO data available for this country.")
                     else:
-                        st.caption(
-                            "Balance-sheet history is loaded on demand to "
-                            "reduce startup time."
-                        )
-            except Exception as e:
-                st.error(f"Error loading FSIBSIS: {e}")
-    
-    with de_tab_mfs:
-        st.markdown("#### Monetary & Financial Statistics")
-        mfs_data = load_country_history(explorer_focus_country, 'MFS') if load_history else pd.DataFrame()
-        if mfs_data is not None and len(mfs_data) > 0:
-            n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
-            st.caption(f"{n_indicators} monetary indicators available for {explorer_focus_country}")
-            render_time_series_deep_dive(mfs_data, "MFS", explorer_focus_country)
-        else:
-            if load_history:
-                st.info("No MFS data available for this country.")
-            else:
-                st.caption("Enable selected-country historical data above to load MFS history.")
-    
-    with de_tab_wgi:
-        if wgi_data is not None and len(wgi_data) > 0:
-            country_wgi = wgi_data[wgi_data['country_code'] == explorer_focus_country]
-            if len(country_wgi) > 0:
-                # WGI data has columns: country_code, year, voice_accountability, political_stability, etc.
-                # Melt to long format for plotting
-                governance_cols = ['voice_accountability', 'political_stability', 'govt_effectiveness', 
-                                   'regulatory_quality', 'rule_of_law', 'control_corruption']
-                available_cols = [c for c in governance_cols if c in country_wgi.columns]
-                
-                if available_cols:
-                    import plotly.express as px
-                    melted = country_wgi.melt(
-                        id_vars=['country_code', 'year'], 
-                        value_vars=available_cols,
-                        var_name='Indicator', 
-                        value_name='Score'
+                        st.caption("Enable selected-country historical data above to load WEO history.")
+
+
+            with de_tab_fsi:
+                st.markdown("#### Financial Soundness Indicators")
+
+                # Sub-tabs for FSIC and FSIBSIS
+                fsi_tab1, fsi_tab2 = st.tabs(["Core FSI (FSIC)", "Balance Sheet (FSIBSIS)"])
+
+                with fsi_tab1:
+                    # Load FSIC Data (Core FSI) - show ALL indicators with exact names
+                    fsic_data = load_country_history(explorer_focus_country, 'FSIC') if load_history else pd.DataFrame()
+
+                    if fsic_data is not None and len(fsic_data) > 0:
+                        n_indicators = fsic_data['indicator_name'].nunique()
+                        st.caption(f"{n_indicators} indicators available for {explorer_focus_country}")
+                        render_time_series_deep_dive(fsic_data, "FSIC", explorer_focus_country)
+                    else:
+                        if load_history:
+                            st.info("No FSIC data available for this country.")
+                        else:
+                            st.caption("Enable selected-country historical data above to load FSIC history.")
+
+                with fsi_tab2:
+                    load_fsibsis = st.checkbox(
+                        "Load balance-sheet history",
+                        value=False,
+                        help="Loads the larger FSIBSIS dataset only when needed.",
                     )
-                    fig = px.line(
-                        melted, 
-                        x='year', 
-                        y='Score', 
-                        color='Indicator',
-                        title='Governance Indicators Over Time (0-100 scale)'
-                    )
-                    fig.update_layout(
-                        height=400,
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                    )
-                    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                    # Load FSIBSIS Data
+                    try:
+                        if load_fsibsis:
+                            fsibsis_long = load_fsibsis_country_history(explorer_focus_country)
+                        else:
+                            fsibsis_long = pd.DataFrame()
+
+                        if fsibsis_long is not None and len(fsibsis_long) > 0:
+                            n_indicators = fsibsis_long['indicator_name'].nunique()
+                            st.caption(f"{n_indicators} balance-sheet indicators available")
+                            render_time_series_deep_dive(fsibsis_long, "FSIBSIS", explorer_focus_country)
+                        else:
+                            if load_fsibsis:
+                                st.info("No FSIBSIS data available for this country.")
+                            else:
+                                st.caption(
+                                    "Balance-sheet history is loaded on demand to "
+                                    "reduce startup time."
+                                )
+                    except Exception as e:
+                        st.error(f"Error loading FSIBSIS: {e}")
+
+            with de_tab_mfs:
+                st.markdown("#### Monetary & Financial Statistics")
+                mfs_data = load_country_history(explorer_focus_country, 'MFS') if load_history else pd.DataFrame()
+                if mfs_data is not None and len(mfs_data) > 0:
+                    n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
+                    st.caption(f"{n_indicators} monetary indicators available for {explorer_focus_country}")
+                    render_time_series_deep_dive(mfs_data, "MFS", explorer_focus_country)
                 else:
-                    st.info("No governance score columns found.")
-            else:
-                st.info("No WGI data for this country.")
-        else:
-            st.info("WGI data not loaded.")
+                    if load_history:
+                        st.info("No MFS data available for this country.")
+                    else:
+                        st.caption("Enable selected-country historical data above to load MFS history.")
+
+            with de_tab_wgi:
+                if wgi_data is not None and len(wgi_data) > 0:
+                    country_wgi = wgi_data[wgi_data['country_code'] == explorer_focus_country]
+                    if len(country_wgi) > 0:
+                        # WGI data has columns: country_code, year, voice_accountability, political_stability, etc.
+                        # Melt to long format for plotting
+                        governance_cols = ['voice_accountability', 'political_stability', 'govt_effectiveness',
+                                           'regulatory_quality', 'rule_of_law', 'control_corruption']
+                        available_cols = [c for c in governance_cols if c in country_wgi.columns]
+
+                        if available_cols:
+                            import plotly.express as px
+                            melted = country_wgi.melt(
+                                id_vars=['country_code', 'year'],
+                                value_vars=available_cols,
+                                var_name='Indicator',
+                                value_name='Score'
+                            )
+                            fig = px.line(
+                                melted,
+                                x='year',
+                                y='Score',
+                                color='Indicator',
+                                title='Governance Indicators Over Time (0-100 scale)'
+                            )
+                            fig.update_layout(
+                                height=400,
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                paper_bgcolor='rgba(0,0,0,0)',
+                            )
+                            st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+                        else:
+                            st.info("No governance score columns found.")
+                    else:
+                        st.info("No WGI data for this country.")
+                else:
+                    st.info("WGI data not loaded.")
 
 
 # ==============================================================================
