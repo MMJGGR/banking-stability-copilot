@@ -57,19 +57,21 @@ STYLES = """
     }
 
     .bankenv-brand-mark {
-        width: 30px;
-        height: 30px;
-        border-radius: 7px;
-        background: #0E1117;
-        color: #F8FAFC;
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: #0B1220;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        border: 1px solid rgba(148, 163, 184, 0.55);
-        box-shadow: inset 0 -3px 0 rgba(148, 163, 184, 0.55);
+        border: 1px solid rgba(226, 232, 240, 0.55);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+    }
+
+    .bankenv-brand-mark svg {
+        width: 24px;
+        height: 24px;
+        display: block;
     }
 
     .bankenv-brand-name {

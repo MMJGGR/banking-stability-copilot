@@ -2065,3 +2065,13 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/dashboard/styles.py`
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8566.
+- [x] Checkpoint 22: BankEnv logo refinement.
+  - Pending commit: `refine bankenv logo`
+  - Scope:
+    - Replaced the plain `BE` tile with a compact bank/operating-environment
+      signal mark.
+    - Applied the same mark to the favicon and in-app brand row for visual
+      consistency.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py`
+    passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
+    startup check returned HTTP 200 on port 8567.
