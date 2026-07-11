@@ -127,8 +127,8 @@ def render_markdown_with_images(markdown_text: str):
 
 # Page Config
 st.set_page_config(
-    page_title="Banking System Stability Copilot",
-    page_icon="B",
+    page_title="BankEnv",
+    page_icon="assets/bankenv-favicon.svg",
     layout="wide",
     initial_sidebar_state="collapsed"
 )

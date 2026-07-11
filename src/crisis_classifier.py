@@ -17,7 +17,7 @@ Architecture (policy decision recorded in docs/MODEL_CARD.md):
     The classifier is an upward-only overlay: it is monotone in the crisis
     probability and can never lower a high pillar-based risk score.
 
-Author: Banking Copilot
+Author: BankEnv
 Date: 2026-01-02
 ==============================================================================
 """

@@ -16,7 +16,7 @@ Usage:
     y = labels.get_crisis_target(country_code='GRC', year=2007, horizon=3)
     # Returns 1 if Greece had crisis in 2008-2010, 0 otherwise
 
-Author: Banking Copilot
+Author: BankEnv
 Date: 2026-01-02
 ==============================================================================
 """

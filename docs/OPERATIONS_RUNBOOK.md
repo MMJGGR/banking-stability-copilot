@@ -1,4 +1,4 @@
-# Banking Stability Copilot Operations Runbook
+# BankEnv Operations Runbook
 
 ## Local Verification
 

@@ -1,5 +1,5 @@
 """
-CapitalIQ-inspired CSS Stylings for Banking Stability Copilot.
+CSS styling for BankEnv.
 Focus on data density, clean lines, and professional contrast.
 """
 

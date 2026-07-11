@@ -1,8 +1,8 @@
-# Banking Stability Copilot: Comprehensive Remediation and Implementation Plan
+# BankEnv: Comprehensive Remediation and Implementation Plan
 
 ## 1. Purpose
 
-This document is the project-wide remediation, modernization, and implementation plan for the Banking System Stability Copilot. It covers all material issues identified during the repository, model, data, runtime, and hosting review—not only data refresh and snapshot functionality.
+This document is the project-wide remediation, modernization, and implementation plan for BankEnv. It covers all material issues identified during the repository, model, data, runtime, and hosting review—not only data refresh and snapshot functionality.
 
 The target system must:
 
@@ -168,7 +168,7 @@ historical context.
 |---|---|---:|
 | The product is named a “copilot,” but the deployed application is an analytical dashboard | Product expectations and actual capabilities do not match | High |
 | Insight, report, trend, and explainability modules are not consistently connected to the UI | Existing capabilities are incomplete or unused | Medium |
-| No conversational workflow or LLM integration exists | “Copilot” functionality is not implemented | Product decision |
+| No conversational workflow or LLM integration exists | Earlier “Copilot” positioning implied functionality that is not implemented | Product decision |
 | No formal user personas or decision workflows are defined | Feature priorities and acceptable risk explanations are unclear | High |
 | Risk score provenance and movement explanations are limited | Users cannot easily audit why a score changed | High |
 | No access-control or data-classification decision is documented | Future private or licensed data could be exposed incorrectly | High |
@@ -329,13 +329,12 @@ not production, until the section 2.8 critical items and the validation
 standard in the model card are satisfied.
 
 **Naming decision update (2026-07-11, owner):** the external app name is
-**Banking System Stability Copilot**. The previous verbose workbench name was
-rejected as too wordy and insufficiently professional for the live frontend.
-The current
-release remains an analytics app, not a conversational agent; adding a
-conversational layer would require separate governance.
+**BankEnv**. The name reflects the banking operating-environment focus and
+avoids similarity to rating-agency product names. The current release remains
+an analytics app, not a conversational agent; adding a conversational layer
+would require separate governance.
 
-### 6.2 If Copilot Scope Is Approved
+### 6.2 If Conversational Scope Is Approved
 
 Implement only after the analytical foundation is stable:
 
@@ -1055,7 +1054,7 @@ Add:
 - Quantify structural bias and score sensitivity.
 - Produce model cards, data cards, and release approval records.
 
-### Workstream I: Product and Copilot Definition
+### Workstream I: Product Definition
 
 - Decide whether to rename the product or implement a governed copilot layer.
 - Define user personas, decisions, and acceptable outputs.
@@ -1325,8 +1324,8 @@ production.
     operations runbook. Release-specific generated metrics remain tied to a
     future approved candidate.
 17. [x] Updated 2026-07-11 (owner): external app name standardized as
-    **Banking System Stability Copilot** (page title, README, and working
-    plan). The rejected verbose workbench wording should not be reintroduced.
+    **BankEnv** (page title, favicon, README, and working plan). Rejected
+    names and vendor-adjacent naming patterns should not be reintroduced.
 18. [~] Monitoring, rollback, ownership, and release procedures substantially
     complete 2026-07-10 (session 3): automatic last-known-good fallback,
     admin diagnostics, executable rollback runbook, CODEOWNERS, release
@@ -1579,7 +1578,7 @@ whether users can safely consume the improved model and dataset.
 | 35 | Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
 | 36 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
 | 37 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
-| 38 | Product positioning remains unresolved | "Copilot" suggests conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed copilot workflow |
+| 38 | Product positioning remains unresolved | Earlier "Copilot" wording suggested conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed conversational workflow |
 
 #### 21.5.4 Sprint Execution Status (2026-07-10, Session 3)
 
@@ -1677,8 +1676,8 @@ applied the same day:
    coverage with the pre-policy score, controlling for log GDP per capita and
    the six governance scores; raw correlations are reported as informational.
 3. **Product name corrected (rank 38 / tracker item 17 — CLOSED).** The
-   external app name is **Banking System Stability Copilot**; the prior verbose
-   workbench name is rejected.
+   external app name is **BankEnv**; the prior verbose workbench name is
+   rejected.
 4. **Challenger iterated per owner instruction ("iterate first, then
    re-review"), still NOT promoted.** Challenger v2 removes the level-share
    features `real_estate_loans` and `fx_loan_exposure` from the pillar
@@ -2032,3 +2031,16 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/dashboard/styles.py`
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8563.
+- [x] Checkpoint 19: BankEnv naming and favicon.
+  - Pending commit: `rename app bankenv`
+  - Scope:
+    - Renamed the external app to **BankEnv** in Streamlit metadata, README,
+      source docstrings, operations runbook, and the working plan.
+    - Added `assets/bankenv-favicon.svg`: a minimal dark favicon with `BE`
+      lettering and a baseline motif.
+    - Removed vendor-adjacent styling language from source comments.
+  - Verification: `python -m py_compile app.py src/config.py
+    src/dashboard/components.py src/dashboard/styles.py src/crisis_classifier.py
+    src/crisis_labels.py src/feature_engineering.py` passed; full test suite
+    passed (`79 passed`, `1 skipped`); local Streamlit startup check returned
+    HTTP 200 on port 8564.

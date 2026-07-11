@@ -1,5 +1,5 @@
 """
-Configuration settings for the Banking System Stability Copilot.
+Configuration settings for BankEnv.
 Defines indicator categories, thresholds, and risk tier definitions.
 """
 

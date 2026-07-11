@@ -15,7 +15,7 @@ Academic Foundation:
 - BIS (2019) - credit-to-GDP gap motivates the relative credit-depth feature
 - S&P BICRA - Two-pillar risk framework
 
-Author: Banking Copilot
+Author: BankEnv
 Date: 2025-01-02
 ==============================================================================
 """

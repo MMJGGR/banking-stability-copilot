@@ -1,9 +1,10 @@
-# Banking System Stability Copilot
+# BankEnv
 
-> **Product decision:** the external app name is **Banking System Stability
-> Copilot**. The interface is intentionally utilitarian: global summary,
-> country diagnostics, data exploration, and methodology, without a
-> conversational layer in the current release.
+> **Product decision:** the external app name is **BankEnv**. It reflects the
+> banking operating-environment focus of the model. The interface is
+> intentionally utilitarian: global summary, country diagnostics, data
+> exploration, and methodology, without a conversational layer in the current
+> release.
 
 # Methodology
 ## Banking System Stability Model

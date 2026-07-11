@@ -1,5 +1,5 @@
 """
-Dashboard components for Banking System Stability Copilot.
+Dashboard components for BankEnv.
 Provides UI components for data visualization, trends, and prediction.
 """
 
