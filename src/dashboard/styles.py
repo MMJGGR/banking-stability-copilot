@@ -57,10 +57,14 @@ STYLES = """
     }
 
     .bankenv-brand-mark {
+        --bankenv-tile-bg: #0B1220;
+        --bankenv-main-stroke: #E5E7EB;
+        --bankenv-muted-stroke: #94A3B8;
+        --bankenv-accent-stroke: #38BDF8;
         width: 32px;
         height: 32px;
         border-radius: 9px;
-        background: #0B1220;
+        background: var(--bankenv-tile-bg);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -68,10 +72,36 @@ STYLES = """
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
     }
 
+    @media (prefers-color-scheme: dark) {
+        .bankenv-brand-mark {
+            --bankenv-tile-bg: #F8FAFC;
+            --bankenv-main-stroke: #0B1220;
+            --bankenv-muted-stroke: #475569;
+            --bankenv-accent-stroke: #0284C7;
+            border-color: rgba(148, 163, 184, 0.70);
+        }
+    }
+
     .bankenv-brand-mark svg {
         width: 24px;
         height: 24px;
         display: block;
+    }
+
+    .bankenv-main-stroke {
+        stroke: var(--bankenv-main-stroke);
+    }
+
+    .bankenv-muted-stroke {
+        stroke: var(--bankenv-muted-stroke);
+    }
+
+    .bankenv-accent-stroke {
+        stroke: var(--bankenv-accent-stroke);
+    }
+
+    .bankenv-roof-dot {
+        fill: var(--bankenv-tile-bg);
     }
 
     .bankenv-brand-name {

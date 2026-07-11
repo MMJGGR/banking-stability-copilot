@@ -1421,13 +1421,13 @@ st.markdown(
     <div class="bankenv-brand" aria-label="BankEnv">
         <span class="bankenv-brand-mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" focusable="false">
-                <path d="M16 47H48" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
-                <path d="M20 42H44" stroke="#94A3B8" stroke-width="3" stroke-linecap="round"/>
-                <path d="M22 34V24" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
-                <path d="M32 34V18" stroke="#38BDF8" stroke-width="4" stroke-linecap="round"/>
-                <path d="M42 34V28" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
-                <path d="M18 22L32 13L46 22" fill="none" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="32" cy="18" r="2.2" fill="#0B1220"/>
+                <path class="bankenv-main-stroke" d="M16 47H48" stroke-width="4" stroke-linecap="round"/>
+                <path class="bankenv-muted-stroke" d="M20 42H44" stroke-width="3" stroke-linecap="round"/>
+                <path class="bankenv-main-stroke" d="M22 34V24" stroke-width="4" stroke-linecap="round"/>
+                <path class="bankenv-accent-stroke" d="M32 34V18" stroke-width="4" stroke-linecap="round"/>
+                <path class="bankenv-main-stroke" d="M42 34V28" stroke-width="4" stroke-linecap="round"/>
+                <path class="bankenv-main-stroke" d="M18 22L32 13L46 22" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle class="bankenv-roof-dot" cx="32" cy="18" r="2.2"/>
             </svg>
         </span>
         <span class="bankenv-brand-name">BankEnv</span>

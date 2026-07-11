@@ -2075,3 +2075,12 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/dashboard/styles.py`
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8567.
+- [x] Checkpoint 23: Theme-aware BankEnv logo.
+  - Pending commit: `adapt bankenv logo for dark mode`
+  - Scope:
+    - Converted the in-app BankEnv mark from fixed SVG colors to CSS variables.
+    - Added dark-mode CSS overrides so the in-app tile inverts to a light mark
+      on dark backgrounds while retaining the same motif.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py`
+    passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
+    startup check returned HTTP 200 on port 8568.
