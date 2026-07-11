@@ -2172,6 +2172,35 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/government_liquidity.py`
     passed; full test suite passed (`90 passed`, `1 skipped`); local
     Streamlit startup check returned HTTP 200 on port 8575.
+- [x] Checkpoint 28: Peer-engine replacement and liquidity integration audit.
+  - Pending commit: `replace weak peer selector`
+  - Liquidity integration confirmed:
+    - Production-scored government-liquidity inputs:
+      `govt_interest_to_revenue`, `govt_debt_to_revenue`.
+    - Production-scored external-liquidity inputs:
+      `net_iip_gdp`, `external_liabilities_gdp`,
+      `reserves_to_goods_services_imports`,
+      `gross_external_financing_need_proxy_gdp`,
+      `investment_income_debits_to_cxr`.
+    - These columns are in the promoted `cache/risk_model.pkl` feature matrix,
+      included in `src/pillar_pipeline.py` `ECONOMIC_FEATURES`, have declared
+      entries in `FEATURE_RISK_DIRECTIONS`, and are assembled into training by
+      `src/liquidity_features.py`.
+  - Peer fix:
+    - Replaced the old `find_peers()` distance, which used only economic and
+      industry pillar scores, with a multi-factor peer engine using model score
+      proximity, economic scale, GDP per capita, banking ratios, government
+      liquidity, external liquidity, and data-coverage filtering.
+    - Updated Country Profile and Data Explorer to pass the active model
+      feature matrix to the peer engine.
+    - Added a regression test proving that a small economy with matching pillar
+      scores no longer outranks structurally comparable large/high-income peers
+      when model features are available.
+    - Current promoted-artifact USA defaults changed to United Kingdom,
+      Germany, France, Italy, Canada, and Japan.
+  - Verification: `python -m py_compile app.py src/utils.py` passed; full test
+    suite passed (`91 passed`, `1 skipped`); local Streamlit startup check
+    returned HTTP 200 on port 8576.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`

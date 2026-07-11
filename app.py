@@ -2194,7 +2194,12 @@ with tab_profile:
     st.markdown("### Peer Countries")
     
     # Note: find_peers expects (target_country, scores_df, n_peers)
-    peers_df = find_peers(selected_country_code, scores_df, n_peers=6)
+    peers_df = find_peers(
+        selected_country_code,
+        scores_df,
+        n_peers=6,
+        feature_values=model_features,
+    )
     nearest_peer_codes = (
         peers_df['country_code'].tolist()
         if peers_df is not None and len(peers_df) > 0
@@ -2256,7 +2261,11 @@ with tab_profile:
         
         st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
         
-        st.caption("Nearest peers are selected from similar economic and industry risk profiles; the peer set can be edited above.")
+        st.caption(
+            "Default peers are selected from model score proximity, economic "
+            "scale, development level, banking structure, and liquidity "
+            "features; the peer set can be edited above."
+        )
     else:
         st.caption("Unable to find peer countries.")
 
@@ -2277,7 +2286,12 @@ with tab_explorer:
             ),
         )
 
-    explorer_peers_df = find_peers(explorer_focus_country, scores_df, n_peers=4)
+    explorer_peers_df = find_peers(
+        explorer_focus_country,
+        scores_df,
+        n_peers=4,
+        feature_values=model_features,
+    )
     explorer_nearest_peer_codes = (
         explorer_peers_df['country_code'].tolist()
         if explorer_peers_df is not None and len(explorer_peers_df) > 0
