@@ -43,3 +43,15 @@ cache/external/
 
 # Government-liquidity candidate caches are workflow artifacts, never committed
 cache/government/
+
+# Local smoke-test/download artifacts. Candidate bundles promoted to production
+# are tracked explicitly via cache/ and selected artifacts/ paths, not these
+# ad hoc local files.
+artifacts/external_*_features.parquet
+artifacts/external_*_observations.parquet
+artifacts/external_*_report.json
+artifacts/external_sources_report.json
+artifacts/wb_debt_service_*.parquet
+artifacts/wb_debt_service_report.json
+artifacts/gh-run-*/
+artifacts/live_streamlit_error_*.png

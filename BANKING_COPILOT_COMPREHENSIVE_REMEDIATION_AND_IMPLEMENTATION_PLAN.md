@@ -2121,6 +2121,40 @@ Items that remain open and why they cannot be closed from this environment:
     src/external_liquidity.py` passed; full test suite passed (`79 passed`,
     `1 skipped`) with repo root on `PYTHONPATH`; local Streamlit startup check
     returned HTTP 200 on port 8573.
+- [x] Checkpoint 26: Production liquidity wiring and 2026-06-30 artifact
+  promotion.
+  - Commits/PRs:
+    - `5cf7905` merged `claude/remediation-implementation-plan-y7d3xc` into
+      `master`, adding production training-path wiring for liquidity and
+      affordability features plus government-liquidity reference data.
+    - Candidate build run `29156989689` completed successfully for
+      `as_of_date=2026-06-30`: CI tests passed, official sources refreshed,
+      candidate snapshot built, smoke tests passed, and candidate artifacts
+      uploaded.
+    - Promotion run `29157371667` downloaded the candidate bundle, re-ran
+      serving smoke tests, and pushed `promote/2026-06-30`.
+    - Promotion PR #9 merged to `master` as `0d3d3ad`, committing refreshed
+      serving artifacts via LFS.
+  - Current served artifact:
+    - `artifacts/data_manifest.json` reports snapshot `2026-06-30`, status
+      `verified`, source mode `official_api_sdmx_worldbank`.
+    - Production feature matrix now includes
+      `net_iip_gdp`, `external_liabilities_gdp`,
+      `reserves_to_goods_services_imports`, and
+      `gross_external_financing_need_proxy_gdp`.
+    - Current production scores after promotion: USA `6.9`, Kenya `8.0`,
+      Mozambique `8.5`.
+  - Artifact hygiene:
+    - Removed stale local-only smoke/download artifacts from the working tree.
+    - Added `.gitignore` rules so future local smoke artifacts and downloaded
+      workflow bundles do not appear beside tracked production artifacts.
+  - Follow-up:
+    - Peer selection remains weak because `find_peers()` still uses only
+      economic and industry pillar Euclidean distance. USA defaults are no
+      longer Cyprus/Italy/Dominica/Fiji after the promoted model, but the
+      resulting peers are still not methodologically defensible. Replace with
+      a peer engine that combines region/income/development scale, banking
+      structure, macro/liquidity features, and data-quality filters.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`
