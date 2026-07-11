@@ -780,6 +780,7 @@ class BankingRiskModel:
         mfs_df,
         as_of_date=None,
         retrain_classifier=True,
+        extra_features=None,
     ):
         """
         Train the hybrid risk model.
@@ -950,6 +951,27 @@ class BankingRiskModel:
         features['years_since_banking_crisis'] = (
             features['country_code'].map(_years_since_crisis)
         )
+
+        # Staged liquidity challenger features (2026-07-11): optional external /
+        # government liquidity columns merged by country. Left-merged so the
+        # country universe is unchanged; production runs pass nothing and are
+        # unaffected. The pillar pipeline only consumes columns declared in
+        # ECONOMIC_FEATURES/INDUSTRY_FEATURES + FEATURE_RISK_DIRECTIONS.
+        if extra_features is not None and len(extra_features) > 0:
+            extra = extra_features.copy()
+            extra['country_code'] = extra['country_code'].astype(str).str.upper()
+            extra = extra.drop_duplicates('country_code')
+            overlap = [
+                c for c in extra.columns
+                if c != 'country_code' and c in features.columns
+            ]
+            if overlap:
+                extra = extra.drop(columns=overlap)
+            features = features.merge(extra, on='country_code', how='left')
+            print(
+                f"  Merged {len(extra.columns) - 1} staged liquidity feature(s) "
+                f"for {extra['country_code'].nunique()} countries"
+            )
 
         # Print organized feature summary matching README structure
         print("\n  " + "-"*50)

@@ -2194,3 +2194,48 @@ Items that remain open and why they cannot be closed from this environment:
     passed; full test suite passed (`87 passed`, `1 skipped`); build runs
     gracefully on the existing committed observations (new columns present,
     null until fetched).
+- [x] Checkpoint 28: Liquidity-feature challenger (features fed into the model).
+  - Pending commit: `add liquidity feature challenger`
+  - Owner steer: "They should be fed into the model... tastefully." The staged
+    external + government liquidity features are now wired into the real pillar
+    pipeline and evaluated as a governed challenger; the active serving
+    artifacts are unchanged pending owner promotion review.
+  - Curation (tasteful, non-duplicative): only genuinely new, data-backed
+    signals were added to the economic pillar, with a declared
+    `FEATURE_RISK_DIRECTIONS` entry each. Government block contributed the two
+    affordability ratios `govt_interest_to_revenue` and `govt_debt_to_revenue`
+    (the debt/balance levels duplicate existing `govt_debt_gdp` /
+    `fiscal_balance_gdp` and were skipped). External block contributed
+    `net_iip_gdp`, `external_liabilities_gdp`,
+    `reserves_to_goods_services_imports`,
+    `gross_external_financing_need_proxy_gdp`, and
+    `investment_income_debits_to_cxr`. Market/FDI/REER were omitted because
+    they are null until the next CI fetch.
+  - Wiring: `train()` gained an optional `extra_features` merge (left-merge,
+    country universe unchanged; production passes nothing and is unaffected).
+    `src/scripts/build_liquidity_challenger.py` runs a control train (no
+    extras) and a challenger train (with extras), both reusing the cached
+    classifier so the crisis overlay is held fixed, and writes
+    `artifacts/liquidity_challenger_comparison.json` plus an archived
+    `artifacts/snapshots/2026-06-30-challenger-liquidity/challenger_scores.parquet`.
+    It never calls `model.save()`.
+  - Effect on model output (isolated challenger-vs-control): mean |score change|
+    0.19, 5 countries move >= 1 point, 21 risk-tier changes, Spearman 0.989 —
+    a sharpening, not a re-ranking. Economically sensible: Singapore -2.1
+    (large net creditor + reserve cover), Macao/Saudi/Aruba safer; Micronesia
+    +2.0, Mongolia +1.1, Cyprus +1.0, Sri Lanka +0.8 riskier on weak
+    external/fiscal liquidity.
+  - Incidental finding: the control train does NOT reproduce the active
+    `cache/risk_model.pkl` (mean |delta| 1.68, Spearman 0.62), i.e. the active
+    serving pickle is stale relative to the current pipeline (consistent with
+    the previously noted Kenya/Mozambique artifact mismatch). The governance
+    gate is therefore evaluated on the isolated feature effect, not the
+    confounded headline-vs-production delta; rebuilding the active artifact is a
+    separate action.
+  - Promotion: NOT taken. Only the tier-change threshold (21 > 15) trips on the
+    isolated effect (mean 0.19 < 0.5, Spearman 0.989 > 0.90), so this is a much
+    milder, more promotable change than the directional challenger, but it still
+    requires owner review under docs/GOVERNANCE.md.
+  - Verification: `python -m py_compile` on the changed modules passed; full
+    test suite passed (`90 passed`, `1 skipped`) including new challenger-logic
+    unit tests.

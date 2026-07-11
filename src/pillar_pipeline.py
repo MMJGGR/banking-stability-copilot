@@ -18,6 +18,17 @@ ECONOMIC_FEATURES = [
     "interest_cost_trend_3yr", "credit_growth_3yr", "m2_to_reserves",
     "ca_deficit_severity", "tot_deterioration_3yr",
     "voice_accountability", "political_stability", "govt_effectiveness",
+    # Staged liquidity challenger features (2026-07-11). Curated to genuinely
+    # new, data-backed signals that do not duplicate existing pillar features:
+    # sovereign fiscal affordability (interest/revenue, debt/revenue) from WEO
+    # general government, and external-liquidity stocks/flows from IMF BOP/IIP.
+    # Absent columns are ignored by the pipeline, so production runs that omit
+    # these features are unaffected.
+    "govt_interest_to_revenue", "govt_debt_to_revenue",
+    "net_iip_gdp", "external_liabilities_gdp",
+    "reserves_to_goods_services_imports",
+    "gross_external_financing_need_proxy_gdp",
+    "investment_income_debits_to_cxr",
 ]
 
 # Challenger v2 (2026-07-10): the level-share features `real_estate_loans`
@@ -69,6 +80,15 @@ FEATURE_RISK_DIRECTIONS = {
     "voice_accountability": -1.0,
     "political_stability": -1.0,
     "govt_effectiveness": -1.0,
+    # Staged liquidity challenger features (economic pillar). +1 = higher value
+    # means higher banking-system/sovereign risk.
+    "govt_interest_to_revenue": 1.0,   # interest bill vs revenue capacity
+    "govt_debt_to_revenue": 1.0,       # debt stock vs revenue capacity
+    "net_iip_gdp": -1.0,               # higher net creditor position = safer
+    "external_liabilities_gdp": 1.0,   # larger external liabilities = riskier
+    "reserves_to_goods_services_imports": -1.0,  # more import cover = safer
+    "gross_external_financing_need_proxy_gdp": 1.0,
+    "investment_income_debits_to_cxr": 1.0,  # external income-service burden
     # Industry pillar
     "capital_adequacy": -1.0,
     "npl_ratio": 1.0,
