@@ -1408,57 +1408,52 @@ def _format_numeric(value) -> str:
         return "—"
 
 
-def render_external_model_inputs(
+def _format_model_input(column: str, value) -> tuple[str, str]:
+    """Return a (display label, display value) pair, humanizing select ratios.
+
+    ``reserves_to_goods_services_imports`` is stored as a percent of annual
+    imports; reserve adequacy reads far more naturally in months of imports, so
+    it is converted for display (the model still uses the underlying ratio).
+    """
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = None
+    if column == "reserves_to_goods_services_imports":
+        if numeric is None or pd.isna(numeric):
+            return "Reserves coverage (months of imports)", "—"
+        return "Reserves coverage (months of imports)", f"{numeric * 12 / 100:,.1f} months"
+    label = EXTERNAL_FEATURE_LABELS.get(
+        column, GOVT_FEATURE_LABELS.get(column, column.replace("_", " ").title())
+    )
+    return label, _format_numeric(value)
+
+
+def render_liquidity_model_inputs(
     selected_country: str,
     model_features: pd.DataFrame | None,
 ):
-    """Show external-liquidity fields in Country Profile only if model-used."""
+    """Unified Liquidity section: external + government fields used in scoring."""
     if model_features is None or model_features.empty:
         return
+
     external_features, _, _ = load_external_insight_data()
-    if external_features.empty:
-        return
-
-    used_columns = [
-        column for column in _external_feature_columns(external_features)
-        if column in model_features.columns
-    ]
-    if not used_columns:
-        return
-
-    country_row = model_features[
-        model_features["country_code"].astype(str).str.upper() == selected_country
-    ]
-    if country_row.empty:
-        return
-
-    rows = []
-    for column in used_columns:
-        rows.append({
-            "Model Input": EXTERNAL_FEATURE_LABELS.get(column, column.replace("_", " ").title()),
-            "Value": _format_numeric(country_row.iloc[0].get(column)),
-        })
-    st.markdown("#### External Liquidity Inputs Used In Score")
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-def render_government_model_inputs(
-    selected_country: str,
-    model_features: pd.DataFrame | None,
-):
-    """Show general-government liquidity fields in Country Profile if model-used."""
-    if model_features is None or model_features.empty:
-        return
     government_features, _, _ = load_government_insight_data()
-    if government_features.empty:
-        return
 
-    feature_cols = _staged_feature_columns(government_features, GOVT_FEATURE_COUNT_COL)
-    used_columns = [
-        column for column in feature_cols
-        if column in model_features.columns
-    ]
-    if not used_columns:
+    groups = []  # (group label, feature columns)
+    if not external_features.empty:
+        groups.append((
+            "External",
+            [c for c in _external_feature_columns(external_features)
+             if c in model_features.columns],
+        ))
+    if not government_features.empty:
+        groups.append((
+            "Government",
+            [c for c in _staged_feature_columns(government_features, GOVT_FEATURE_COUNT_COL)
+             if c in model_features.columns],
+        ))
+    if not any(cols for _, cols in groups):
         return
 
     country_row = model_features[
@@ -1466,14 +1461,21 @@ def render_government_model_inputs(
     ]
     if country_row.empty:
         return
+    row = country_row.iloc[0]
 
     rows = []
-    for column in used_columns:
-        rows.append({
-            "Model Input": GOVT_FEATURE_LABELS.get(column, column.replace("_", " ").title()),
-            "Value": _format_numeric(country_row.iloc[0].get(column)),
-        })
-    st.markdown("#### Government Liquidity Inputs Used In Score")
+    for group_label, columns in groups:
+        for column in columns:
+            label, display = _format_model_input(column, row.get(column))
+            rows.append({"Category": group_label, "Model Input": label, "Value": display})
+    if not rows:
+        return
+
+    st.markdown("#### Liquidity Inputs Used In Score")
+    st.caption(
+        "Sovereign (government) and external liquidity fields the active model "
+        "uses when scoring this country."
+    )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
@@ -2463,8 +2465,7 @@ with tab_profile:
                 f"{driver_error}"
             )
 
-    render_external_model_inputs(selected_country_code, model_features)
-    render_government_model_inputs(selected_country_code, model_features)
+    render_liquidity_model_inputs(selected_country_code, model_features)
 
     st.markdown("---")
     
@@ -2533,7 +2534,10 @@ with tab_profile:
         options=peer_options,
         default=nearest_peer_codes[:4],
         format_func=format_country_option,
-        key="custom_peer_codes",
+        # Key per country: a static key would persist one country's selection
+        # across country changes, so switching from the US to Kenya would keep
+        # the US peer set instead of re-seeding Kenya's nearest neighbors.
+        key=f"custom_peer_codes_{selected_country_code}",
         help=(
             "Defaults to nearest-neighbor peers from the model feature space. "
             "Edit this list to compare with a custom peer group."
