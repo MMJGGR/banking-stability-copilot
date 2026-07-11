@@ -2055,3 +2055,13 @@ Items that remain open and why they cannot be closed from this environment:
     src/dashboard/styles.py app.py` passed; full test suite passed
     (`79 passed`, `1 skipped`); local Streamlit startup check returned HTTP
     200 on port 8565.
+- [x] Checkpoint 21: Visible BankEnv app brand.
+  - Pending commit: `show bankenv brand in app`
+  - Scope:
+    - Added a compact BankEnv brand row above the primary tabs using the same
+      `BE` mark as the favicon.
+    - Kept the layout utilitarian: no marketing headline and no extra
+      explanatory copy.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py`
+    passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
+    startup check returned HTTP 200 on port 8566.

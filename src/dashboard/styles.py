@@ -47,6 +47,37 @@ STYLES = """
         padding-top: 3rem !important;
         padding-bottom: 2rem !important;
     }
+
+    .bankenv-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0 0 0.65rem 0;
+        line-height: 1;
+    }
+
+    .bankenv-brand-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        background: #0E1117;
+        color: #F8FAFC;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        box-shadow: inset 0 -3px 0 rgba(148, 163, 184, 0.55);
+    }
+
+    .bankenv-brand-name {
+        color: var(--text-color);
+        font-size: 1.05rem;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+    }
     
     /* =========================================
        METRICS / KPI CARDS

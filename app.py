@@ -1416,6 +1416,16 @@ if "explorer_focus_country" not in st.session_state:
         default_country_code,
     )
 
+st.markdown(
+    """
+    <div class="bankenv-brand" aria-label="BankEnv">
+        <span class="bankenv-brand-mark">BE</span>
+        <span class="bankenv-brand-name">BankEnv</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ==============================================================================
 # MAIN NAVIGATION: Tabs
 # ==============================================================================
