@@ -3,11 +3,12 @@
 This directory holds small, manually retrieved reference files whose
 provenance must be pinned by checksum.
 
-## Staged challenger feature datasets
+## Packaged liquidity feature datasets
 
 Compact derived feature files the hosted app reads directly, so it never loads
-the large upstream IMF/World Bank flows at startup. They are **staged
-challenger inputs** and do not affect production scoring.
+the large upstream IMF/World Bank flows at startup. Some columns are active
+production model inputs; other columns are surfaced for analysis only. The app
+labels score role from the active model artifact.
 
 - `external_liquidity_features.parquet` / `external_feature_observations.parquet`
   / `external_liquidity_features_report.json` — IMF BOP/IIP + World Bank

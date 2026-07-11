@@ -12,9 +12,10 @@ Those general-government series already live in the WEO cache that the model
 pipeline builds, so this block is derivable and testable from local data
 without the BOP/IIP/World-Bank API calls that the external block depends on.
 
-The features here are **staged challenger inputs**. They are not wired into
-production scoring; a separate challenger comparison must be reviewed before
-any promoted model consumes them.
+The full feature package is available for analysis. A curated subset
+(``govt_interest_to_revenue`` and ``govt_debt_to_revenue``) is included in the
+current promoted production model; the remaining fields are insight-only unless
+a future promoted model artifact adds them to the approved feature set.
 """
 
 from __future__ import annotations
@@ -161,7 +162,7 @@ def build_government_liquidity_features(
     observations: pd.DataFrame,
     model_features: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, dict]:
-    """Compute staged general-government liquidity features and a coverage report."""
+    """Compute general-government liquidity features and a coverage report."""
     model_country_set = None
     if model_features is None:
         model = load_model_artifact()
@@ -244,7 +245,8 @@ def build_government_liquidity_features(
             for feature in feature_cols
         },
         "notes": [
-            "Features are staged challenger inputs and are not wired into production scoring.",
+            "A curated subset is wired into production scoring when the active model artifact "
+            "includes it; other government-liquidity fields are packaged for analysis only.",
             "Source: IMF WEO general-government fiscal series (GGXWDG_NGDP, GGXCNL_NGDP, "
             "GGXONLB_NGDP, GGR_NGDP, GGX_NGDP, GGSB_NPGDP). The cutoff and observation-status "
             "selection match the production WEO feature path (actuals and estimates only; "

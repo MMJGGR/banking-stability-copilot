@@ -83,7 +83,7 @@ EXTERNAL_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "external_liquidity_features_report.json",
     BASE_DIR / "artifacts" / "wb_debt_service_report.json",
 )
-EXTERNAL_SOURCE_LABEL = "External liquidity (staged)"
+EXTERNAL_SOURCE_LABEL = "External liquidity"
 GOVT_FEATURES_PATHS = (
     EXTERNAL_REFERENCE_DIR / "government_liquidity_features.parquet",
     BASE_DIR / "cache" / "government" / "government_liquidity_features.parquet",
@@ -96,7 +96,7 @@ GOVT_REPORT_PATHS = (
     EXTERNAL_REFERENCE_DIR / "government_liquidity_features_report.json",
     BASE_DIR / "artifacts" / "government_liquidity_features_report.json",
 )
-GOVT_SOURCE_LABEL = "Government liquidity (staged)"
+GOVT_SOURCE_LABEL = "Government liquidity"
 GOVT_FEATURE_COUNT_COL = "government_liquidity_feature_count"
 GOVT_FEATURE_LABELS = {
     "govt_gross_debt_gdp": "General government gross debt / GDP",
@@ -511,6 +511,7 @@ def render_indicator_comparison(
                 "Monetary (MFS)",
                 "Governance (WGI)",
                 EXTERNAL_SOURCE_LABEL,
+                GOVT_SOURCE_LABEL,
             ],
             key="compare_source",
         )
@@ -539,6 +540,7 @@ def render_indicator_comparison(
         "Monetary (MFS)": "MFS",
         "Governance (WGI)": "WGI",
         EXTERNAL_SOURCE_LABEL: "EXTERNAL",
+        GOVT_SOURCE_LABEL: "GOVT",
     }
     dataset = source_to_dataset[source_choice]
 
@@ -717,6 +719,12 @@ def _load_comparison_source(
             return pd.DataFrame()
         return observations[observations["country_code"].isin(countries)].copy()
 
+    if dataset == "GOVT":
+        _, observations, _ = load_government_insight_data()
+        if observations.empty:
+            return pd.DataFrame()
+        return observations[observations["country_code"].isin(countries)].copy()
+
     return load_multi_country_history(tuple(countries), dataset)
 
 
@@ -839,6 +847,7 @@ def render_calculated_series_builder(
                 "Monetary (MFS)",
                 "Governance (WGI)",
                 EXTERNAL_SOURCE_LABEL,
+                GOVT_SOURCE_LABEL,
             ],
             key="calc_source",
         )
@@ -865,6 +874,7 @@ def render_calculated_series_builder(
         "Monetary (MFS)": "MFS",
         "Governance (WGI)": "WGI",
         EXTERNAL_SOURCE_LABEL: "EXTERNAL",
+        GOVT_SOURCE_LABEL: "GOVT",
     }[source_choice]
 
     with st.spinner(f"Loading {dataset} history for calculated series..."):
@@ -1155,6 +1165,41 @@ def render_external_model_inputs(
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+def render_government_model_inputs(
+    selected_country: str,
+    model_features: pd.DataFrame | None,
+):
+    """Show general-government liquidity fields in Country Profile if model-used."""
+    if model_features is None or model_features.empty:
+        return
+    government_features, _, _ = load_government_insight_data()
+    if government_features.empty:
+        return
+
+    feature_cols = _staged_feature_columns(government_features, GOVT_FEATURE_COUNT_COL)
+    used_columns = [
+        column for column in feature_cols
+        if column in model_features.columns
+    ]
+    if not used_columns:
+        return
+
+    country_row = model_features[
+        model_features["country_code"].astype(str).str.upper() == selected_country
+    ]
+    if country_row.empty:
+        return
+
+    rows = []
+    for column in used_columns:
+        rows.append({
+            "Model Input": GOVT_FEATURE_LABELS.get(column, column.replace("_", " ").title()),
+            "Value": _format_numeric(country_row.iloc[0].get(column)),
+        })
+    st.markdown("#### Government Liquidity Inputs Used In Score")
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 def render_staged_insight_panel(
     scores: pd.DataFrame,
     selected_country: str,
@@ -1189,13 +1234,19 @@ def render_staged_insight_panel(
         )
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Countries With Any Staged Data", f"{countries_with_staged_data:,}")
-    m2.metric("Staged Features", f"{len(feature_cols):,}")
+    m1.metric("Countries With Data", f"{countries_with_staged_data:,}")
+    m2.metric("Features", f"{len(feature_cols):,}")
     m3.metric("Used In Active Score", f"{len(used_cols):,}")
-    st.caption(
-        "These fields are available for analysis. They only affect Country Profile scoring "
-        "after a promoted model artifact includes them."
-    )
+    if used_cols:
+        st.caption(
+            "Fields marked Active model input are included in the current production score; "
+            "the remaining fields are shown for analysis only."
+        )
+    else:
+        st.caption(
+            "These fields are available for analysis only and are not included in the "
+            "current production score."
+        )
 
     country_row = features[features["country_code"] == selected_country]
     if not country_row.empty:
@@ -1214,7 +1265,7 @@ def render_staged_insight_panel(
             pd.DataFrame(rows)
             .sort_values(["Score Role", "Feature"], ascending=[True, True])
         )
-        st.markdown(f"#### Latest Staged Features: {country_formatter(selected_country)}")
+        st.markdown(f"#### Latest Features: {country_formatter(selected_country)}")
         st.dataframe(country_table, use_container_width=True, hide_index=True)
 
     available_codes = scores.sort_values("country_name")["country_code"].tolist()
@@ -1227,7 +1278,7 @@ def render_staged_insight_panel(
     compare_col1, compare_col2 = st.columns([2, 3])
     with compare_col1:
         selected_feature = st.selectbox(
-            "Compare staged feature",
+            "Compare feature",
             options=feature_cols,
             format_func=lambda x: label_map.get(x, x.replace("_", " ").title()),
             key=f"{key_prefix}_feature_compare",
@@ -1349,7 +1400,7 @@ def render_staged_methodology_summary(
     coverage = report.get("feature_coverage", {}) if isinstance(report, dict) else {}
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Staged Features", f"{len(feature_cols):,}")
+    c1.metric("Features", f"{len(feature_cols):,}")
     c2.metric("Observation Rows", f"{len(observations):,}")
     c3.metric("Countries", f"{features['country_code'].nunique():,}")
     c4.metric("Used In Active Score", f"{len(used_cols):,}")
@@ -1366,7 +1417,7 @@ def render_staged_methodology_summary(
                 coverage.get(column, {}).get("countries")
                 if column in coverage else int(features[column].notna().sum())
             ),
-            "Score Role": "Active model input" if column in used_cols else "Staged insight only",
+            "Score Role": "Active model input" if column in used_cols else "Insight only",
         })
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
@@ -1599,10 +1650,10 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
     else:
         st.info("Feature artifact is unavailable, so coverage cannot be summarized.")
 
-    st.markdown("#### Staged External-Liquidity Dataset")
+    st.markdown("#### External-Liquidity Dataset")
     render_external_methodology_summary(features)
 
-    st.markdown("#### Staged Government-Liquidity Dataset")
+    st.markdown("#### Government-Liquidity Dataset")
     render_government_methodology_summary(features)
 
     st.markdown("#### Priority Missing Data Families")
@@ -1610,38 +1661,38 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
         {
             "Gap": "Sovereign fiscal liquidity / debt affordability",
             "Why it matters": "Interest-to-revenue and debt-to-revenue drive rating-agency sovereign risk.",
-            "Likely source": "IMF WEO general government (staged); GFN needs Fiscal Monitor/GFS",
-            "Current status": "Staged from WEO (94-100% coverage); not production-scored",
+            "Likely source": "IMF WEO general government; GFN needs Fiscal Monitor/GFS",
+            "Current status": "Interest/revenue and debt/revenue are production-scored",
         },
         {
             "Gap": "Debt service burden",
             "Why it matters": "Debt affordability and refinancing stress.",
             "Likely source": "IMF BOP / World Bank IDS / QEDS / GFS",
-            "Current status": "Partially staged; not production-scored",
+            "Current status": "Partially available; selected liquidity fields are production-scored",
         },
         {
             "Gap": "Gross external financing needs",
             "Why it matters": "Core external-liquidity pressure measure.",
             "Likely source": "BOP + IIP/external debt + reserves",
-            "Current status": "Proxy staged; needs promotion review",
+            "Current status": "Proxy is production-scored; amortization/rollover data remains open",
         },
         {
             "Gap": "Current account receipts and payments",
             "Why it matters": "Denominator for external debt-service and financing-need ratios.",
             "Likely source": "IMF BOP",
-            "Current status": "Staged for insights; not production-scored",
+            "Current status": "Available for insights; used indirectly through derived liquidity ratios",
         },
         {
             "Gap": "International reserves adequacy",
             "Why it matters": "Shock buffer against FX liquidity stress.",
             "Likely source": "IMF IRFCL / MFS / BOP",
-            "Current status": "IIP reserve proxies staged; adequacy benchmark open",
+            "Current status": "Reserve/imports proxy is production-scored; adequacy benchmark open",
         },
         {
             "Gap": "Portfolio flows and external liabilities",
             "Why it matters": "Market-access and fickle-capital risk.",
             "Likely source": "IMF BOP, IIP, PIP/CPIS",
-            "Current status": "BOP/IIP proxies staged; CPIS/CDIS open",
+            "Current status": "External liabilities and net IIP are production-scored; CPIS/CDIS open",
         },
     ]
     st.dataframe(pd.DataFrame(gap_rows), use_container_width=True, hide_index=True)
@@ -1696,9 +1747,10 @@ classifier is trained on annual historical epochs and produces a
 forward-looking three-year risk signal, not a monthly or quarterly crisis
 probability.
 
-Staged external-liquidity and debt-service fields are packaged for analysis in
-the Data Explorer and Data Card. They do not change production scores unless
-the active model artifact includes those columns in its approved feature set.
+Liquidity fields are packaged for analysis in the Data Explorer and Data Card.
+Fields marked as active model inputs are included in the current production
+score; other packaged liquidity fields remain insight-only until a promoted
+model artifact includes them in its approved feature set.
 """
     )
 
@@ -2092,6 +2144,7 @@ with tab_profile:
             )
 
     render_external_model_inputs(selected_country_code, model_features)
+    render_government_model_inputs(selected_country_code, model_features)
 
     st.markdown("---")
     

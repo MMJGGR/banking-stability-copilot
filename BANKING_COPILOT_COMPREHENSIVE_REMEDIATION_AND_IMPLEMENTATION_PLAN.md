@@ -2155,6 +2155,23 @@ Items that remain open and why they cannot be closed from this environment:
       resulting peers are still not methodologically defensible. Replace with
       a peer engine that combines region/income/development scale, banking
       structure, macro/liquidity features, and data-quality filters.
+- [x] Checkpoint 27: Government-liquidity app-wide surfacing cleanup.
+  - Pending commit: `surface government liquidity across app`
+  - Scope:
+    - Confirmed the promoted production artifact uses
+      `govt_interest_to_revenue` and `govt_debt_to_revenue`.
+    - Added Government liquidity to the generic Data Explorer source dropdowns
+      for cross-country indicator comparison and calculated-series tools.
+    - Added Country Profile display of government-liquidity model inputs when
+      they are present in the active production feature matrix.
+    - Cleaned frontend wording so the app does not describe currently
+      production-scored liquidity fields as purely staged challenger inputs.
+    - Updated the government-liquidity report/template notes and Data Card
+      documentation to distinguish active model inputs from insight-only
+      packaged fields.
+  - Verification: `python -m py_compile app.py src/government_liquidity.py`
+    passed; full test suite passed (`90 passed`, `1 skipped`); local
+    Streamlit startup check returned HTTP 200 on port 8575.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
   - Pending commit: `add staged government liquidity features`

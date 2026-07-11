@@ -52,7 +52,7 @@
   "generated_at": "2026-07-11T12:52:01.762401+00:00",
   "model_countries": 201,
   "notes": [
-    "Features are staged challenger inputs and are not wired into production scoring.",
+    "A curated subset is wired into production scoring when the active model artifact includes it; other government-liquidity fields are packaged for analysis only.",
     "Source: IMF WEO general-government fiscal series (GGXWDG_NGDP, GGXCNL_NGDP, GGXONLB_NGDP, GGR_NGDP, GGX_NGDP, GGSB_NPGDP). The cutoff and observation-status selection match the production WEO feature path (actuals and estimates only; projections excluded).",
     "govt_interest_gdp is derived as primary balance minus overall balance because the overall balance already nets out interest; it is an implied interest bill, not a reported interest-expense series.",
     "govt_interest_to_revenue and govt_debt_to_revenue are the rating-agency-style affordability ratios (interest burden and debt stock relative to revenue capacity).",
