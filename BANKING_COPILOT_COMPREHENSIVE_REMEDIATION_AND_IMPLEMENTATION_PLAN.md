@@ -2021,3 +2021,17 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py src/model_store.py` passed; full
     test suite passed (`79 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8562.
+- [x] Checkpoint 18: External-facing UX cleanup.
+  - Pending commit: `clean streamlit external ux`
+  - Scope:
+    - Removed the top headline, global implementation-note caption, and
+      horizontal divider so the app opens directly on the primary navigation.
+    - Hid snapshot selection and system-health diagnostics from the default
+      frontend. They remain available only when `SHOW_ADMIN_DIAGNOSTICS=true`
+      is set.
+    - Removed decorative icons from status labels and data captions.
+    - Reduced top padding and shortened Data Explorer helper text for a more
+      utilitarian layout.
+  - Verification: `python -m py_compile app.py src/dashboard/styles.py`
+    passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
+    startup check returned HTTP 200 on port 8563.

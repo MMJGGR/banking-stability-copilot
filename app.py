@@ -118,7 +118,7 @@ def render_markdown_with_images(markdown_text: str):
                     st.warning(f"Could not load image: {image_path} - {e}")
             else:
                 # Image not found - show placeholder message
-                st.info(f"📷 *{alt_text}* (Image will appear after model training)")
+                st.info(f"{alt_text} (image will appear after model training)")
                 
             i += 3 # skip (text, alt, path)
         else:
@@ -127,7 +127,7 @@ def render_markdown_with_images(markdown_text: str):
 
 # Page Config
 st.set_page_config(
-    page_title="Banking Stability Analytics & Research Workbench",
+    page_title="Banking System Stability Copilot",
     page_icon="B",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -1281,15 +1281,19 @@ if scores_df is not None and model_features is not None:
         scores_df = scores_df.merge(model_features[['country_code', 'nominal_gdp']], on='country_code', how='left')
 
 # ==============================================================================
-# HEADER: Country Selector + Snapshot Selector + Model Info
+# Header state and optional diagnostics
 # ==============================================================================
-header_col1, header_col2, header_col3 = st.columns([2, 3, 1])
+SHOW_ADMIN_DIAGNOSTICS = os.getenv("SHOW_ADMIN_DIAGNOSTICS", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
-# Snapshot selection must resolve before the country list is built, so the
-# selector renders in header_col3 but executes first (Streamlit lays out by
-# container, not code order).
 ACTIVE_SNAPSHOT_OPTION = "Active"
-with header_col3:
+selected_snapshot = ACTIVE_SNAPSHOT_OPTION
+
+if SHOW_ADMIN_DIAGNOSTICS:
     archived_names = list_archived_snapshots()
 
     def format_snapshot_option(name: str) -> str:
@@ -1348,27 +1352,16 @@ def format_country_option(country_code: str) -> str:
     name = country_name_lookup.get(country_code, country_code)
     return f"{name} ({country_code})"
 
-HEALTH_BADGES = {
-    "ok": "🟢 Healthy",
-    "stale": "🟡 Stale Data",
-    "degraded": "🟠 Fallback Mode",
-    "unknown": "⚪ Health Unknown",
+HEALTH_LABELS = {
+    "ok": "Healthy",
+    "stale": "Stale data",
+    "degraded": "Fallback mode",
+    "unknown": "Unknown",
 }
 
-with header_col1:
-    st.markdown("### Banking Stability Analytics & Research Workbench")
-    training_date = pca_info.get('training_date', 'Unknown') if pca_info else 'Unknown'
-    snapshot_id = data_manifest.get('snapshot_id', 'unversioned')
-    snapshot_status = data_manifest.get('snapshot_status', 'manifest unavailable')
-    health_badge = HEALTH_BADGES.get(health_report["overall"], health_report["overall"])
-    st.caption(
-        f"v2.0 | Snapshot {snapshot_id} | {snapshot_status.replace('_', ' ')} | {health_badge}"
-    )
 
-with st.expander(
-    f"System Health: {HEALTH_BADGES.get(health_report['overall'], health_report['overall'])}",
-    expanded=health_report["overall"] in ("degraded", "unknown"),
-):
+def render_system_health_panel():
+    """Render internal serving diagnostics for admin use only."""
     hc1, hc2, hc3, hc4 = st.columns(4)
     hc1.metric("Serving Mode", health_report["serving_mode"].title())
     hc2.metric("Snapshot", str(health_report.get("snapshot_id") or "—"))
@@ -1384,7 +1377,6 @@ with st.expander(
     for note in health_report["notes"]:
         st.warning(note)
     if health_report["sources"]:
-        status_icons = {"ok": "🟢", "stale": "🟡", "unknown": "⚪"}
         st.dataframe(
             pd.DataFrame(
                 [
@@ -1393,7 +1385,7 @@ with st.expander(
                         "Latest Observation": source["latest_observation"],
                         "Age (days)": source["age_days"],
                         "Freshness SLA (days)": source["sla_days"],
-                        "Status": f"{status_icons.get(source['status'], '')} {source['status']}",
+                        "Status": source["status"],
                     }
                     for source in health_report["sources"]
                 ]
@@ -1407,15 +1399,12 @@ with st.expander(
         "snapshot because the active artifact failed validation."
     )
 
-with header_col2:
-    st.caption("Global summary, data exploration, and methodology are independently scoped.")
-    
 if viewing_archived:
     st.warning(
         f"Viewing archived snapshot **{selected_snapshot}** read-only"
         + (" — this is an **unapproved challenger** candidate, not the served model"
            if "challenger" in selected_snapshot else "")
-        + ". The System Health panel continues to describe the active serving state."
+        + ". Diagnostics continue to describe the active serving state."
     )
 
 default_country_code = 'USA' if 'USA' in available_country_codes else available_country_codes[0]
@@ -1426,8 +1415,6 @@ if "explorer_focus_country" not in st.session_state:
         "profile_country_code",
         default_country_code,
     )
-
-st.markdown("---")
 
 # ==============================================================================
 # MAIN NAVIGATION: Tabs
@@ -1694,13 +1681,6 @@ with tab_profile:
 # TAB: Data Explorer
 # ==============================================================================
 with tab_explorer:
-    st.markdown("### Historical Data Explorer")
-    st.caption(
-        "Use this workspace to browse source histories, compare countries, "
-        "and build lightweight calculated series. It is independent of the "
-        "Country Profile selector."
-    )
-
     explorer_col1, explorer_col2 = st.columns([2, 3])
     with explorer_col1:
         explorer_focus_country = st.selectbox(
@@ -1725,7 +1705,7 @@ with tab_explorer:
     with explorer_col2:
         if explorer_default_peers:
             st.caption(
-                "Default comparison peers: "
+                "Default peers: "
                 + ", ".join(format_country_option(code) for code in explorer_default_peers)
             )
         else:
@@ -1775,7 +1755,7 @@ with tab_explorer:
         weo_data = load_country_history(explorer_focus_country, 'WEO') if load_history else pd.DataFrame()
         if weo_data is not None and len(weo_data) > 0:
             n_indicators = weo_data['indicator_code'].nunique() if 'indicator_code' in weo_data.columns else 0
-            st.caption(f"📊 {n_indicators} economic indicators available for {explorer_focus_country}")
+            st.caption(f"{n_indicators} economic indicators available for {explorer_focus_country}")
             try:
                 render_time_series_deep_dive(weo_data, "WEO", explorer_focus_country)
             except Exception as e:
@@ -1799,7 +1779,7 @@ with tab_explorer:
             
             if fsic_data is not None and len(fsic_data) > 0:
                 n_indicators = fsic_data['indicator_name'].nunique()
-                st.caption(f"📊 {n_indicators} indicators available for {explorer_focus_country}")
+                st.caption(f"{n_indicators} indicators available for {explorer_focus_country}")
                 render_time_series_deep_dive(fsic_data, "FSIC", explorer_focus_country)
             else:
                 if load_history:
@@ -1822,7 +1802,7 @@ with tab_explorer:
                 
                 if fsibsis_long is not None and len(fsibsis_long) > 0:
                     n_indicators = fsibsis_long['indicator_name'].nunique()
-                    st.caption(f"📊 {n_indicators} balance sheet indicators available")
+                    st.caption(f"{n_indicators} balance-sheet indicators available")
                     render_time_series_deep_dive(fsibsis_long, "FSIBSIS", explorer_focus_country)
                 else:
                     if load_fsibsis:
@@ -1840,7 +1820,7 @@ with tab_explorer:
         mfs_data = load_country_history(explorer_focus_country, 'MFS') if load_history else pd.DataFrame()
         if mfs_data is not None and len(mfs_data) > 0:
             n_indicators = mfs_data['indicator_code'].nunique() if 'indicator_code' in mfs_data.columns else 0
-            st.caption(f"📊 {n_indicators} monetary indicators available for {explorer_focus_country}")
+            st.caption(f"{n_indicators} monetary indicators available for {explorer_focus_country}")
             render_time_series_deep_dive(mfs_data, "MFS", explorer_focus_country)
         else:
             if load_history:
@@ -1897,4 +1877,10 @@ with tab_methodology:
         manifest=data_manifest,
         pca=pca_info,
     )
+    if SHOW_ADMIN_DIAGNOSTICS:
+        with st.expander(
+            f"Admin diagnostics: {HEALTH_LABELS.get(health_report['overall'], health_report['overall'])}",
+            expanded=health_report["overall"] in ("degraded", "unknown"),
+        ):
+            render_system_health_panel()
 
