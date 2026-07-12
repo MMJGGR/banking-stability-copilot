@@ -4,37 +4,102 @@
   "countries": 197,
   "base_rate": 0.085,
   "model_kind": "regularized logistic rare-event classifier",
-  "feature_upgrade": "Added year-matched fiscal/external deterioration features and systemic-crisis recency memory.",
-  "smote_status": "Available locally after imbalanced-learn 0.14.0 upgrade, but not used in the promoted classifier because class-weighted logistic validation performed better for precision.",
+  "feature_upgrade": "Year-matched fiscal/external deterioration features and systemic-crisis recency memory.",
   "deployment_cv_roc_auc": 0.655,
+  "operating_policy": "review",
+  "operating_policy_description": "Maximize precision subject to recall >= 0.60.",
   "unseen_country_holdout": {
     "roc_auc": 0.683,
-    "operating_threshold": 0.13,
-    "threshold_policy": "max_f1_on_validation_set",
-    "precision": 0.235,
-    "recall": 0.343,
-    "f1": 0.279,
-    "flagged": 51
+    "operating_threshold": 0.109,
+    "threshold_policy": "review",
+    "precision": 0.145,
+    "recall": 0.657,
+    "f1": 0.237,
+    "flagged": 159,
+    "confusion_matrix": {
+      "true_negatives": 280,
+      "false_positives": 136,
+      "false_negatives": 12,
+      "true_positives": 23
+    },
+    "threshold_policies": {
+      "balanced": {
+        "threshold": 0.13,
+        "precision": 0.235,
+        "recall": 0.343,
+        "f1": 0.279,
+        "flagged": 51
+      },
+      "review": {
+        "threshold": 0.109,
+        "precision": 0.145,
+        "recall": 0.657,
+        "f1": 0.237,
+        "flagged": 159
+      },
+      "high_recall": {
+        "threshold": 0.094,
+        "precision": 0.127,
+        "recall": 0.743,
+        "f1": 0.217,
+        "flagged": 205
+      }
+    }
   },
   "out_of_time_holdout": {
     "epoch": 2018,
     "roc_auc": 0.646,
     "operating_threshold": 0.077,
-    "threshold_policy": "max_f1_on_validation_set",
+    "threshold_policy": "review",
     "precision": 0.081,
     "recall": 0.625,
     "f1": 0.143,
-    "flagged": 62
+    "flagged": 62,
+    "confusion_matrix": {
+      "true_negatives": 132,
+      "false_positives": 57,
+      "false_negatives": 3,
+      "true_positives": 5
+    },
+    "threshold_policies": {
+      "balanced": {
+        "threshold": 0.077,
+        "precision": 0.081,
+        "recall": 0.625,
+        "f1": 0.143,
+        "flagged": 62
+      },
+      "review": {
+        "threshold": 0.077,
+        "precision": 0.081,
+        "recall": 0.625,
+        "f1": 0.143,
+        "flagged": 62
+      },
+      "high_recall": {
+        "threshold": 0.065,
+        "precision": 0.077,
+        "recall": 0.75,
+        "f1": 0.14,
+        "flagged": 78
+      }
+    }
   },
   "previous_packaged_validation": {
     "roc_auc": 0.616,
     "precision": 0.1,
     "recall": 0.83
   },
+  "prior_balanced_policy_validation": {
+    "roc_auc": 0.683,
+    "precision": 0.235,
+    "recall": 0.343,
+    "f1": 0.279
+  },
   "confusion_matrix_image": "artifacts/crisis_confusion_matrix.png",
   "notes": [
-    "Precision improved materially versus the previous high-recall review setting, but the crisis classifier remains a weak-to-moderate early-warning overlay rather than a stand-alone decision model.",
-    "The production score continues to use the classifier as an upward-only capped overlay; the pillar score remains the main model signal.",
-    "Further improvement likely requires stronger banking-system stress time series and market-access/liquidity indicators, not only estimator tuning."
+    "The review policy deliberately recovers recall versus the balanced max-F1 setting while keeping precision above the previous packaged classifier.",
+    "The crisis classifier remains an early-warning overlay; it is not strong enough to act as a stand-alone decision model.",
+    "Further ROC-AUC gains likely require stronger banking-system stress, funding, market-access, and liquidity time series rather than threshold tuning alone."
   ]
 }

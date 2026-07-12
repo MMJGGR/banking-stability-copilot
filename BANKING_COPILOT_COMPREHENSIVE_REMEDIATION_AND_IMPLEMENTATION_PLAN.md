@@ -2839,3 +2839,28 @@ Items that remain open and why they cannot be closed from this environment:
     tests/test_crisis_labels.py -q` passed (6 passed); local 2026-06-30
     retrain with `--retrain-classifier` passed snapshot validation (3 passed,
     0 failed).
+- [x] Checkpoint 44: Recover crisis-classifier recall with a recall-constrained
+  operating threshold.
+  - Scope: threshold policy and validation reporting only. The trained
+    classifier scores/probabilities are unchanged from Checkpoint 43.
+  - Issue: the max-F1 operating threshold improved precision but lost too much
+    recall for an early-warning overlay.
+  - Change: added explicit threshold policies:
+    - `balanced`: maximize F1.
+    - `review`: maximize precision subject to recall >= 0.60.
+    - `high_recall`: maximize precision subject to recall >= 0.70.
+    The default evaluation policy is now `review`.
+  - Validation result:
+    - Unseen-country ROC-AUC remains 0.683.
+    - Balanced policy: precision 0.235, recall 0.343, F1 0.279, 51 flagged.
+    - Review policy: precision 0.145, recall 0.657, F1 0.237, 159 flagged.
+    - High-recall policy: precision 0.127, recall 0.743, F1 0.217, 205
+      flagged.
+    - Review-policy confusion matrix: TN 280, FP 136, FN 12, TP 23.
+  - Status: recall is materially recovered while keeping precision above the
+    previous packaged classifier. Further ROC-AUC improvement still requires
+    stronger time-series features, not threshold policy alone.
+  - Verification: local retrain confirmed no score/probability/uplift movement
+    versus Checkpoint 43; `python -m py_compile src/crisis_classifier.py`
+    passed; `PYTHONPATH=. pytest tests/test_crisis_classifier.py -q` passed
+    (5 passed).

@@ -118,3 +118,17 @@ def test_classifier_rejects_missing_prediction_features(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="missing trained features"):
         classifier.predict_proba(pd.DataFrame({"gdp_growth": [1.0]}))
+
+
+def test_review_threshold_policy_preserves_recall_floor():
+    y = np.array([0, 0, 0, 0, 1, 1])
+    proba = np.array([0.05, 0.20, 0.30, 0.90, 0.40, 0.80])
+
+    summary = classifier_module._threshold_policy_summary(y, proba)
+
+    assert summary["review"]["recall"] >= 0.60
+    assert summary["high_recall"]["recall"] >= 0.70
+    assert summary["balanced"]["f1"] >= summary["review"]["f1"] or summary[
+        "review"
+    ]["recall"] >= 0.60
+    assert summary["review"]["policy"] == "review"

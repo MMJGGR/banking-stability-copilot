@@ -89,6 +89,22 @@ from src.config import CACHE_DIR
 
 CLASSIFIER_ARTIFACT_SCHEMA_VERSION = 2
 
+CRISIS_THRESHOLD_POLICIES = {
+    "balanced": {
+        "description": "Maximize F1 on the validation set.",
+        "min_recall": None,
+    },
+    "review": {
+        "description": "Maximize precision subject to recall >= 0.60.",
+        "min_recall": 0.60,
+    },
+    "high_recall": {
+        "description": "Maximize precision subject to recall >= 0.70.",
+        "min_recall": 0.70,
+    },
+}
+DEFAULT_THRESHOLD_POLICY = "review"
+
 
 class CrisisClassifier:
     """
@@ -601,41 +617,25 @@ class CrisisClassifier:
         proba = self.predict_proba(X)
         return (proba >= threshold).astype(int)
     
-    def evaluate(self, X: pd.DataFrame, y: pd.Series,
-                 train_auc: float = None) -> Dict[str, float]:
+    def evaluate(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        train_auc: float = None,
+        threshold_policy: str = DEFAULT_THRESHOLD_POLICY,
+    ) -> Dict[str, float]:
         """Evaluate model with overfitting check."""
         print("\n" + "="*70)
         print("MODEL EVALUATION (HOLDOUT)")
         print("="*70)
         
         y_proba = self.predict_proba(X)
-        precision_curve, recall_curve, thresholds = precision_recall_curve(y, y_proba)
-        threshold_rows = []
-        for threshold in thresholds:
-            pred = (y_proba >= threshold).astype(int)
-            threshold_rows.append(
-                {
-                    "threshold": float(threshold),
-                    "precision": float(precision_score(y, pred, zero_division=0)),
-                    "recall": float(recall_score(y, pred, zero_division=0)),
-                    "f1": float(f1_score(y, pred, zero_division=0)),
-                    "flagged": int(pred.sum()),
-                }
-            )
-        if threshold_rows:
-            best_threshold = max(
-                threshold_rows,
-                key=lambda row: (row["f1"], row["precision"], -row["flagged"]),
-            )
-        else:
-            best_threshold = {
-                "threshold": 0.5,
-                "precision": 0.0,
-                "recall": 0.0,
-                "f1": 0.0,
-                "flagged": 0,
-            }
-        y_pred = (y_proba >= best_threshold["threshold"]).astype(int)
+        threshold_table = _threshold_policy_summary(y, y_proba)
+        operating_threshold = threshold_table.get(
+            threshold_policy,
+            threshold_table["balanced"],
+        )
+        y_pred = (y_proba >= operating_threshold["threshold"]).astype(int)
         
         try:
             auc_roc = roc_auc_score(y, y_proba)
@@ -649,10 +649,18 @@ class CrisisClassifier:
         print(f"  AUC-ROC (Holdout): {auc_roc:.3f}")
         print(
             "  Operating threshold: "
-            f"{best_threshold['threshold']:.3f} "
-            f"({best_threshold['flagged']} flagged)"
+            f"{operating_threshold['threshold']:.3f} "
+            f"({operating_threshold['flagged']} flagged, "
+            f"policy={operating_threshold['policy']})"
         )
         print(f"  Precision: {precision:.3f}  Recall: {recall:.3f}  F1: {f1:.3f}")
+        print("  Threshold policy alternatives:")
+        for policy_name, row in threshold_table.items():
+            print(
+                f"    {policy_name}: threshold={row['threshold']:.3f} "
+                f"precision={row['precision']:.3f} recall={row['recall']:.3f} "
+                f"f1={row['f1']:.3f} flagged={row['flagged']}"
+            )
         
         # --- OVERFITTING CHECK ---
         if train_auc is not None:
@@ -693,20 +701,16 @@ class CrisisClassifier:
             'recall': recall,
             'f1': f1,
             'accuracy': (y_pred == y).mean(),
-            'operating_threshold': best_threshold["threshold"],
-            'flagged': best_threshold["flagged"],
-            'threshold_policy': 'max_f1_on_validation_set',
-            'threshold_diagnostics': {
-                f"recall_at_least_{int(target * 100)}": max(
-                    (
-                        row
-                        for row in threshold_rows
-                        if row["recall"] >= target
-                    ),
-                    key=lambda row: (row["precision"], row["f1"], -row["flagged"]),
-                    default=None,
-                )
-                for target in (0.70, 0.60, 0.50, 0.40, 0.30)
+            'operating_threshold': operating_threshold["threshold"],
+            'flagged': operating_threshold["flagged"],
+            'threshold_policy': operating_threshold["policy"],
+            'threshold_policy_description': operating_threshold["description"],
+            'threshold_policies': threshold_table,
+            'confusion_matrix': {
+                'true_negatives': operating_threshold["true_negatives"],
+                'false_positives': operating_threshold["false_positives"],
+                'false_negatives': operating_threshold["false_negatives"],
+                'true_positives': operating_threshold["true_positives"],
             },
         }
     
@@ -1152,6 +1156,82 @@ def _build_monotone_constraints(feature_cols):
     print(f"  Unconstrained:            {sum(1 for c in constraints if c == 0)}")
     
     return tuple(constraints)
+
+
+def _threshold_rows(y_true, y_proba) -> list[dict]:
+    """Return threshold diagnostics for a binary rare-event classifier."""
+    _, _, thresholds = precision_recall_curve(y_true, y_proba)
+    rows = []
+    for threshold in thresholds:
+        pred = (y_proba >= threshold).astype(int)
+        cm = confusion_matrix(y_true, pred, labels=[0, 1])
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "precision": float(precision_score(y_true, pred, zero_division=0)),
+                "recall": float(recall_score(y_true, pred, zero_division=0)),
+                "f1": float(f1_score(y_true, pred, zero_division=0)),
+                "flagged": int(pred.sum()),
+                "true_negatives": int(cm[0, 0]),
+                "false_positives": int(cm[0, 1]),
+                "false_negatives": int(cm[1, 0]),
+                "true_positives": int(cm[1, 1]),
+            }
+        )
+    return rows
+
+
+def _select_threshold_policy(
+    threshold_rows: list[dict],
+    policy: str = DEFAULT_THRESHOLD_POLICY,
+) -> dict:
+    """Select an operating threshold from validation diagnostics."""
+    if not threshold_rows:
+        return {
+            "policy": policy,
+            "description": CRISIS_THRESHOLD_POLICIES.get(policy, {}).get(
+                "description",
+                "Fixed fallback threshold.",
+            ),
+            "threshold": 0.5,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "flagged": 0,
+            "true_negatives": 0,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "true_positives": 0,
+        }
+
+    config = CRISIS_THRESHOLD_POLICIES.get(policy, CRISIS_THRESHOLD_POLICIES["balanced"])
+    min_recall = config["min_recall"]
+    candidates = threshold_rows
+    if min_recall is not None:
+        candidates = [row for row in threshold_rows if row["recall"] >= min_recall]
+    if not candidates:
+        # If the recall floor is infeasible, fall back to the highest-recall row
+        # and then prefer precision/F1 among ties.
+        candidates = threshold_rows
+        key = lambda row: (row["recall"], row["precision"], row["f1"], -row["flagged"])
+    elif min_recall is None:
+        key = lambda row: (row["f1"], row["precision"], row["recall"], -row["flagged"])
+    else:
+        key = lambda row: (row["precision"], row["f1"], row["recall"], -row["flagged"])
+
+    selected = dict(max(candidates, key=key))
+    selected["policy"] = policy
+    selected["description"] = config["description"]
+    return selected
+
+
+def _threshold_policy_summary(y_true, y_proba) -> dict:
+    """Summarize the configured threshold policies for reporting."""
+    rows = _threshold_rows(y_true, y_proba)
+    return {
+        policy: _select_threshold_policy(rows, policy)
+        for policy in CRISIS_THRESHOLD_POLICIES
+    }
 
 
 def _years_since_banking_crisis(labels, country_code: str, reference_year: int) -> float:
