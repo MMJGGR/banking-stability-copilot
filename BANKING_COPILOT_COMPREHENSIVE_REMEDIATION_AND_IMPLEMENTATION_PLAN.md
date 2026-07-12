@@ -1828,6 +1828,66 @@ production-grade until the P0 items below are resolved.
 6. Only then refresh production probabilities, confusion matrix, model card,
    Methodology content, and the capped score overlay.
 
+**Checkpoint 46 resolution status (2026-07-12)**
+
+- [x] C1 official ground truth: replaced the hand-maintained subset with a
+  pinned, source-provenanced extraction of IMF WP/26/94 Appendix I, Table A1.
+  The artifact contains all 161 systemic and 3 borderline episodes across 120
+  countries, preserves published dates and classifications, and is guarded by
+  episode-count, known-date, source-table, and PDF-checksum tests.
+- [x] C2 clean model-development evaluation: implemented inner out-of-fold
+  calibration and threshold selection, followed by a frozen threshold on each
+  untouched outer test fold. Tests verify that changing outer-test labels
+  cannot change fitted probabilities or the selected threshold. The old live
+  confusion matrix remains provisional and was deliberately not replaced.
+- [~] C3 historical banking inputs: added 20 long-history World Bank financial,
+  funding, liquidity, interest-rate, and external-vulnerability series plus
+  derived credit-cycle and shock fields. Every panel feature now carries
+  observation age, staleness, availability, source family, and direct/derived
+  metadata. This materially improves history but does not create direct FSI
+  observations where none were published, so the gap is reduced rather than
+  closed.
+- [x] C4 governed challengers: added risk-oriented feature contracts,
+  sign-constrained logistic regression, monotonic histogram gradient boosting,
+  and monotonic XGBoost factories. Production coefficients and scores were not
+  changed.
+- [x] C5 annual/event panel and grouped validation foundation: built 7,472
+  auditable country-year forecast origins for 201 model countries (1981-2022),
+  including 418 positive rows representing 146 unique future crisis events,
+  explicit exclusions, right censoring, and an out-of-fold prediction ledger.
+- [~] C6 vintage integrity: the panel now records the selected observation
+  period, status, age, directness, and staleness. Historical tests are still
+  correctly described as revised-vintage backtests because archived real-time
+  WEO/FSI vintages have not yet been assembled.
+
+**Leakage-free challenger result and stopping gate**
+
+- Development sample: 5,248 rows, 201 countries, 383 positive rows, forecast
+  origins through 2010. Four outer country-grouped folds and three inner folds
+  use cross-fitted sigmoid calibration and a training-only threshold with a
+  60% recall floor.
+- Best grouped discrimination was the full monotonic histogram-gradient model:
+  ROC-AUC 0.720, average precision 0.158, precision 0.162, recall 0.629, F1
+  0.258, and 28.3% alert burden. The full monotonic XGBoost challenger produced
+  ROC-AUC 0.699, average precision 0.146, precision 0.167, recall 0.629, and F1
+  0.264. Both are materially more honest than the previous same-holdout
+  threshold statistics, but neither is yet a promotion result.
+- Decisive forward holdout: train through 2010, apply a three-year gap, and test
+  2014-2018 origins (929 rows, 18 positives, 1.94% prevalence). The histogram
+  and XGBoost challengers fell to ROC-AUC 0.379 and 0.372 respectively and
+  flagged the full test set at the frozen review threshold. Logistic variants
+  ranged from ROC-AUC 0.422 to 0.556 and were also operationally unusable.
+- Diagnosis: the later IMF episodes are dominated by a different regime,
+  including oil/commodity and nonfinancial sovereign shocks. Commodity,
+  terms-of-trade, and resource-rent candidates are now available in the feature
+  contract for the next temporal experiment, but have not passed the gate.
+- **Decision: no model promotion.** Do not refresh live probabilities, country
+  scores, the Methodology confusion matrix, or the capped overlay from these
+  challengers. The next sprint starts with temporal regime diagnostics and
+  commodity/fiscal ablations; a model is eligible only if it improves both
+  grouped and forward-time ROC-AUC/PR-AUC while retaining usable frozen-threshold
+  precision, recall, calibration, and alert burden.
+
 Primary references: [Laeven and Valencia, IMF WP/26/94, Systemic Banking
 Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/05/14/systemic-banking-crises-database-1970-2025-576036);
 [Drehmann and Juselius, BIS Working Paper 421](https://www.bis.org/publ/work421.htm);
@@ -2973,3 +3033,21 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     are not clean external-test results until the threshold is frozen upstream.
   - Next action: follow the six-step execution order and promotion gate in
     section 21.5.6, beginning with official label ingestion/reconciliation.
+- [x] Checkpoint 46: Build the leakage-free crisis-model evaluation foundation
+  and stop at the temporal reliability gate.
+  - Added the exact official IMF WP/26/94 episode artifact and reproducible PDF
+    extraction path, an auditable annual/event panel, long-history World Bank
+    financial and vulnerability inputs, governed feature families, monotonic
+    estimator candidates, nested grouped/forward validation, cross-fitted
+    calibration, frozen inner-fold thresholds, bootstrap confidence intervals,
+    and out-of-fold ledgers.
+  - Grouped challengers reached approximately 0.72 ROC-AUC with 0.63 recall,
+    but failed the pre-declared 2014-2018 forward holdout (0.37-0.56 ROC-AUC
+    across tested models and unusable alert burden). The failure is recorded as
+    evidence, not tuned away.
+  - Production model artifacts, live scores, overlays, and the published
+    confusion matrix remain unchanged. Promotion is explicitly blocked pending
+    successful temporal regime and commodity/fiscal validation.
+  - Verification: focused crisis-model/source suite passed (26 tests after the
+    derived-source metadata correction); repository-wide suite passed (120
+    tests, 1 skipped). GitHub CI status is recorded with the checkpoint push.

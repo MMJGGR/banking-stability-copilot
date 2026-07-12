@@ -44,6 +44,9 @@ cache/external/
 # Government-liquidity candidate caches are workflow artifacts, never committed
 cache/government/
 
+# Reproducible local crisis-model panel; rebuild from the pinned source caches.
+cache/crisis_annual_panel.parquet
+
 # Local smoke-test/download artifacts. Candidate bundles promoted to production
 # are tracked explicitly via cache/ and selected artifacts/ paths, not these
 # ad hoc local files.

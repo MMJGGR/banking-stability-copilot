@@ -1,157 +1,176 @@
+"""Official Laeven-Valencia systemic-banking-crisis labels.
+
+The episode artifact is extracted from Appendix I, Table A1 of Laeven and
+Valencia (2026), *Systemic Banking Crises Database: 1970-2025*, IMF Working
+Paper WP/26/94.  It contains all 164 published episodes: 161 systemic crises
+and the three stress episodes that the authors explicitly classify as
+borderline.  Borderline rows remain excluded from model targets by default.
+
+Table A1 is the dating authority used here.  ``end_year`` preserves the
+published cell exactly (including the blank end cells for the 2022 Vietnam and
+2023 Sri Lanka borderline rows); ``label_end_year`` is the operational end
+used for year-level labels and equals the start year when Table A1 is blank.
 """
-==============================================================================
-Laeven-Valencia Systemic Banking Crisis Labels
-==============================================================================
-CRISP-DM Phase: Data Preparation (Target Variable)
 
-This module provides crisis labels based on the May 2026 Laeven-Valencia
-database, which covers systemic banking crises through 2025.
-
-Reference:
-    Laeven, L., & Valencia, F. (2026). Systemic Banking Crises Database:
-    1970-2025. IMF Working Paper WP/26/94.
-
-Usage:
-    labels = CrisisLabels()
-    y = labels.get_crisis_target(country_code='GRC', year=2007, horizon=3)
-    # Returns 1 if Greece had crisis in 2008-2010, 0 otherwise
-
-Author: BankEnv
-Date: 2026-01-02
-==============================================================================
-"""
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Optional, Tuple
+
+
+SOURCE_TITLE = "Systemic Banking Crises Database: 1970-2025"
+SOURCE_VERSION = "IMF Working Paper WP/26/94 (May 2026)"
+SOURCE_DOI = "10.5089/9798229045971.001"
+SOURCE_URL = (
+    "https://www.imf.org/en/publications/wp/issues/2026/05/14/"
+    "systemic-banking-crises-database-1970-2025-576036"
+)
+SOURCE_TABLE_URL = (
+    "https://www.elibrary.imf.org/view/journals/001/2026/094/"
+    "article-A001-en.xml"
+)
+SOURCE_TABLE = "Appendix I, Table A1"
+SOURCE_COVERAGE_END_YEAR = 2025
+EPISODE_DATA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "reference"
+    / "systemic_banking_crises_1970_2025.csv"
+)
+
+EXPECTED_TOTAL_EPISODES = 164
+EXPECTED_SYSTEMIC_EPISODES = 161
+EXPECTED_BORDERLINE_EPISODES = 3
+_REQUIRED_COLUMNS = {
+    "country_code",
+    "country_name",
+    "start_year",
+    "end_year",
+    "label_end_year",
+    "classification",
+    "source_table_row",
+    "source_country_text",
+    "source_start_text",
+    "source_end_text",
+    "source_table",
+    "source_url",
+    "source_pdf_sha256",
+}
+
+
+def _load_episode_table(path: Path = EPISODE_DATA_PATH) -> pd.DataFrame:
+    """Load and validate the pinned official episode artifact."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Official crisis-label artifact is missing: {path}"
+        )
+
+    frame = pd.read_csv(
+        path,
+        dtype={
+            "country_code": "string",
+            "country_name": "string",
+            "classification": "string",
+            "source_table_row": "string",
+            "source_country_text": "string",
+            "source_start_text": "string",
+            "source_end_text": "string",
+        },
+        keep_default_na=True,
+    )
+    missing = _REQUIRED_COLUMNS - set(frame.columns)
+    if missing:
+        raise ValueError(f"Crisis-label artifact is missing columns: {sorted(missing)}")
+
+    frame["country_code"] = frame["country_code"].str.strip().str.upper()
+    frame["classification"] = frame["classification"].str.strip().str.lower()
+    frame["start_year"] = pd.to_numeric(frame["start_year"], errors="raise").astype(int)
+    frame["end_year"] = pd.to_numeric(frame["end_year"], errors="coerce").astype("Int64")
+    frame["label_end_year"] = pd.to_numeric(
+        frame["label_end_year"], errors="raise"
+    ).astype(int)
+
+    if len(frame) != EXPECTED_TOTAL_EPISODES:
+        raise ValueError(
+            f"Expected {EXPECTED_TOTAL_EPISODES} official episodes, found {len(frame)}"
+        )
+    counts = frame["classification"].value_counts().to_dict()
+    expected_counts = {
+        "systemic": EXPECTED_SYSTEMIC_EPISODES,
+        "borderline": EXPECTED_BORDERLINE_EPISODES,
+    }
+    if counts != expected_counts:
+        raise ValueError(
+            f"Unexpected crisis classifications: expected {expected_counts}, found {counts}"
+        )
+    if not frame["country_code"].str.fullmatch(r"[A-Z]{3}").all():
+        bad = frame.loc[
+            ~frame["country_code"].str.fullmatch(r"[A-Z]{3}"), "country_code"
+        ].tolist()
+        raise ValueError(f"Invalid ISO alpha-3 crisis codes: {bad}")
+    if (frame["label_end_year"] < frame["start_year"]).any():
+        raise ValueError("Crisis label_end_year cannot precede start_year")
+    published_end = frame["end_year"].notna()
+    if not (
+        frame.loc[published_end, "end_year"].astype(int)
+        == frame.loc[published_end, "label_end_year"]
+    ).all():
+        raise ValueError("Operational end years diverge from published Table A1 ends")
+    if frame.duplicated(
+        ["country_code", "start_year", "label_end_year", "classification"]
+    ).any():
+        raise ValueError("Duplicate crisis episodes in official label artifact")
+
+    return frame
+
+
+def _period_dict(frame: pd.DataFrame, classification: str) -> Dict[str, List[Tuple[int, int]]]:
+    subset = frame.loc[frame["classification"] == classification]
+    periods: Dict[str, List[Tuple[int, int]]] = {}
+    for row in subset.itertuples(index=False):
+        periods.setdefault(str(row.country_code), []).append(
+            (int(row.start_year), int(row.label_end_year))
+        )
+    return {code: sorted(values) for code, values in periods.items()}
+
+
+_OFFICIAL_EPISODES = _load_episode_table()
+_SYSTEMIC_CRISES = _period_dict(_OFFICIAL_EPISODES, "systemic")
+_BORDERLINE_CRISES = _period_dict(_OFFICIAL_EPISODES, "borderline")
 
 
 class CrisisLabels:
+    """Query the official 1970-2025 crisis episodes and build model targets.
+
+    ``include_borderline=False`` is deliberate: the paper states that the
+    Nicaragua (2018), Vietnam (2022), and Sri Lanka (2023) stress events did
+    not meet its systemic-crisis definition.
     """
-    Laeven-Valencia (2026) systemic banking crisis database.
-    
-    Provides binary labels for supervised crisis prediction models.
-    Target = 1 if country experiences systemic crisis within horizon years.
-    """
-    
-    SOURCE_TITLE = "Systemic Banking Crises Database: 1970-2025"
-    SOURCE_VERSION = "IMF WP/26/94 (May 2026)"
-    SOURCE_URL = (
-        "https://www.imf.org/en/publications/wp/issues/2026/05/14/"
-        "systemic-banking-crises-database-1970-2025-576036"
-    )
-    SOURCE_COVERAGE_END_YEAR = 2025
 
-    # Systemic Banking Crises (Laeven-Valencia 2026)
-    # Format: country_code -> list of (start_year, end_year) tuples
-    SYSTEMIC_CRISES = {
-        # Advanced Economies
-        'USA': [(2007, 2009)],                    # Global Financial Crisis
-        'GBR': [(2007, 2009)],                    # UK banking crisis
-        'DEU': [(2008, 2009)],                    # Germany (minor)
-        'FRA': [(2008, 2008)],                    # France (minor)
-        'ESP': [(2008, 2012)],                    # Spain - savings banks
-        'IRL': [(2008, 2011)],                    # Ireland - property bubble
-        'GRC': [(2008, 2012)],                    # Greece - sovereign-bank loop
-        'PRT': [(2008, 2012)],                    # Portugal
-        'ITA': [(2008, 2009)],                    # Italy (minor)
-        'NLD': [(2008, 2009)],                    # Netherlands
-        'BEL': [(2008, 2009)],                    # Belgium - Fortis, Dexia
-        'AUT': [(2008, 2009)],                    # Austria
-        'ISL': [(2008, 2010)],                    # Iceland - total collapse
-        'CYP': [(2012, 2013)],                    # Cyprus - bail-in
-        'DNK': [(2008, 2009)],                    # Denmark
-        'SWE': [(1991, 1995), (2008, 2009)],      # Sweden - 90s + GFC
-        'FIN': [(1991, 1995)],                    # Finland - 90s crisis
-        'NOR': [(1987, 1993)],                    # Norway - 80s-90s
-        'JPN': [(1997, 2001)],                    # Japan - lost decade
-        'KOR': [(1997, 1998)],                    # Korea - Asian crisis
-        
-        # Emerging Europe
-        'TUR': [(1982, 1984), (2000, 2001)],
-        'RUS': [(1998, 1999), (2008, 2009)],      # Russia - 98 default + GFC
-        'UKR': [(1998, 1999), (2008, 2009), (2014, 2015)],  # Ukraine - multiple
-        'HUN': [(2008, 2009)],                    # Hungary
-        'LVA': [(2008, 2010)],                    # Latvia
-        'LTU': [(2008, 2009)],                    # Lithuania
-        'EST': [(2008, 2009)],                    # Estonia
-        'SVN': [(2012, 2013)],                    # Slovenia
-        'HRV': [(2008, 2009)],                    # Croatia
-        'SRB': [(2008, 2009)],                    # Serbia
-        'ROU': [(2008, 2009)],                    # Romania
-        'BGR': [(2014, 2014)],                    # Bulgaria - KTB
-        
-        # Latin America
-        'ARG': [(1980, 1982), (1989, 1991), (1995, 1995), (2001, 2003)],
-        'BRA': [(1990, 1994), (1999, 1999)],      # Brazil
-        'MEX': [(1994, 1996)],                    # Mexico - Tequila crisis
-        'VEN': [(1994, 1995), (2009, 2010)],      # Venezuela
-        'ECU': [(1998, 2002)],                    # Ecuador
-        'COL': [(1998, 2000)],                    # Colombia
-        'URY': [(2002, 2005)],                    # Uruguay
-        'PRY': [(1995, 1999)],                    # Paraguay
-        'BOL': [(1994, 1994)],                    # Bolivia
-        'DOM': [(2003, 2004)],                    # Dominican Republic
-        
-        # Asia-Pacific
-        'IDN': [(1997, 2001)],                    # Indonesia - Asian crisis
-        'THA': [(1997, 2000)],                    # Thailand - trigger of Asian crisis
-        'MYS': [(1997, 1999)],                    # Malaysia
-        'PHL': [(1997, 2001)],                    # Philippines
-        'IND': [(1993, 1993)],                    # India (minor)
-        'CHN': [(1998, 1998)],                    # China (minor, state banks)
-        'PAK': [(2008, 2008)],                    # Pakistan
-        'BGD': [(1987, 1987)],                    # Bangladesh
-        'LKA': [(1989, 1991)],
-        'VNM': [(1997, 1997)],                    # Vietnam
-        'MNG': [(2008, 2009)],                    # Mongolia
-        
-        # Africa
-        'NGA': [(1991, 1995), (2009, 2011)],      # Nigeria
-        'ZAF': [(1985, 1985), (1989, 1989)],      # South Africa (minor)
-        'KEN': [(1992, 1995)],                    # Kenya
-        'GHA': [(1982, 1983), (2017, 2021)],
-        'EGY': [(1991, 1991)],                    # Egypt
-        'TUN': [(1991, 1991)],                    # Tunisia
-        'MAR': [(1980, 1984)],                    # Morocco
-        'ZWE': [(1995, 1999)],                    # Zimbabwe
-        'MUS': [(1996, 1996)],                    # Mauritius
-        'SEN': [(1988, 1991)],                    # Senegal
-        'CIV': [(1988, 1991)],                    # Côte d'Ivoire
-        'CMR': [(1989, 1997)],                    # Cameroon
-        'TZA': [(1988, 1991)],                    # Tanzania
-        'UGA': [(1994, 1994)],                    # Uganda
-        
-        # Middle East
-        'ARE': [(2008, 2009)],                    # UAE - Dubai World
-        'KWT': [(1982, 1985)],                    # Kuwait - Souk Al-Manakh
-        'JOR': [(1989, 1991)],                    # Jordan
-        'LBN': [(1990, 1993), (2019, 2023)],
+    SOURCE_TITLE = SOURCE_TITLE
+    SOURCE_VERSION = SOURCE_VERSION
+    SOURCE_DOI = SOURCE_DOI
+    SOURCE_URL = SOURCE_URL
+    SOURCE_TABLE_URL = SOURCE_TABLE_URL
+    SOURCE_TABLE = SOURCE_TABLE
+    SOURCE_COVERAGE_END_YEAR = SOURCE_COVERAGE_END_YEAR
+    EPISODE_DATA_PATH = EPISODE_DATA_PATH
+    EXPECTED_TOTAL_EPISODES = EXPECTED_TOTAL_EPISODES
+    EXPECTED_SYSTEMIC_EPISODES = EXPECTED_SYSTEMIC_EPISODES
+    EXPECTED_BORDERLINE_EPISODES = EXPECTED_BORDERLINE_EPISODES
 
-        # Episodes added or revised in the 2026 update
-        'AGO': [(2016, 2020)],
-        'AZE': [(1995, 1995), (2015, 2019)],
-        'TCD': [(1983, 1983), (1992, 1996), (2015, 2019)],
-        'GNQ': [(1983, 1983), (2015, 2019)],
-        'KAZ': [(2008, 2008), (2014, 2018)],
-        'GNB': [(1995, 1998), (2014, 2016)],
-        'MDA': [(2014, 2018)],
-        'COG': [(1992, 1994), (2017, 2020)],
-        'STP': [(1992, 1992), (2016, 2020)],
-        'TJK': [(2016, 2018)],
-    }
-
-    # The source marks these as borderline: stress was significant, but the
-    # systemic-crisis definition was not met. They are excluded by default.
-    BORDERLINE_CRISES = {
-        'NIC': [(2018, 2020)],
-        'LKA': [(2023, 2023)],
-        'VNM': [(2022, 2022)],
-    }
+    SYSTEMIC_CRISES = _SYSTEMIC_CRISES
+    BORDERLINE_CRISES = _BORDERLINE_CRISES
 
     def __init__(self, include_borderline: bool = False):
-        """Initialize crisis labels database."""
         self.include_borderline = include_borderline
+        classifications = ["systemic"]
+        if include_borderline:
+            classifications.append("borderline")
+        self.episode_df = _OFFICIAL_EPISODES.loc[
+            _OFFICIAL_EPISODES["classification"].isin(classifications)
+        ].copy()
+
         self.crises = {
             country: list(periods)
             for country, periods in self.SYSTEMIC_CRISES.items()
@@ -159,144 +178,104 @@ class CrisisLabels:
         if include_borderline:
             for country, periods in self.BORDERLINE_CRISES.items():
                 self.crises.setdefault(country, []).extend(periods)
+                self.crises[country] = sorted(self.crises[country])
         self._build_crisis_df()
-    
-    def _build_crisis_df(self):
-        """Build DataFrame of crisis events for efficient querying."""
+
+    def _build_crisis_df(self) -> None:
+        """Expand episode dates to one record per crisis-country-year."""
         records = []
-        for country, periods in self.crises.items():
-            for start, end in periods:
-                for year in range(start, end + 1):
-                    records.append({
-                        'country_code': country,
-                        'year': year,
-                        'crisis': 1,
-                        'crisis_start': start,
-                        'crisis_end': end
-                    })
-        
-        self.crisis_df = pd.DataFrame(records) if records else pd.DataFrame()
-        print(
-            f"  Loaded {len(self.crises)} countries with {len(records)} "
-            f"crisis-years (borderline={self.include_borderline})"
-        )
-    
+        for episode in self.episode_df.itertuples(index=False):
+            for year in range(int(episode.start_year), int(episode.label_end_year) + 1):
+                records.append(
+                    {
+                        "country_code": str(episode.country_code),
+                        "year": year,
+                        "crisis": 1,
+                        "crisis_start": int(episode.start_year),
+                        "crisis_end": int(episode.label_end_year),
+                        "classification": str(episode.classification),
+                    }
+                )
+        self.crisis_df = pd.DataFrame.from_records(records)
+
+    def get_episode_table(self, preserve_source_order: bool = True) -> pd.DataFrame:
+        """Return the selected episode rows with source-level provenance."""
+        frame = self.episode_df.copy()
+        if preserve_source_order:
+            return frame.reset_index(drop=True)
+        return frame.sort_values(
+            ["country_code", "start_year", "label_end_year"]
+        ).reset_index(drop=True)
+
     def is_crisis_year(self, country_code: str, year: int) -> bool:
-        """Check if country was in crisis during specified year."""
-        if country_code not in self.crises:
-            return False
-        
-        for start, end in self.crises[country_code]:
-            if start <= year <= end:
-                return True
-        return False
-    
-    def get_crisis_target(self, country_code: str, year: int, 
-                         horizon: int = 3) -> int:
-        """
-        Get binary crisis target for supervised learning.
-        
-        Args:
-            country_code: ISO 3-letter country code
-            year: Current year (observation year)
-            horizon: Prediction horizon in years (default 3)
-        
-        Returns:
-            1 if crisis occurs in [year+1, year+horizon], 0 otherwise
-        """
-        for future_year in range(year + 1, year + horizon + 1):
-            if self.is_crisis_year(country_code, future_year):
-                return 1
-        return 0
-    
-    def create_labeled_dataset(self, features_df: pd.DataFrame,
-                               year_col: str = 'year',
-                               horizon: int = 3) -> pd.DataFrame:
-        """
-        Create labeled dataset for supervised learning.
-        
-        Args:
-            features_df: DataFrame with country_code and year columns
-            year_col: Name of year column
-            horizon: Prediction horizon
-        
-        Returns:
-            DataFrame with added 'crisis_target' column
-        """
-        if 'country_code' not in features_df.columns:
+        """Return whether ``year`` is inside a selected crisis episode."""
+        code = str(country_code).strip().upper()
+        return any(start <= year <= end for start, end in self.crises.get(code, []))
+
+    def get_crisis_target(self, country_code: str, year: int, horizon: int = 3) -> int:
+        """Return 1 when a crisis occurs in ``[year + 1, year + horizon]``."""
+        if horizon < 1:
+            raise ValueError("horizon must be at least one year")
+        return int(
+            any(
+                self.is_crisis_year(country_code, future_year)
+                for future_year in range(int(year) + 1, int(year) + horizon + 1)
+            )
+        )
+
+    def create_labeled_dataset(
+        self,
+        features_df: pd.DataFrame,
+        year_col: str = "year",
+        horizon: int = 3,
+    ) -> pd.DataFrame:
+        """Add ``crisis_target`` to a country-year feature table."""
+        if "country_code" not in features_df.columns:
             raise ValueError("features_df must have 'country_code' column")
-        
+
         labeled = features_df.copy()
-        
         if year_col in labeled.columns:
-            labeled['crisis_target'] = labeled.apply(
+            labeled["crisis_target"] = labeled.apply(
                 lambda row: self.get_crisis_target(
-                    row['country_code'], 
-                    row[year_col], 
-                    horizon
+                    row["country_code"], int(row[year_col]), horizon
                 ),
-                axis=1
+                axis=1,
             )
         else:
-            # If no year column, use latest available data (assume current year)
+            # Retained for backward compatibility; model-training panels should
+            # always supply an explicit historical forecast-origin year.
             current_year = 2024
-            labeled['crisis_target'] = labeled['country_code'].apply(
-                lambda c: self.get_crisis_target(c, current_year, horizon)
+            labeled["crisis_target"] = labeled["country_code"].apply(
+                lambda code: self.get_crisis_target(code, current_year, horizon)
             )
-        
         return labeled
-    
-    def get_crisis_countries(self, year_range: Tuple[int, int] = None) -> List[str]:
-        """Get list of countries that had crises in specified range."""
+
+    def get_crisis_countries(
+        self, year_range: Tuple[int, int] | None = None
+    ) -> List[str]:
+        """Return countries with a selected episode overlapping ``year_range``."""
         if year_range is None:
-            return list(self.crises.keys())
-        
-        start, end = year_range
-        crisis_countries = []
-        
-        for country, periods in self.crises.items():
-            for crisis_start, crisis_end in periods:
-                if crisis_start <= end and crisis_end >= start:
-                    crisis_countries.append(country)
-                    break
-        
-        return crisis_countries
-    
+            return list(self.crises)
+        range_start, range_end = year_range
+        return [
+            country
+            for country, periods in self.crises.items()
+            if any(start <= range_end and end >= range_start for start, end in periods)
+        ]
+
     def get_crisis_summary(self) -> pd.DataFrame:
-        """Get summary statistics of crisis database."""
+        """Return country-level episode counts and date coverage."""
         records = []
         for country, periods in self.crises.items():
-            total_years = sum(end - start + 1 for start, end in periods)
-            records.append({
-                'country_code': country,
-                'n_crises': len(periods),
-                'total_crisis_years': total_years,
-                'latest_crisis': max(end for _, end in periods),
-                'first_crisis': min(start for start, _ in periods),
-            })
-        
-        return pd.DataFrame(records).sort_values('latest_crisis', ascending=False)
-
-
-# =============================================================================
-# Test
-# =============================================================================
-
-if __name__ == "__main__":
-    print("="*70)
-    print("LAEVEN-VALENCIA CRISIS LABELS")
-    print("="*70)
-    
-    labels = CrisisLabels()
-    
-    # Test cases
-    print("\n--- Test Cases ---")
-    print(f"  Greece 2007 -> 3yr target: {labels.get_crisis_target('GRC', 2007, 3)}")  # Should be 1
-    print(f"  USA 2006 -> 3yr target: {labels.get_crisis_target('USA', 2006, 3)}")     # Should be 1
-    print(f"  CHE 2007 -> 3yr target: {labels.get_crisis_target('CHE', 2007, 3)}")     # Should be 0 (Switzerland)
-    print(f"  JPN 1995 -> 3yr target: {labels.get_crisis_target('JPN', 1995, 3)}")     # Should be 1
-    
-    # Crisis summary
-    print("\n--- Crisis Summary (Top 10 by Latest) ---")
-    summary = labels.get_crisis_summary().head(10)
-    print(summary.to_string(index=False))
+            records.append(
+                {
+                    "country_code": country,
+                    "n_crises": len(periods),
+                    "total_crisis_years": sum(end - start + 1 for start, end in periods),
+                    "latest_crisis": max(end for _, end in periods),
+                    "first_crisis": min(start for start, _ in periods),
+                }
+            )
+        return pd.DataFrame(records).sort_values(
+            "latest_crisis", ascending=False
+        ).reset_index(drop=True)
