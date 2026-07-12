@@ -1,19 +1,24 @@
-"""Build a liquidity-feature challenger and compare it against production.
+"""Build candidate risk overlays and compare them against production.
 
 This wires the curated staged external / government liquidity features into the
 real training pipeline (the pillar model plus the fixed crisis overlay) and
 produces a challenger-vs-production comparison for governed review. It does NOT
 call ``model.save()`` and never touches the active serving artifacts.
 
-Two trains are run at the same cutoff, both reusing the cached classifier:
+Candidate trains are run at the same cutoff, reusing the cached classifier:
 
 - active-retrain (with the production-promoted liquidity features), to confirm
   the retrain reproduces production; and
-- candidate (with the production-promoted features plus monitored candidates).
+- liquidity-only candidate train with monitored government/external liquidity
+  candidates;
+- commodity-only candidate train with monitored commodity vulnerability; and
+- combined candidate train with all monitored candidates.
 
 Outputs:
 - ``artifacts/liquidity_challenger_comparison.json``
 - ``artifacts/snapshots/<cutoff>-challenger-liquidity/challenger_scores.parquet``
+- ``artifacts/snapshots/<cutoff>-challenger-commodity/challenger_scores.parquet``
+- ``artifacts/snapshots/<cutoff>-challenger-combined/challenger_scores.parquet``
 """
 
 from __future__ import annotations
@@ -109,6 +114,21 @@ def _compare(baseline: pd.DataFrame, challenger: pd.DataFrame, label: str) -> di
     }
 
 
+def _with_candidate_columns(
+    active_extra: pd.DataFrame,
+    candidate_extra: pd.DataFrame,
+    candidate_columns: list[str],
+) -> pd.DataFrame:
+    """Return active features plus one independent candidate block."""
+    columns = ["country_code"] + [
+        column for column in candidate_columns if column in candidate_extra.columns
+    ]
+    if len(columns) == 1:
+        return active_extra.copy()
+    additions = candidate_extra[columns].copy()
+    return active_extra.merge(additions, on="country_code", how="outer")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--as-of", default="2026-06-30")
@@ -127,6 +147,31 @@ def main() -> None:
     active_columns = [c for c in active_extra.columns if c != "country_code"]
     candidate_columns = [c for c in candidate_extra.columns if c != "country_code"]
     added = [c for c in candidate_columns if c not in set(active_columns)]
+    candidate_groups = {
+        "government_liquidity": [
+            feature for feature in added if feature.startswith("govt_")
+        ],
+        "external_liquidity": [
+            feature for feature in added
+            if not feature.startswith("govt_")
+            and feature != "commodity_export_share_pct"
+        ],
+        "external_vulnerability": [
+            feature for feature in added
+            if feature == "commodity_export_share_pct"
+        ],
+    }
+    liquidity_candidates = (
+        candidate_groups["government_liquidity"]
+        + candidate_groups["external_liquidity"]
+    )
+    commodity_candidates = candidate_groups["external_vulnerability"]
+    liquidity_extra = _with_candidate_columns(
+        active_extra, candidate_extra, liquidity_candidates
+    )
+    commodity_extra = _with_candidate_columns(
+        active_extra, candidate_extra, commodity_candidates
+    )
     print(f"Active liquidity features: {active_columns}")
     print(f"Candidate liquidity features: {added}")
 
@@ -135,11 +180,25 @@ def main() -> None:
 
     print("\n=== ACTIVE RETRAIN (production liquidity features) ===")
     control = _train_scores(fsic, weo, mfs, args.as_of, extra_features=active_extra)
-    print("\n=== CANDIDATE TRAIN (active + monitored liquidity candidates) ===")
+    print("\n=== LIQUIDITY CANDIDATE TRAIN (active + liquidity candidates, no commodity) ===")
+    liquidity_challenger = _train_scores(
+        fsic, weo, mfs, args.as_of, extra_features=liquidity_extra
+    )
+    print("\n=== COMMODITY CANDIDATE TRAIN (active + commodity vulnerability only) ===")
+    commodity_challenger = _train_scores(
+        fsic, weo, mfs, args.as_of, extra_features=commodity_extra
+    )
+    print("\n=== COMBINED CANDIDATE TRAIN (active + all monitored candidates) ===")
     challenger = _train_scores(fsic, weo, mfs, args.as_of, extra_features=candidate_extra)
 
     faithfulness = _compare(production, control, "active_retrain_vs_production")
-    effect = _compare(control, challenger, "candidate_vs_active_retrain")
+    liquidity_effect = _compare(
+        control, liquidity_challenger, "liquidity_candidate_vs_active_retrain"
+    )
+    commodity_effect = _compare(
+        control, commodity_challenger, "commodity_candidate_vs_active_retrain"
+    )
+    effect = _compare(control, challenger, "combined_candidate_vs_active_retrain")
     headline = _compare(production, challenger, "candidate_vs_production")
 
     thresholds = {
@@ -153,8 +212,21 @@ def main() -> None:
     # staleness rather than by the added features.
     trips_review = (
         effect["mean_absolute_score_change"] > thresholds["mean_absolute_score_change"]
-        or effect["rank_correlation_spearman"] < thresholds["rank_correlation_spearman"]
-        or effect["risk_tier_changes"] > thresholds["risk_tier_changes"]
+        or min(
+            liquidity_effect["rank_correlation_spearman"],
+            commodity_effect["rank_correlation_spearman"],
+            effect["rank_correlation_spearman"],
+        ) < thresholds["rank_correlation_spearman"]
+        or max(
+            liquidity_effect["risk_tier_changes"],
+            commodity_effect["risk_tier_changes"],
+            effect["risk_tier_changes"],
+        ) > thresholds["risk_tier_changes"]
+        or max(
+            liquidity_effect["mean_absolute_score_change"],
+            commodity_effect["mean_absolute_score_change"],
+            effect["mean_absolute_score_change"],
+        ) > thresholds["mean_absolute_score_change"]
     )
     stale_active_artifact = (
         faithfulness["mean_absolute_score_change"] > thresholds["mean_absolute_score_change"]
@@ -165,14 +237,7 @@ def main() -> None:
         "cutoff": args.as_of,
         "active_features": active_columns,
         "candidate_features": added,
-        "candidate_groups": {
-            "government_liquidity": [
-                feature for feature in added if feature.startswith("govt_")
-            ],
-            "external_liquidity": [
-                feature for feature in added if not feature.startswith("govt_")
-            ],
-        },
+        "candidate_groups": candidate_groups,
         "feature_directions": {
             "govt_interest_to_revenue": "+1 (higher = riskier)",
             "govt_debt_to_revenue": "+1 (higher = riskier)",
@@ -199,6 +264,13 @@ def main() -> None:
         "review_basis": "candidate_vs_active_retrain",
         "stale_active_artifact_finding": bool(stale_active_artifact),
         "faithfulness_active_retrain_vs_production": faithfulness,
+        "scenario_effects_vs_active_retrain": {
+            "liquidity": liquidity_effect,
+            "commodity": commodity_effect,
+            "combined": effect,
+        },
+        "liquidity_effect_vs_active_retrain": liquidity_effect,
+        "commodity_effect_vs_active_retrain": commodity_effect,
         "candidate_effect_vs_active_retrain": effect,
         "headline_candidate_vs_production": headline,
         "notes": [
@@ -221,15 +293,40 @@ def main() -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
 
-    archive = Path(BASE_DIR) / "artifacts" / "snapshots" / f"{args.as_of}-challenger-liquidity"
-    archive.mkdir(parents=True, exist_ok=True)
-    challenger.to_parquet(archive / "challenger_scores.parquet", index=False)
+    archive_root = Path(BASE_DIR) / "artifacts" / "snapshots"
+    archives = {
+        "liquidity": (
+            archive_root / f"{args.as_of}-challenger-liquidity",
+            liquidity_challenger,
+        ),
+        "commodity": (
+            archive_root / f"{args.as_of}-challenger-commodity",
+            commodity_challenger,
+        ),
+        "combined": (
+            archive_root / f"{args.as_of}-challenger-combined",
+            challenger,
+        ),
+    }
+    for archive, scores in archives.values():
+        archive.mkdir(parents=True, exist_ok=True)
+        scores.to_parquet(archive / "challenger_scores.parquet", index=False)
 
     print("\n=== SUMMARY ===")
     print(f"Faithfulness (active retrain vs production): mean|delta|="
           f"{faithfulness['mean_absolute_score_change']} "
           f"spearman={faithfulness['rank_correlation_spearman']}")
-    print(f"Candidate effect (candidate vs active retrain): mean|delta|="
+    print(f"Liquidity effect (liquidity vs active retrain): mean|delta|="
+          f"{liquidity_effect['mean_absolute_score_change']} "
+          f">=1pt={liquidity_effect['countries_moving_at_least_one_point']} "
+          f"tier_changes={liquidity_effect['risk_tier_changes']} "
+          f"spearman={liquidity_effect['rank_correlation_spearman']}")
+    print(f"Commodity effect (commodity vs active retrain): mean|delta|="
+          f"{commodity_effect['mean_absolute_score_change']} "
+          f">=1pt={commodity_effect['countries_moving_at_least_one_point']} "
+          f"tier_changes={commodity_effect['risk_tier_changes']} "
+          f"spearman={commodity_effect['rank_correlation_spearman']}")
+    print(f"Combined effect (combined vs active retrain): mean|delta|="
           f"{effect['mean_absolute_score_change']} "
           f">=1pt={effect['countries_moving_at_least_one_point']} "
           f"tier_changes={effect['risk_tier_changes']} "

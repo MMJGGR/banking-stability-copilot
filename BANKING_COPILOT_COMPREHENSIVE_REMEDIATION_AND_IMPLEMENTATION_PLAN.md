@@ -2749,3 +2749,43 @@ Items that remain open and why they cannot be closed from this environment:
   - Verification: `python -m py_compile app.py` passed; `PYTHONPATH=. pytest
     tests/test_peer_selection.py tests/test_calculated_series.py -q` passed
     (9 passed); direct `import app` succeeded in bare mode.
+- [x] Checkpoint 42: Split liquidity and commodity overlays into independent
+  analytical scenarios.
+  - Scope: app surfacing and challenger-monitoring artifacts only. Active
+    production scores, live rankings, and live score drivers remain unchanged.
+  - Issue: commodity-export concentration was bundled into the liquidity
+    challenger even though it is an external vulnerability factor, not a
+    liquidity metric. This made the overlay concept too broad and could confuse
+    users reviewing government/external liquidity evidence.
+  - Changes:
+    - Split candidate groups into `government_liquidity`,
+      `external_liquidity`, and `external_vulnerability`.
+    - Rebuilt three saved candidate scenarios for the same 2026-06-30 cutoff:
+      liquidity-only, commodity-only, and combined.
+    - Replaced the single Country Profile overlay with independent `Liquidity
+      overlay` and `Commodity overlay` toggles. Turning on both shows the saved
+      combined scenario; turning on one shows only that scenario.
+    - Filtered country-level candidate evidence to match the selected overlay
+      groups, with commodity exposure labelled as external vulnerability rather
+      than liquidity.
+    - Updated Methodology language so overlays are described as independent,
+      monitoring-only analytical lenses.
+  - Model-monitoring result:
+    - Liquidity-only effect vs active retrain: mean absolute score movement
+      0.170, 3 countries move by at least 1 point, 19 risk-tier changes,
+      Spearman rank correlation 0.992.
+    - Commodity-only effect vs active retrain: mean absolute score movement
+      0.717, 63 countries move by at least 1 point, 60 risk-tier changes,
+      Spearman rank correlation 0.917.
+    - Combined effect vs active retrain: mean absolute score movement 0.683,
+      63 countries move by at least 1 point, 59 risk-tier changes, Spearman
+      rank correlation 0.923.
+    - Result: all scenarios remain monitoring-only. Commodity exposure is the
+      large-moving factor and should not be silently promoted into the live
+      production model.
+  - Verification: `python -m py_compile app.py
+    src/scripts/build_liquidity_challenger.py` passed; `PYTHONPATH=. pytest
+    tests/test_peer_selection.py tests/test_calculated_series.py
+    tests/test_liquidity_challenger.py -q` passed (12 passed); Streamlit
+    AppTest passed with zero exceptions for base, liquidity-only,
+    commodity-only, and combined overlay states.

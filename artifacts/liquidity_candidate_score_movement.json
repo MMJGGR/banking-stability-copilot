@@ -11,7 +11,7 @@
   "candidate_effect_vs_active_retrain": {
     "countries_compared": 201,
     "countries_moving_at_least_one_point": 63,
-    "label": "candidate_vs_active_retrain",
+    "label": "combined_candidate_vs_active_retrain",
     "largest_movements": [
       {
         "base": 3.6,
@@ -157,10 +157,12 @@
     "external_liquidity": [
       "reserves_to_current_account_payments",
       "portfolio_liabilities_gdp",
-      "commodity_export_share_pct",
       "wb_total_external_debt_service_gni_pct",
       "wb_ppg_external_debt_service_gdp",
       "wb_public_financing_need_ext_debt_service_proxy_gdp"
+    ],
+    "external_vulnerability": [
+      "commodity_export_share_pct"
     ],
     "government_liquidity": [
       "govt_revenue_gdp",
@@ -170,6 +172,137 @@
       "govt_primary_deficit_gdp_change_3y",
       "govt_revenue_gdp_change_3y"
     ]
+  },
+  "commodity_effect_vs_active_retrain": {
+    "countries_compared": 201,
+    "countries_moving_at_least_one_point": 63,
+    "label": "commodity_candidate_vs_active_retrain",
+    "largest_movements": [
+      {
+        "base": 3.6,
+        "challenger": 6.2,
+        "country_code": "BLZ",
+        "delta": 2.6
+      },
+      {
+        "base": 4.6,
+        "challenger": 2.3,
+        "country_code": "ISR",
+        "delta": -2.3
+      },
+      {
+        "base": 4.3,
+        "challenger": 6.6,
+        "country_code": "KWT",
+        "delta": 2.3
+      },
+      {
+        "base": 4.7,
+        "challenger": 7.0,
+        "country_code": "GMB",
+        "delta": 2.3
+      },
+      {
+        "base": 6.8,
+        "challenger": 4.6,
+        "country_code": "VNM",
+        "delta": -2.2
+      },
+      {
+        "base": 7.1,
+        "challenger": 4.9,
+        "country_code": "CHN",
+        "delta": -2.2
+      },
+      {
+        "base": 5.3,
+        "challenger": 7.4,
+        "country_code": "MDV",
+        "delta": 2.1
+      },
+      {
+        "base": 6.9,
+        "challenger": 4.8,
+        "country_code": "MAR",
+        "delta": -2.1
+      },
+      {
+        "base": 2.6,
+        "challenger": 4.7,
+        "country_code": "SLB",
+        "delta": 2.1
+      },
+      {
+        "base": 4.7,
+        "challenger": 6.8,
+        "country_code": "PRY",
+        "delta": 2.1
+      },
+      {
+        "base": 5.3,
+        "challenger": 3.2,
+        "country_code": "MEX",
+        "delta": -2.1
+      },
+      {
+        "base": 2.4,
+        "challenger": 4.4,
+        "country_code": "SYC",
+        "delta": 2.0
+      },
+      {
+        "base": 7.2,
+        "challenger": 5.2,
+        "country_code": "KHM",
+        "delta": -2.0
+      },
+      {
+        "base": 6.5,
+        "challenger": 4.5,
+        "country_code": "PHL",
+        "delta": -2.0
+      },
+      {
+        "base": 4.1,
+        "challenger": 6.0,
+        "country_code": "PAN",
+        "delta": 1.9
+      },
+      {
+        "base": 5.6,
+        "challenger": 7.5,
+        "country_code": "PNG",
+        "delta": 1.9
+      },
+      {
+        "base": 4.7,
+        "challenger": 2.9,
+        "country_code": "DEU",
+        "delta": -1.8
+      },
+      {
+        "base": 5.7,
+        "challenger": 7.5,
+        "country_code": "ECU",
+        "delta": 1.8
+      },
+      {
+        "base": 4.4,
+        "challenger": 6.2,
+        "country_code": "KNA",
+        "delta": 1.8
+      },
+      {
+        "base": 3.3,
+        "challenger": 5.1,
+        "country_code": "ISL",
+        "delta": 1.8
+      }
+    ],
+    "max_absolute_score_change": 2.6,
+    "mean_absolute_score_change": 0.717,
+    "rank_correlation_spearman": 0.917,
+    "risk_tier_changes": 60
   },
   "cutoff": "2026-06-30",
   "faithfulness_active_retrain_vs_production": {
@@ -461,6 +594,137 @@
     "rank_correlation_spearman": 0.924,
     "risk_tier_changes": 58
   },
+  "liquidity_effect_vs_active_retrain": {
+    "countries_compared": 201,
+    "countries_moving_at_least_one_point": 3,
+    "label": "liquidity_candidate_vs_active_retrain",
+    "largest_movements": [
+      {
+        "base": 7.5,
+        "challenger": 6.5,
+        "country_code": "KIR",
+        "delta": -1.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 6.5,
+        "country_code": "TUV",
+        "delta": -1.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 6.5,
+        "country_code": "MHL",
+        "delta": -1.0
+      },
+      {
+        "base": 7.0,
+        "challenger": 7.8,
+        "country_code": "SLV",
+        "delta": 0.8
+      },
+      {
+        "base": 5.3,
+        "challenger": 6.0,
+        "country_code": "IDN",
+        "delta": 0.7
+      },
+      {
+        "base": 6.4,
+        "challenger": 5.7,
+        "country_code": "KGZ",
+        "delta": -0.7
+      },
+      {
+        "base": 6.7,
+        "challenger": 7.4,
+        "country_code": "SEN",
+        "delta": 0.7
+      },
+      {
+        "base": 6.1,
+        "challenger": 5.4,
+        "country_code": "FRA",
+        "delta": -0.7
+      },
+      {
+        "base": 5.6,
+        "challenger": 6.2,
+        "country_code": "PNG",
+        "delta": 0.6
+      },
+      {
+        "base": 6.8,
+        "challenger": 6.2,
+        "country_code": "CYP",
+        "delta": -0.6
+      },
+      {
+        "base": 5.1,
+        "challenger": 4.5,
+        "country_code": "LSO",
+        "delta": -0.6
+      },
+      {
+        "base": 4.3,
+        "challenger": 3.8,
+        "country_code": "KWT",
+        "delta": -0.5
+      },
+      {
+        "base": 3.4,
+        "challenger": 3.9,
+        "country_code": "BRN",
+        "delta": 0.5
+      },
+      {
+        "base": 6.3,
+        "challenger": 5.8,
+        "country_code": "SVN",
+        "delta": -0.5
+      },
+      {
+        "base": 8.0,
+        "challenger": 7.6,
+        "country_code": "GRC",
+        "delta": -0.4
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.9,
+        "country_code": "UGA",
+        "delta": 0.4
+      },
+      {
+        "base": 6.0,
+        "challenger": 5.6,
+        "country_code": "HRV",
+        "delta": -0.4
+      },
+      {
+        "base": 6.9,
+        "challenger": 6.5,
+        "country_code": "USA",
+        "delta": -0.4
+      },
+      {
+        "base": 5.5,
+        "challenger": 5.1,
+        "country_code": "ITA",
+        "delta": -0.4
+      },
+      {
+        "base": 2.2,
+        "challenger": 2.6,
+        "country_code": "MAC",
+        "delta": 0.4
+      }
+    ],
+    "max_absolute_score_change": 1.0,
+    "mean_absolute_score_change": 0.17,
+    "rank_correlation_spearman": 0.992,
+    "risk_tier_changes": 19
+  },
   "notes": [
     "Candidate comparison only. The active serving artifacts are unchanged; this script never calls model.save().",
     "Both trains reuse the cached crisis classifier, so the classifier overlay is held fixed and the delta isolates the pillar effect of the monitored candidate features.",
@@ -469,5 +733,400 @@
   ],
   "promotion_requires_owner_review": true,
   "review_basis": "candidate_vs_active_retrain",
+  "scenario_effects_vs_active_retrain": {
+    "combined": {
+      "countries_compared": 201,
+      "countries_moving_at_least_one_point": 63,
+      "label": "combined_candidate_vs_active_retrain",
+      "largest_movements": [
+        {
+          "base": 3.6,
+          "challenger": 6.0,
+          "country_code": "BLZ",
+          "delta": 2.4
+        },
+        {
+          "base": 7.1,
+          "challenger": 4.9,
+          "country_code": "CHN",
+          "delta": -2.2
+        },
+        {
+          "base": 5.3,
+          "challenger": 7.4,
+          "country_code": "MDV",
+          "delta": 2.1
+        },
+        {
+          "base": 4.6,
+          "challenger": 2.5,
+          "country_code": "ISR",
+          "delta": -2.1
+        },
+        {
+          "base": 5.6,
+          "challenger": 7.6,
+          "country_code": "PNG",
+          "delta": 2.0
+        },
+        {
+          "base": 6.8,
+          "challenger": 4.8,
+          "country_code": "VNM",
+          "delta": -2.0
+        },
+        {
+          "base": 4.7,
+          "challenger": 6.7,
+          "country_code": "GMB",
+          "delta": 2.0
+        },
+        {
+          "base": 4.7,
+          "challenger": 6.6,
+          "country_code": "PRY",
+          "delta": 1.9
+        },
+        {
+          "base": 5.7,
+          "challenger": 7.6,
+          "country_code": "ECU",
+          "delta": 1.9
+        },
+        {
+          "base": 4.4,
+          "challenger": 6.3,
+          "country_code": "KNA",
+          "delta": 1.9
+        },
+        {
+          "base": 4.1,
+          "challenger": 5.9,
+          "country_code": "PAN",
+          "delta": 1.8
+        },
+        {
+          "base": 6.9,
+          "challenger": 5.1,
+          "country_code": "MAR",
+          "delta": -1.8
+        },
+        {
+          "base": 2.4,
+          "challenger": 4.2,
+          "country_code": "SYC",
+          "delta": 1.8
+        },
+        {
+          "base": 6.1,
+          "challenger": 4.3,
+          "country_code": "FRA",
+          "delta": -1.8
+        },
+        {
+          "base": 7.8,
+          "challenger": 6.0,
+          "country_code": "HUN",
+          "delta": -1.8
+        },
+        {
+          "base": 7.5,
+          "challenger": 5.7,
+          "country_code": "TUR",
+          "delta": -1.8
+        },
+        {
+          "base": 6.7,
+          "challenger": 4.9,
+          "country_code": "THA",
+          "delta": -1.8
+        },
+        {
+          "base": 6.5,
+          "challenger": 4.7,
+          "country_code": "PHL",
+          "delta": -1.8
+        },
+        {
+          "base": 5.3,
+          "challenger": 3.5,
+          "country_code": "MEX",
+          "delta": -1.8
+        },
+        {
+          "base": 6.3,
+          "challenger": 4.5,
+          "country_code": "SVN",
+          "delta": -1.8
+        }
+      ],
+      "max_absolute_score_change": 2.4,
+      "mean_absolute_score_change": 0.683,
+      "rank_correlation_spearman": 0.923,
+      "risk_tier_changes": 59
+    },
+    "commodity": {
+      "countries_compared": 201,
+      "countries_moving_at_least_one_point": 63,
+      "label": "commodity_candidate_vs_active_retrain",
+      "largest_movements": [
+        {
+          "base": 3.6,
+          "challenger": 6.2,
+          "country_code": "BLZ",
+          "delta": 2.6
+        },
+        {
+          "base": 4.6,
+          "challenger": 2.3,
+          "country_code": "ISR",
+          "delta": -2.3
+        },
+        {
+          "base": 4.3,
+          "challenger": 6.6,
+          "country_code": "KWT",
+          "delta": 2.3
+        },
+        {
+          "base": 4.7,
+          "challenger": 7.0,
+          "country_code": "GMB",
+          "delta": 2.3
+        },
+        {
+          "base": 6.8,
+          "challenger": 4.6,
+          "country_code": "VNM",
+          "delta": -2.2
+        },
+        {
+          "base": 7.1,
+          "challenger": 4.9,
+          "country_code": "CHN",
+          "delta": -2.2
+        },
+        {
+          "base": 5.3,
+          "challenger": 7.4,
+          "country_code": "MDV",
+          "delta": 2.1
+        },
+        {
+          "base": 6.9,
+          "challenger": 4.8,
+          "country_code": "MAR",
+          "delta": -2.1
+        },
+        {
+          "base": 2.6,
+          "challenger": 4.7,
+          "country_code": "SLB",
+          "delta": 2.1
+        },
+        {
+          "base": 4.7,
+          "challenger": 6.8,
+          "country_code": "PRY",
+          "delta": 2.1
+        },
+        {
+          "base": 5.3,
+          "challenger": 3.2,
+          "country_code": "MEX",
+          "delta": -2.1
+        },
+        {
+          "base": 2.4,
+          "challenger": 4.4,
+          "country_code": "SYC",
+          "delta": 2.0
+        },
+        {
+          "base": 7.2,
+          "challenger": 5.2,
+          "country_code": "KHM",
+          "delta": -2.0
+        },
+        {
+          "base": 6.5,
+          "challenger": 4.5,
+          "country_code": "PHL",
+          "delta": -2.0
+        },
+        {
+          "base": 4.1,
+          "challenger": 6.0,
+          "country_code": "PAN",
+          "delta": 1.9
+        },
+        {
+          "base": 5.6,
+          "challenger": 7.5,
+          "country_code": "PNG",
+          "delta": 1.9
+        },
+        {
+          "base": 4.7,
+          "challenger": 2.9,
+          "country_code": "DEU",
+          "delta": -1.8
+        },
+        {
+          "base": 5.7,
+          "challenger": 7.5,
+          "country_code": "ECU",
+          "delta": 1.8
+        },
+        {
+          "base": 4.4,
+          "challenger": 6.2,
+          "country_code": "KNA",
+          "delta": 1.8
+        },
+        {
+          "base": 3.3,
+          "challenger": 5.1,
+          "country_code": "ISL",
+          "delta": 1.8
+        }
+      ],
+      "max_absolute_score_change": 2.6,
+      "mean_absolute_score_change": 0.717,
+      "rank_correlation_spearman": 0.917,
+      "risk_tier_changes": 60
+    },
+    "liquidity": {
+      "countries_compared": 201,
+      "countries_moving_at_least_one_point": 3,
+      "label": "liquidity_candidate_vs_active_retrain",
+      "largest_movements": [
+        {
+          "base": 7.5,
+          "challenger": 6.5,
+          "country_code": "KIR",
+          "delta": -1.0
+        },
+        {
+          "base": 7.5,
+          "challenger": 6.5,
+          "country_code": "TUV",
+          "delta": -1.0
+        },
+        {
+          "base": 7.5,
+          "challenger": 6.5,
+          "country_code": "MHL",
+          "delta": -1.0
+        },
+        {
+          "base": 7.0,
+          "challenger": 7.8,
+          "country_code": "SLV",
+          "delta": 0.8
+        },
+        {
+          "base": 5.3,
+          "challenger": 6.0,
+          "country_code": "IDN",
+          "delta": 0.7
+        },
+        {
+          "base": 6.4,
+          "challenger": 5.7,
+          "country_code": "KGZ",
+          "delta": -0.7
+        },
+        {
+          "base": 6.7,
+          "challenger": 7.4,
+          "country_code": "SEN",
+          "delta": 0.7
+        },
+        {
+          "base": 6.1,
+          "challenger": 5.4,
+          "country_code": "FRA",
+          "delta": -0.7
+        },
+        {
+          "base": 5.6,
+          "challenger": 6.2,
+          "country_code": "PNG",
+          "delta": 0.6
+        },
+        {
+          "base": 6.8,
+          "challenger": 6.2,
+          "country_code": "CYP",
+          "delta": -0.6
+        },
+        {
+          "base": 5.1,
+          "challenger": 4.5,
+          "country_code": "LSO",
+          "delta": -0.6
+        },
+        {
+          "base": 4.3,
+          "challenger": 3.8,
+          "country_code": "KWT",
+          "delta": -0.5
+        },
+        {
+          "base": 3.4,
+          "challenger": 3.9,
+          "country_code": "BRN",
+          "delta": 0.5
+        },
+        {
+          "base": 6.3,
+          "challenger": 5.8,
+          "country_code": "SVN",
+          "delta": -0.5
+        },
+        {
+          "base": 8.0,
+          "challenger": 7.6,
+          "country_code": "GRC",
+          "delta": -0.4
+        },
+        {
+          "base": 7.5,
+          "challenger": 7.9,
+          "country_code": "UGA",
+          "delta": 0.4
+        },
+        {
+          "base": 6.0,
+          "challenger": 5.6,
+          "country_code": "HRV",
+          "delta": -0.4
+        },
+        {
+          "base": 6.9,
+          "challenger": 6.5,
+          "country_code": "USA",
+          "delta": -0.4
+        },
+        {
+          "base": 5.5,
+          "challenger": 5.1,
+          "country_code": "ITA",
+          "delta": -0.4
+        },
+        {
+          "base": 2.2,
+          "challenger": 2.6,
+          "country_code": "MAC",
+          "delta": 0.4
+        }
+      ],
+      "max_absolute_score_change": 1.0,
+      "mean_absolute_score_change": 0.17,
+      "rank_correlation_spearman": 0.992,
+      "risk_tier_changes": 19
+    }
+  },
   "stale_active_artifact_finding": false
 }

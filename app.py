@@ -343,9 +343,17 @@ MODEL_MONITORING_REPORT_PATHS = (
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
 CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
-LIQUIDITY_CHALLENGER_SCORES_PATH = (
-    BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
-)
+CANDIDATE_RISK_OVERLAY_SCORE_PATHS = {
+    "liquidity": (
+        BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
+    ),
+    "commodity": (
+        BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-commodity" / "challenger_scores.parquet"
+    ),
+    "combined": (
+        BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-combined" / "challenger_scores.parquet"
+    ),
+}
 EXTERNAL_SOURCE_LABEL = "External liquidity"
 GOVT_FEATURES_PATHS = (
     EXTERNAL_REFERENCE_DIR / "government_liquidity_features.parquet",
@@ -633,12 +641,34 @@ def compute_peer_dominant_drivers(
     return output
 
 
+def candidate_overlay_scenario(
+    show_liquidity: bool,
+    show_commodity: bool,
+) -> tuple[str | None, str, list[str]]:
+    """Return overlay scenario key, display label and candidate groups."""
+    if show_liquidity and show_commodity:
+        return "combined", "Combined", [
+            "government_liquidity",
+            "external_liquidity",
+            "external_vulnerability",
+        ]
+    if show_liquidity:
+        return "liquidity", "Liquidity", [
+            "government_liquidity",
+            "external_liquidity",
+        ]
+    if show_commodity:
+        return "commodity", "Commodity", ["external_vulnerability"]
+    return None, "Off", []
+
+
 @st.cache_data(show_spinner=False)
-def load_liquidity_challenger_scores() -> pd.DataFrame:
-    """Load optional liquidity challenger scores for non-production overlays."""
-    if not LIQUIDITY_CHALLENGER_SCORES_PATH.exists():
+def load_candidate_overlay_scores(scenario: str) -> pd.DataFrame:
+    """Load optional candidate risk overlay scores for non-production analysis."""
+    path = CANDIDATE_RISK_OVERLAY_SCORE_PATHS.get(scenario)
+    if path is None or not path.exists():
         return pd.DataFrame()
-    frame = pd.read_parquet(LIQUIDITY_CHALLENGER_SCORES_PATH)
+    frame = pd.read_parquet(path)
     if "country_code" not in frame.columns or "risk_score" not in frame.columns:
         return pd.DataFrame()
     frame = frame[["country_code", "risk_score"]].copy()
@@ -1948,10 +1978,21 @@ def render_government_insight_panel(
     )
 
 
-def render_candidate_country_evidence(country_code: str, model_features: pd.DataFrame | None):
+def render_candidate_country_evidence(
+    country_code: str,
+    model_features: pd.DataFrame | None,
+    overlay_enabled: bool = False,
+    selected_groups: list[str] | None = None,
+):
     """Show monitored candidate liquidity evidence for the selected country."""
     report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
-    candidate_features = report.get("candidate_features") or report.get("added_features") or []
+    candidate_groups = report.get("candidate_groups") or {}
+    if selected_groups:
+        candidate_features = []
+        for group in selected_groups:
+            candidate_features.extend(candidate_groups.get(group, []))
+    else:
+        candidate_features = report.get("candidate_features") or report.get("added_features") or []
     if not candidate_features:
         return
 
@@ -1984,13 +2025,20 @@ def render_candidate_country_evidence(country_code: str, model_features: pd.Data
         raw_value = pd.to_numeric(pd.Series([country_row.get(feature)]), errors="coerce").iloc[0]
         value = "—" if pd.isna(raw_value) else f"{float(raw_value):,.2f}"
         is_govt = feature.startswith("govt_")
+        is_commodity = feature == "commodity_export_share_pct"
         coverage = (govt_coverage if is_govt else external_coverage).get(feature, {})
         labels = GOVT_FEATURE_LABELS if is_govt else EXTERNAL_FEATURE_LABELS
         rows.append(
             {
                 "Feature": labels.get(feature, feature.replace("_", " ").title()),
                 "Value": value,
-                "Group": "Government" if is_govt else "External",
+                "Group": (
+                    "Government liquidity"
+                    if is_govt
+                    else "External vulnerability"
+                    if is_commodity
+                    else "External liquidity"
+                ),
                 "Coverage": (
                     f"{coverage.get('countries')} countries"
                     if coverage.get("countries") is not None
@@ -2006,10 +2054,20 @@ def render_candidate_country_evidence(country_code: str, model_features: pd.Data
     if not rows:
         return
 
-    default_expanded = bool(st.session_state.get("profile_liquidity_challenger_overlay", False))
-    with st.expander("Additional candidate evidence", expanded=default_expanded):
+    if overlay_enabled:
+        st.markdown("#### Additional candidate evidence")
         st.caption(
-            "These fields are packaged for review and analysis. They do not explain "
+            "These fields are packaged for review and analysis. Commodity exposure is "
+            "an external vulnerability factor, not a liquidity metric. They do not explain "
+            "the current live score unless marked as active score inputs."
+        )
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        return
+
+    with st.expander("Additional candidate evidence", expanded=False):
+        st.caption(
+            "These fields are packaged for review and analysis. Commodity exposure is "
+            "an external vulnerability factor, not a liquidity metric. They do not explain "
             "the current live score unless marked as active score inputs."
         )
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -2165,7 +2223,11 @@ def _liquidity_feature_status_rows(report: dict) -> list[dict]:
     candidate_groups = report.get("candidate_groups") or {}
     if candidate_groups:
         for group_name, features in candidate_groups.items():
-            group = str(group_name).replace("_", " ").title()
+            group = {
+                "government_liquidity": "Government liquidity",
+                "external_liquidity": "External liquidity",
+                "external_vulnerability": "External vulnerability",
+            }.get(group_name, str(group_name).replace("_", " ").title())
             for feature in features:
                 rows.append(row(feature, "Candidate / monitoring", group))
     else:
@@ -2185,9 +2247,10 @@ def render_model_monitoring_summary():
         "promoted into the active serving artifact."
     )
     st.caption(
-        "The Country Profile peer table can optionally display the saved challenger "
-        "score as an overlay. That overlay is analytical only and does not change "
-        "the live score, ranking, or score drivers."
+        "The Country Profile can optionally display saved candidate risk overlays. "
+        "Liquidity and commodity overlays are independent; selecting both uses the "
+        "combined scenario. Overlays are analytical only and do not change the live "
+        "score, ranking, or score drivers."
     )
 
     if report:
@@ -2793,7 +2856,36 @@ with tab_profile:
     risk_score = country_score_row['risk_score']
     tier = score_to_tier(risk_score)
     percentile = (scores_df['risk_score'] < risk_score).mean()
-    challenger_scores_for_profile = load_liquidity_challenger_scores()
+    overlay_col1, overlay_col2 = st.columns(2)
+    with overlay_col1:
+        show_liquidity_overlay = st.toggle(
+            "Liquidity overlay",
+            value=False,
+            key="profile_liquidity_challenger_overlay",
+            help=(
+                "Monitoring-only overlay for government and external-liquidity "
+                "candidate features. Commodity exposure is excluded."
+            ),
+        )
+    with overlay_col2:
+        show_commodity_overlay = st.toggle(
+            "Commodity overlay",
+            value=False,
+            key="profile_commodity_challenger_overlay",
+            help=(
+                "Monitoring-only overlay for commodity export concentration as "
+                "an external vulnerability factor, not a liquidity metric."
+            ),
+        )
+    overlay_scenario, overlay_label, overlay_groups = candidate_overlay_scenario(
+        show_liquidity_overlay,
+        show_commodity_overlay,
+    )
+    challenger_scores_for_profile = (
+        load_candidate_overlay_scores(overlay_scenario)
+        if overlay_scenario
+        else pd.DataFrame()
+    )
     challenger_score = None
     if not challenger_scores_for_profile.empty:
         challenger_row = challenger_scores_for_profile[
@@ -2801,16 +2893,7 @@ with tab_profile:
         ]
         if not challenger_row.empty:
             challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
-    show_challenger_overlay = st.toggle(
-        "Show liquidity challenger overlay",
-        value=False,
-        key="profile_liquidity_challenger_overlay",
-        help=(
-            "Shows the monitoring-only balanced liquidity challenger beside the "
-            "live score for this country and peer table. It does not change the "
-            "live model, ranking, or score drivers."
-        ),
-    )
+    show_challenger_overlay = overlay_scenario is not None
 
     with st.container(border=True):
         st.markdown(f"## {selected_country_name}")
@@ -2825,15 +2908,17 @@ with tab_profile:
         if show_challenger_overlay and challenger_score is not None:
             m5 = metric_columns[4]
             m5.metric(
-                "Challenger",
+                f"{overlay_label} Overlay",
                 f"{challenger_score:.1f}/10",
                 delta=f"{challenger_score - risk_score:+.1f} vs live",
-                help="Monitoring-only liquidity challenger score; not the live score.",
+                help="Monitoring-only candidate risk score; not the live score.",
             )
         if show_challenger_overlay:
             st.caption(
-                "Liquidity challenger overlay is analytical only. Score Drivers and "
-                "rankings below remain based on the live production score."
+                f"{overlay_label} overlay is analytical only. Score Drivers and "
+                "rankings below remain based on the live production score. "
+                "Liquidity and commodity overlays are independent; combined is "
+                "shown only when both toggles are on."
             )
         if country_score_row.get('risk_floor_applied', False):
             st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
@@ -2996,7 +3081,12 @@ with tab_profile:
             else:
                 st.caption("WGI data not loaded.")
 
-        render_candidate_country_evidence(selected_country_code, model_features)
+        render_candidate_country_evidence(
+            selected_country_code,
+            model_features,
+            overlay_enabled=show_challenger_overlay,
+            selected_groups=overlay_groups if show_challenger_overlay else None,
+        )
 
     with st.container(border=True):
         st.markdown("### Peer Countries")
@@ -3079,19 +3169,19 @@ with tab_profile:
             )
 
             if show_challenger_overlay:
-                challenger_scores = load_liquidity_challenger_scores()
+                challenger_scores = load_candidate_overlay_scores(overlay_scenario)
                 if challenger_scores.empty:
-                    st.caption("Liquidity challenger scores are not packaged with this deployment.")
+                    st.caption("Candidate risk overlay scores are not packaged with this deployment.")
                 else:
                     peers_comparison = peers_comparison.merge(
                         challenger_scores,
                         on="country_code",
                         how="left",
                     )
-                    peers_comparison["Challenger Score"] = peers_comparison[
+                    peers_comparison[f"{overlay_label} Score"] = peers_comparison[
                         "candidate_risk_score"
                     ]
-                    peers_comparison["Delta Challenger"] = (
+                    peers_comparison["Delta Overlay"] = (
                         peers_comparison["candidate_risk_score"]
                         - pd.to_numeric(peers_comparison["risk_score"], errors="coerce")
                     )
@@ -3110,11 +3200,12 @@ with tab_profile:
             peers_comparison['Operating Env.'] = peers_comparison['Operating Env.'].apply(lambda x: f"{x:.1f}")
             peers_comparison['Banking System'] = peers_comparison['Banking System'].apply(lambda x: f"{x:.1f}")
             peers_comparison['Coverage'] = peers_comparison['Coverage'].apply(lambda x: f"{x:.0%}")
-            if "Challenger Score" in peers_comparison.columns:
-                peers_comparison["Challenger Score"] = peers_comparison["Challenger Score"].apply(
+            overlay_score_column = f"{overlay_label} Score"
+            if overlay_score_column in peers_comparison.columns:
+                peers_comparison[overlay_score_column] = peers_comparison[overlay_score_column].apply(
                     lambda x: "—" if pd.isna(x) else f"{x:.1f}"
                 )
-                peers_comparison["Delta Challenger"] = peers_comparison["Delta Challenger"].apply(
+                peers_comparison["Delta Overlay"] = peers_comparison["Delta Overlay"].apply(
                     lambda x: "—" if pd.isna(x) else f"{x:+.1f}"
                 )
                 peers_comparison = peers_comparison.drop(columns=["candidate_risk_score"], errors="ignore")
@@ -3126,7 +3217,7 @@ with tab_profile:
                 "Defaults use model score proximity, economic scale, development "
                 "level, banking structure, and liquidity features. Edit the peer "
                 "set above for a custom comparison. Dominant Driver is based on "
-                "the live score attribution; challenger overlay is monitoring-only."
+                "the live score attribution; candidate overlay is monitoring-only."
             )
         else:
             st.caption("Unable to find peer countries.")
