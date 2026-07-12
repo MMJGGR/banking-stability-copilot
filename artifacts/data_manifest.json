@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "artifacts/model_policy_audit.json": {
-      "bytes": 1457,
-      "sha256": "93ef23873225f35fe8aff4e89645018732e0451cc75070527e64b7660947ff62"
+      "bytes": 1487,
+      "sha256": "b993357c7a7b57d15304cb9500ebc563787323adc42b9c7539f6680fe8b6aee9"
     },
     "cache/FSIBSIS_cache.parquet": {
       "bytes": 9842035,
@@ -13,85 +13,38 @@
       "sha256": "f1ee465f915b4de1ec8600d4eb54256120d404589fb42f96ae96a5cd94eb23a5"
     },
     "cache/crisis_classifier.pkl": {
-      "bytes": 1343560,
-      "sha256": "8026be4cba6063dd27c86762cc60f6d5828bc77e7b860b46d7a87fa890b3813a"
+      "bytes": 52580,
+      "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
     },
     "cache/crisis_features.parquet": {
-      "bytes": 133759,
-      "sha256": "85542f49293fec567eb16e6d158ee2861cc3afb1a2e6e04964c443463880db5a"
+      "bytes": 161501,
+      "sha256": "c68907381bc871364c0fb2e7b8d6e11f8497b973ffc81d230483a35f9c41f9a9"
     },
     "cache/imputed_features.parquet": {
-      "bytes": 143637,
-      "sha256": "cfaa7782fc2dad72b3b171dac61387e87170dd73298fef99c0ac0e781bd26eac"
+      "bytes": 172173,
+      "sha256": "184fbeba58b355a87eb9b4b4a3e786a8d99b8cd3a1a41e0927e2da1add161324"
     },
     "cache/inference_pipeline.pkl": {
-      "bytes": 151544,
-      "sha256": "c55b117ed687827a4113a0510c0a68cf693497e721b5f43a578f7d2492bdf96e"
+      "bytes": 166857,
+      "sha256": "71ddfe7765ed3c3d2e20fbfd99fe549c85d690d8d3ecf93d265b908158a235ce"
     },
     "cache/risk_model.pkl": {
-      "bytes": 171473,
-      "sha256": "5fb1b24906c64586329d6067b0d4933b3249c9981466c51924ce985d608a8b2f"
+      "bytes": 185504,
+      "sha256": "a80e05a53f017b157777a7efb0d949b02b56cd7c74155091e672adb14589e3c5"
     }
   },
   "as_of_date": "2026-06-30",
-  "generated_at": "2026-07-11T18:30:37.143250+00:00",
+  "generated_at": "2026-07-12T14:39:35.619879+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
     "snapshot_date": "2026-06-30",
-    "training_date": "2026-07-11T18:30:34.948282"
-  },
-  "retrieval": {
-    "FSIBSIS": {
-      "bytes": 137059088,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-07-11T182818Z.csv",
-      "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
-      "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T18:28:31.721364+00:00",
-      "sha256": "38d8d8a81d66107fef4cc0bf082d29dda8074849eb026f447097e8182d2f3d4a",
-      "source": "FSIBSIS"
-    },
-    "FSIC": {
-      "bytes": 145726219,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-07-11T182520Z.csv",
-      "remote_version": "IMF.STA:FSIC(13.0.1)",
-      "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T18:25:37.255260+00:00",
-      "sha256": "47bd8c34c5ac4c72b63b58b998e662d9eea34df230961c5bb3a989b02830303e",
-      "source": "FSIC"
-    },
-    "MFS": {
-      "bytes": 478046242,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-07-11T182558Z.csv",
-      "remote_version": "IMF.STA:MFS_DC(8.0.0)",
-      "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T18:28:06.021039+00:00",
-      "sha256": "c6a764697b6b000dfcd99436c1d93983a2bba7056c5014f8667e6023af695522",
-      "source": "MFS"
-    },
-    "WEO": {
-      "bytes": 36738338,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-07-11T182515Z.csv",
-      "remote_version": "IMF.RES:WEO(9.0.0)",
-      "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-07-11T18:25:18.242689+00:00",
-      "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
-      "source": "WEO"
-    },
-    "WGI": {
-      "bytes": 2060170,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-07-11T182838Z.csv",
-      "remote_version": null,
-      "retrieval_method": "worldbank_api",
-      "retrieved_at": "2026-07-11T18:28:39.036742+00:00",
-      "sha256": "f69df5978649612597245434ecde6331fda0face4c96090b696aaa4d4585f6e4",
-      "source": "WGI"
-    }
+    "training_date": "2026-07-12T17:39:26.498692"
   },
   "schema_version": 1,
   "snapshot_id": "2026-06-30",
   "snapshot_status": "verified",
-  "source_mode": "official_api_sdmx_worldbank",
+  "source_mode": "local_cached_sources",
   "sources": {
     "FSIBSIS": {
       "countries": 141,

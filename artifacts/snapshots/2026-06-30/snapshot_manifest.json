@@ -1,50 +1,50 @@
 {
   "artifacts": {
     "artifacts/model_policy_audit.json": {
-      "bytes": 1485,
-      "sha256": "490a5a2e7789d27aa837095eafe053ff7d7b091c9388641f8fee88e51b95b217"
+      "bytes": 1487,
+      "sha256": "b993357c7a7b57d15304cb9500ebc563787323adc42b9c7539f6680fe8b6aee9"
     },
     "cache/FSIBSIS_cache.parquet": {
-      "bytes": 10033984,
-      "sha256": "0630fbb9a5f6e0365889e75e958580c681129f8db3e51c3695771e9260368c81"
+      "bytes": 9842035,
+      "sha256": "ebf1a44b1629bfd878dfedaa4ee9d967cca7d323a48da90404f47eff287fdc1f"
     },
     "cache/WGI_cache.parquet": {
-      "bytes": 310825,
-      "sha256": "fb66adcd48a0d640d961497cb1bc3b3a04ad813e39f3e82f8a18864fb28d391c"
+      "bytes": 303132,
+      "sha256": "f1ee465f915b4de1ec8600d4eb54256120d404589fb42f96ae96a5cd94eb23a5"
     },
     "cache/crisis_classifier.pkl": {
-      "bytes": 185373,
-      "sha256": "1f8acabdadabde718d7d2664ec2de0d972b52e348fb61ed0a679d031be7684f2"
+      "bytes": 52580,
+      "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
     },
     "cache/crisis_features.parquet": {
-      "bytes": 134551,
-      "sha256": "5f389029e6b903189da1106c476c0e9473fe90c5518b52915eb5e8f5e11dff7f"
+      "bytes": 161501,
+      "sha256": "c68907381bc871364c0fb2e7b8d6e11f8497b973ffc81d230483a35f9c41f9a9"
     },
     "cache/imputed_features.parquet": {
-      "bytes": 136860,
-      "sha256": "59dd767aaf981bb97f2e4baebaccffe3b2dff6c091517f965f5e380d9e2ef4c6"
+      "bytes": 172173,
+      "sha256": "184fbeba58b355a87eb9b4b4a3e786a8d99b8cd3a1a41e0927e2da1add161324"
     },
     "cache/inference_pipeline.pkl": {
-      "bytes": 157856,
-      "sha256": "6bf4af296732af8e7c48998ee9258507f95ec0dbe73f103ca30a5d5f1115d899"
+      "bytes": 166857,
+      "sha256": "71ddfe7765ed3c3d2e20fbfd99fe549c85d690d8d3ecf93d265b908158a235ce"
     },
     "cache/risk_model.pkl": {
-      "bytes": 183303,
-      "sha256": "ec7b350bd7c28641b742258ca0b7d1e5794f2725d622d726933fd95ed671e76f"
+      "bytes": 185504,
+      "sha256": "a80e05a53f017b157777a7efb0d949b02b56cd7c74155091e672adb14589e3c5"
     }
   },
   "as_of_date": "2026-06-30",
-  "generated_at": "2026-07-09T16:16:48.307779+00:00",
+  "generated_at": "2026-07-12T14:39:35.619879+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
     "snapshot_date": "2026-06-30",
-    "training_date": "2026-07-09T19:16:41.613168"
+    "training_date": "2026-07-12T17:39:26.498692"
   },
   "policy_audit": {
-    "absolute_coverage_score_correlation": 0.03530479971389622,
-    "coverage_score_correlation": -0.03530479971389622,
-    "risk_floor_count": 30
+    "absolute_coverage_score_correlation": 0.3671332196684607,
+    "coverage_score_correlation": -0.3671332196684607,
+    "risk_floor_count": 136
   },
   "schema_version": 1,
   "snapshot_id": "2026-06-30",
@@ -52,33 +52,47 @@
   "source_mode": "local_cached_sources",
   "sources": {
     "FSIBSIS": {
-      "countries": 110,
-      "latest_observation": "2025-11-30",
-      "latest_period_label": "2025-M11",
-      "rows": 25636
+      "countries": 141,
+      "indicator_basis": "unique INDICATOR labels with observations by cutoff",
+      "indicators": 289,
+      "latest_observation": "2026-05-31",
+      "latest_period_label": "2026-M05",
+      "rows": 11460
     },
     "FSIC": {
       "countries": 155,
-      "indicators": 11,
-      "latest_observation": "2025-09-01",
-      "rows": 859227
+      "indicators": 398,
+      "latest_observation": "2026-05-31",
+      "observation_status_counts": {
+        "unknown": 1258965
+      },
+      "rows": 1258965
     },
     "MFS": {
-      "countries": 178,
+      "countries": 180,
       "indicators": 91,
-      "latest_observation": "2025-09-01",
-      "rows": 1326510
+      "latest_observation": "2026-05-31",
+      "observation_status_counts": {
+        "unknown": 4509993
+      },
+      "rows": 4509993
     },
     "WEO": {
       "countries": 208,
       "indicators": 145,
       "latest_observation": "2025-12-31",
-      "rows": 315731
+      "observation_status_counts": {
+        "actual": 293008,
+        "unknown": 22337
+      },
+      "rows": 315345
     },
     "WGI": {
-      "countries": 216,
+      "countries": 207,
+      "indicator_basis": "governance score columns",
+      "indicators": 6,
       "latest_observation": "2024-12-31",
-      "rows": 5481
+      "rows": 5301
     }
   },
   "validation": {

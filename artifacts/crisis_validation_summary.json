@@ -1,16 +1,40 @@
 {
-  "basis": "Grouped out-of-fold crisis-classifier validation",
+  "basis": "Grouped country validation with year-matched crisis features",
   "country_epochs": 2178,
-  "countries": 158,
+  "countries": 197,
   "base_rate": 0.085,
-  "roc_auc": 0.616,
-  "threshold_policy": "Youden-optimal review threshold",
-  "recall": 0.83,
-  "precision": 0.10,
+  "model_kind": "regularized logistic rare-event classifier",
+  "feature_upgrade": "Added year-matched fiscal/external deterioration features and systemic-crisis recency memory.",
+  "smote_status": "Available locally after imbalanced-learn 0.14.0 upgrade, but not used in the promoted classifier because class-weighted logistic validation performed better for precision.",
+  "deployment_cv_roc_auc": 0.655,
+  "unseen_country_holdout": {
+    "roc_auc": 0.683,
+    "operating_threshold": 0.13,
+    "threshold_policy": "max_f1_on_validation_set",
+    "precision": 0.235,
+    "recall": 0.343,
+    "f1": 0.279,
+    "flagged": 51
+  },
+  "out_of_time_holdout": {
+    "epoch": 2018,
+    "roc_auc": 0.646,
+    "operating_threshold": 0.077,
+    "threshold_policy": "max_f1_on_validation_set",
+    "precision": 0.081,
+    "recall": 0.625,
+    "f1": 0.143,
+    "flagged": 62
+  },
+  "previous_packaged_validation": {
+    "roc_auc": 0.616,
+    "precision": 0.1,
+    "recall": 0.83
+  },
   "confusion_matrix_image": "artifacts/crisis_confusion_matrix.png",
   "notes": [
-    "The classifier is a weak early-warning overlay, not a literal crisis probability for production decisioning.",
-    "The low precision means many false positives are expected at a high-recall review threshold.",
-    "The app uses the classifier as an upward-only score overlay so it cannot reduce a high pillar-based risk score."
+    "Precision improved materially versus the previous high-recall review setting, but the crisis classifier remains a weak-to-moderate early-warning overlay rather than a stand-alone decision model.",
+    "The production score continues to use the classifier as an upward-only capped overlay; the pillar score remains the main model signal.",
+    "Further improvement likely requires stronger banking-system stress time series and market-access/liquidity indicators, not only estimator tuning."
   ]
 }

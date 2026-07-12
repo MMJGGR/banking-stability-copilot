@@ -33,8 +33,18 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Optional, Tuple, Any
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.metrics import (auc, roc_auc_score, roc_curve, precision_recall_curve,
-                             confusion_matrix, ConfusionMatrixDisplay, classification_report)
+from sklearn.metrics import (
+    auc,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+    precision_recall_curve,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    classification_report,
+)
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
@@ -54,9 +64,14 @@ except ImportError:
 try:
     from imblearn.over_sampling import SMOTE
     HAS_SMOTE = True
-except ImportError:
+    SMOTE_IMPORT_ERROR = None
+except Exception as exc:
     HAS_SMOTE = False
-    print("WARNING: SMOTE not installed. Class imbalance handling will be limited.")
+    SMOTE_IMPORT_ERROR = exc
+    print(
+        "WARNING: SMOTE unavailable. Class imbalance handling will be limited. "
+        f"Reason: {exc}"
+    )
 
 try:
     import shap
@@ -110,6 +125,10 @@ class CrisisClassifier:
         'roe': 3,
         'fx_loan_exposure': 3,
         'fiscal_space': 3,          # Derived: fiscal balance - debt pressure
+        'years_since_banking_crisis': 3,  # Recency memory for repeat-crisis risk
+        'govt_interest_to_revenue_change_3y': 3,
+        'govt_debt_to_revenue_change_3y': 3,
+        'ca_deficit_widening_3y': 3,
     }
     
     # Features EXCLUDED from the classifier to prevent wealth/size bias
@@ -137,7 +156,8 @@ class CrisisClassifier:
                  learning_rate: float = 0.1,
                  random_state: int = 42,
                  use_smote: bool = False,
-                 ensemble: bool = False):
+                 ensemble: bool = False,
+                 model_kind: str = "xgboost"):
         """
         Initialize crisis classifier.
         
@@ -148,6 +168,7 @@ class CrisisClassifier:
             random_state: Random seed for reproducibility
             use_smote: Upgrade minority class (crisis) using SMOTE
             ensemble: Use VotingClassifier (XGB + LR + RF)
+            model_kind: Base estimator family: "xgboost" or "logistic"
         """
         self.n_estimators = n_estimators
         self.max_depth = max_depth
@@ -155,6 +176,7 @@ class CrisisClassifier:
         self.random_state = random_state
         self.use_smote = use_smote
         self.ensemble = ensemble
+        self.model_kind = model_kind
         
         self.model = None
         self.calibrated_model = None  # Isotonic-calibrated wrapper
@@ -173,6 +195,16 @@ class CrisisClassifier:
                       monotone_constraints: tuple = None):
         """Create classifier model (Single or Ensemble)."""
         scale_pos_weight = n_negative / max(n_positive, 1)
+
+        if self.model_kind == "logistic":
+            return LogisticRegression(
+                class_weight='balanced',
+                solver='liblinear',
+                penalty='l2',
+                C=0.15,
+                max_iter=2000,
+                random_state=self.random_state,
+            )
         
         # Base XGBoost Model
         if HAS_XGBOOST:
@@ -488,6 +520,13 @@ class CrisisClassifier:
             feature_names = self.numeric_cols_ if hasattr(self, 'numeric_cols_') else self.feature_names_
             self.feature_importance_ = dict(zip(feature_names, importance))
             print("  Using built-in feature importance")
+        elif hasattr(self.model, 'coef_'):
+            importance = np.abs(self.model.coef_[0])
+            if importance.max() > 0:
+                importance = importance / importance.max()
+            feature_names = self.numeric_cols_ if hasattr(self, 'numeric_cols_') else self.feature_names_
+            self.feature_importance_ = dict(zip(feature_names, importance))
+            print("  Using absolute logistic coefficients for feature importance")
     
     def _plot_shap_summary(self, X: np.ndarray, shap_values: np.ndarray):
         """Generate and save SHAP summary plot."""
@@ -570,20 +609,49 @@ class CrisisClassifier:
         print("="*70)
         
         y_proba = self.predict_proba(X)
-        y_pred = self.predict(X)
+        precision_curve, recall_curve, thresholds = precision_recall_curve(y, y_proba)
+        threshold_rows = []
+        for threshold in thresholds:
+            pred = (y_proba >= threshold).astype(int)
+            threshold_rows.append(
+                {
+                    "threshold": float(threshold),
+                    "precision": float(precision_score(y, pred, zero_division=0)),
+                    "recall": float(recall_score(y, pred, zero_division=0)),
+                    "f1": float(f1_score(y, pred, zero_division=0)),
+                    "flagged": int(pred.sum()),
+                }
+            )
+        if threshold_rows:
+            best_threshold = max(
+                threshold_rows,
+                key=lambda row: (row["f1"], row["precision"], -row["flagged"]),
+            )
+        else:
+            best_threshold = {
+                "threshold": 0.5,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "flagged": 0,
+            }
+        y_pred = (y_proba >= best_threshold["threshold"]).astype(int)
         
         try:
             auc_roc = roc_auc_score(y, y_proba)
         except ValueError:
             auc_roc = 0.5
         
-        # Classification metrics
-        from sklearn.metrics import precision_score, recall_score, f1_score
         precision = precision_score(y, y_pred, zero_division=0)
         recall = recall_score(y, y_pred, zero_division=0)
         f1 = f1_score(y, y_pred, zero_division=0)
         
         print(f"  AUC-ROC (Holdout): {auc_roc:.3f}")
+        print(
+            "  Operating threshold: "
+            f"{best_threshold['threshold']:.3f} "
+            f"({best_threshold['flagged']} flagged)"
+        )
         print(f"  Precision: {precision:.3f}  Recall: {recall:.3f}  F1: {f1:.3f}")
         
         # --- OVERFITTING CHECK ---
@@ -624,7 +692,22 @@ class CrisisClassifier:
             'precision': precision,
             'recall': recall,
             'f1': f1,
-            'accuracy': (y_pred == y).mean()
+            'accuracy': (y_pred == y).mean(),
+            'operating_threshold': best_threshold["threshold"],
+            'flagged': best_threshold["flagged"],
+            'threshold_policy': 'max_f1_on_validation_set',
+            'threshold_diagnostics': {
+                f"recall_at_least_{int(target * 100)}": max(
+                    (
+                        row
+                        for row in threshold_rows
+                        if row["recall"] >= target
+                    ),
+                    key=lambda row: (row["precision"], row["f1"], -row["flagged"]),
+                    default=None,
+                )
+                for target in (0.70, 0.60, 0.50, 0.40, 0.30)
+            },
         }
     
     def save(self, path: str = None):
@@ -649,6 +732,7 @@ class CrisisClassifier:
                     'random_state': self.random_state,
                     'use_smote': self.use_smote,
                     'ensemble': self.ensemble,
+                    'model_kind': self.model_kind,
                 },
             }, f)
         
@@ -903,6 +987,70 @@ def _compute_lag_features(weo_df, target_year, countries):
         ca_lag = ca_data[ca_data['year'] == target_year - 3]['value']
         if len(ca_t) > 0 and len(ca_lag) > 0:
             row['ca_deterioration_3yr'] = ca_t.iloc[0] - ca_lag.iloc[0]
+            row['ca_deficit_widening_3y'] = max(0, -ca_t.iloc[0]) - max(
+                0,
+                -ca_lag.iloc[0],
+            )
+        if len(ca_t) > 0:
+            row['ca_deficit_severity'] = max(0, -ca_t.iloc[0])
+
+        # Fiscal liquidity / affordability dynamics. These are year-matched
+        # WEO-derived ratios, so they are valid pre-crisis classifier inputs.
+        # Interest expense = primary balance - overall balance.
+        revenue_data = c_data[c_data['indicator_code'] == 'GGR_NGDP']
+        primary_data = c_data[c_data['indicator_code'] == 'GGXONLB_NGDP']
+        fiscal_data = c_data[c_data['indicator_code'] == 'GGXCNL_NGDP']
+
+        revenue_t = revenue_data[revenue_data['year'] == target_year]['value']
+        revenue_lag = revenue_data[revenue_data['year'] == target_year - 3]['value']
+        primary_t = primary_data[primary_data['year'] == target_year]['value']
+        primary_lag = primary_data[primary_data['year'] == target_year - 3]['value']
+        fiscal_t = fiscal_data[fiscal_data['year'] == target_year]['value']
+        fiscal_lag = fiscal_data[fiscal_data['year'] == target_year - 3]['value']
+
+        if len(revenue_t) > 0:
+            row['govt_revenue_gdp'] = revenue_t.iloc[0]
+        if len(revenue_t) > 0 and len(revenue_lag) > 0:
+            row['govt_revenue_gdp_change_3y'] = (
+                revenue_t.iloc[0] - revenue_lag.iloc[0]
+            )
+        if len(fiscal_t) > 0 and len(fiscal_lag) > 0:
+            row['fiscal_balance_change_3y'] = fiscal_t.iloc[0] - fiscal_lag.iloc[0]
+        if len(primary_t) > 0 and len(primary_lag) > 0:
+            row['primary_balance_change_3y'] = (
+                primary_t.iloc[0] - primary_lag.iloc[0]
+            )
+        if (
+            len(revenue_t) > 0
+            and len(revenue_lag) > 0
+            and len(primary_t) > 0
+            and len(primary_lag) > 0
+            and len(fiscal_t) > 0
+            and len(fiscal_lag) > 0
+            and revenue_t.iloc[0] > 0
+            and revenue_lag.iloc[0] > 0
+        ):
+            interest_to_revenue = (
+                primary_t.iloc[0] - fiscal_t.iloc[0]
+            ) / revenue_t.iloc[0] * 100
+            lag_interest_to_revenue = (
+                primary_lag.iloc[0] - fiscal_lag.iloc[0]
+            ) / revenue_lag.iloc[0] * 100
+            row['govt_interest_to_revenue_change_3y'] = (
+                interest_to_revenue - lag_interest_to_revenue
+            )
+        if (
+            len(debt_t) > 0
+            and len(debt_lag) > 0
+            and len(revenue_t) > 0
+            and len(revenue_lag) > 0
+            and revenue_t.iloc[0] > 0
+            and revenue_lag.iloc[0] > 0
+        ):
+            row['govt_debt_to_revenue_change_3y'] = (
+                debt_t.iloc[0] / revenue_t.iloc[0] * 100
+                - debt_lag.iloc[0] / revenue_lag.iloc[0] * 100
+            )
         
         if len(row) > 1:
             lag_features.append(row)
@@ -951,6 +1099,14 @@ MONOTONE_DIRECTION = {
     'political_stability': -1,   # Political resilience
     'gdp_growth_3yr_avg': -1,    # Sustained growth
     'ca_deterioration_3yr': -1,  # Positive = improvement -> less crisis
+    'years_since_banking_crisis': -1,  # Recent completed crisis = residual fragility
+    'govt_revenue_gdp': -1,       # Stronger revenue base = fiscal liquidity
+    'govt_revenue_gdp_change_3y': -1,  # Improving revenue base = resilience
+    'fiscal_balance_change_3y': -1,  # Improving balance = resilience
+    'primary_balance_change_3y': -1,  # Improving primary balance = resilience
+    'govt_debt_to_revenue_change_3y': 1,  # Rising debt/revenue = stress
+    'govt_interest_to_revenue_change_3y': 1,  # Rising interest burden = stress
+    'ca_deficit_widening_3y': 1,  # Widening deficit = external pressure
     'income_diversification': -1, # Diversified revenue
     'deposit_to_total_assets': -1, # Stable funding
     'customer_deposits_loans': -1, # Deposit-funded loans
@@ -996,6 +1152,18 @@ def _build_monotone_constraints(feature_cols):
     print(f"  Unconstrained:            {sum(1 for c in constraints if c == 0)}")
     
     return tuple(constraints)
+
+
+def _years_since_banking_crisis(labels, country_code: str, reference_year: int) -> float:
+    """Years since the last completed systemic banking crisis before reference year."""
+    completed = [
+        end_year
+        for start_year, end_year in labels.crises.get(country_code, [])
+        if end_year < reference_year
+    ]
+    if not completed:
+        return 25.0
+    return min(25.0, float(reference_year - max(completed)))
 
 
 def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
@@ -1117,6 +1285,12 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
             elif 'development_tier' in features.columns:
                 tier_map = features.set_index('country_code')['development_tier']
                 epoch_features['development_tier'] = epoch_features['country_code'].map(tier_map)
+
+            epoch_features['years_since_banking_crisis'] = epoch_features[
+                'country_code'
+            ].apply(
+                lambda c, yr=ref_year: _years_since_banking_crisis(labels, c, yr)
+            )
             
             # Add crisis labels
             epoch_features['crisis_target'] = epoch_features['country_code'].apply(
@@ -1148,6 +1322,11 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
             epoch_df = features.copy()
             epoch_df['crisis_target'] = epoch_labels
             epoch_df['epoch'] = ref_year
+            epoch_df['years_since_banking_crisis'] = epoch_df[
+                'country_code'
+            ].apply(
+                lambda c, yr=ref_year: _years_since_banking_crisis(labels, c, yr)
+            )
             n_crisis = int(epoch_labels.sum())
             print(f"  Epoch {ref_year}: {n_crisis} crises / {len(epoch_labels)} countries")
             epoch_datasets.append(epoch_df)
@@ -1221,8 +1400,9 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
         n_estimators=50,
         max_depth=2,
         learning_rate=0.1,
-        use_smote=True,
-        ensemble=True
+        use_smote=False,
+        ensemble=False,
+        model_kind="logistic",
     )
     
     classifier.fit(X_train, y_train, cv=5, sample_weights=w_train,
@@ -1261,8 +1441,9 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
             n_estimators=50,
             max_depth=2,
             learning_rate=0.1,
-            use_smote=True,
+            use_smote=False,
             ensemble=False,
+            model_kind="logistic",
         )
         temporal_classifier.fit(
             X.loc[temporal_train_mask],
@@ -1301,7 +1482,10 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
     classifier_full = CrisisClassifier(
         n_estimators=200,
         max_depth=3,
-        learning_rate=0.05
+        learning_rate=0.05,
+        use_smote=False,
+        ensemble=False,
+        model_kind="logistic",
     )
     classifier_full.fit(X, y, cv=5, sample_weights=sample_weights,
                         monotone_constraints=mc, groups=groups)
@@ -1319,14 +1503,26 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
     # Add lag features from latest WEO data if available. The reference year
     # comes from the snapshot cutoff, never the wall clock, so a rebuild of a
     # historical snapshot reproduces the same deployment lags.
+    import pandas as _pd
+    cutoff = _pd.Timestamp(as_of_date or f"{_pd.Timestamp.today().year - 1}-12-31")
+    latest_year = cutoff.year if cutoff.month == 12 else cutoff.year - 1
     if weo_df is not None and use_panel:
-        import pandas as _pd
-        cutoff = _pd.Timestamp(as_of_date or f"{_pd.Timestamp.today().year - 1}-12-31")
-        latest_year = cutoff.year if cutoff.month == 12 else cutoff.year - 1
         latest_lags = _compute_lag_features(weo_df, latest_year, all_countries)
         if len(latest_lags) > 0:
-            lag_cols = ['gdp_growth_3yr_avg', 'inflation_acceleration',
-                        'debt_buildup_3yr', 'ca_deterioration_3yr']
+            lag_cols = [
+                'gdp_growth_3yr_avg',
+                'inflation_acceleration',
+                'debt_buildup_3yr',
+                'ca_deterioration_3yr',
+                'ca_deficit_severity',
+                'ca_deficit_widening_3y',
+                'govt_revenue_gdp',
+                'govt_revenue_gdp_change_3y',
+                'fiscal_balance_change_3y',
+                'primary_balance_change_3y',
+                'govt_debt_to_revenue_change_3y',
+                'govt_interest_to_revenue_change_3y',
+            ]
             # The loaded feature parquet may already carry lag columns; drop
             # them before merging so pandas does not suffix both copies and
             # orphan the original names.
@@ -1337,6 +1533,13 @@ def train_crisis_model(weo_df=None, fsic_df=None, as_of_date=None):
             for lag_col in lag_cols:
                 if lag_col in features.columns and lag_col not in deploy_feature_cols:
                     deploy_feature_cols.append(lag_col)
+
+    if 'years_since_banking_crisis' in feature_cols:
+        features['years_since_banking_crisis'] = features['country_code'].apply(
+            lambda c: _years_since_banking_crisis(labels, c, latest_year + 1)
+        )
+        if 'years_since_banking_crisis' not in deploy_feature_cols:
+            deploy_feature_cols.append('years_since_banking_crisis')
     
     orig_X = features[deploy_feature_cols].copy()
     # Fill missing columns with NaN (classifier will handle via median imputation)

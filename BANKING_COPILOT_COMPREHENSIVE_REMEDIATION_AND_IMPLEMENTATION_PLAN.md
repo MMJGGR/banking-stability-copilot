@@ -2789,3 +2789,53 @@ Items that remain open and why they cannot be closed from this environment:
     tests/test_liquidity_challenger.py -q` passed (12 passed); Streamlit
     AppTest passed with zero exceptions for base, liquidity-only,
     commodity-only, and combined overlay states.
+- [x] Checkpoint 43: Improve crisis-classifier ROC-AUC/precision and package
+  honest validation.
+  - Scope: crisis-classifier training path, validation reporting, and refreshed
+    2026-06-30 model artifacts. The pillar framework and candidate overlay
+    governance are unchanged.
+  - Issue: packaged crisis validation showed ROC-AUC 0.616 and precision 0.10.
+    The classifier was too recall-oriented to be interpreted as a usable model
+    signal. Local training also revealed that SMOTE was unavailable because the
+    environment had an incompatible `imbalanced-learn` version.
+  - Changes:
+    - Upgraded the local training environment to the repo-pinned
+      `imbalanced-learn==0.14.0`; the code now reports the actual SMOTE import
+      error if dependency resolution breaks again.
+    - Added year-matched crisis-recency memory
+      (`years_since_banking_crisis`) to the crisis panel.
+    - Added year-matched fiscal/external deterioration features:
+      `govt_revenue_gdp`, `govt_revenue_gdp_change_3y`,
+      `fiscal_balance_change_3y`, `primary_balance_change_3y`,
+      `govt_debt_to_revenue_change_3y`,
+      `govt_interest_to_revenue_change_3y`, `ca_deficit_severity`, and
+      `ca_deficit_widening_3y`.
+    - Switched the crisis classifier to a regularized, class-weighted logistic
+      rare-event model after controlled grouped validation showed the simpler
+      model gave better ROC-AUC/precision than the XGBoost path on this sparse
+      crisis panel.
+    - Replaced the fixed 0.5 evaluation threshold with a validation-derived
+      operating threshold and threshold diagnostics, so precision/recall are
+      measured at a realistic rare-event threshold.
+    - Refreshed `artifacts/crisis_validation_summary.json` and the packaged
+      confusion-matrix image for the Methodology tab.
+  - Validation result:
+    - Previous packaged validation: ROC-AUC 0.616, precision 0.10, recall 0.83.
+    - New deployment grouped CV ROC-AUC: 0.655.
+    - New unseen-country holdout: ROC-AUC 0.683, precision 0.235, recall 0.343,
+      F1 0.279 at threshold 0.130.
+    - New out-of-time 2018 holdout: ROC-AUC 0.646, precision 0.081, recall
+      0.625, F1 0.143 at threshold 0.077.
+    - Score movement versus the previous committed active artifact is controlled:
+      mean absolute score delta 0.175, Spearman rank correlation 0.991, and
+      6/201 countries move by at least 1 point.
+  - Status: improved, but not solved. The classifier is now more usable as a
+    weak-to-moderate early-warning overlay, not as a stand-alone crisis
+    decision model. Further gains likely require better banking-system stress,
+    deposit/funding, market-access, and liquidity time series rather than only
+    estimator tuning.
+  - Verification: `python -m py_compile src/crisis_classifier.py` passed;
+    `PYTHONPATH=. pytest tests/test_crisis_classifier.py
+    tests/test_crisis_labels.py -q` passed (6 passed); local 2026-06-30
+    retrain with `--retrain-classifier` passed snapshot validation (3 passed,
+    0 failed).
