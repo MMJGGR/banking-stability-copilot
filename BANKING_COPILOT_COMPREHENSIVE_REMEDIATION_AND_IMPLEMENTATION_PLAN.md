@@ -2711,3 +2711,23 @@ Items that remain open and why they cannot be closed from this environment:
     tests/test_peer_selection.py tests/test_calculated_series.py
     tests/test_liquidity_challenger.py -q` passed (31 passed); direct
     `import app` succeeded in bare mode.
+- [x] Checkpoint 40: Add challenger overlay and dominant live driver context.
+  - Scope: app surfacing only. Active production scores and model artifacts are
+    unchanged.
+  - Issue: users need a way to inspect challenger effects without confusing
+    them with the live score, and peer comparison needed a compact explanation
+    of what primarily drives each displayed country.
+  - Changes:
+    - Added an optional `Show liquidity challenger overlay` toggle in the
+      Country Profile peer table. When enabled, it displays the saved
+      monitoring-only challenger score and delta beside the live score.
+    - Added `Dominant Driver` to the peer table using live score attribution
+      only, so selected country and peers show the largest live feature
+      contribution without mixing candidate fields into Score Drivers.
+    - Added Methodology text clarifying that the challenger overlay is
+      analytical only and does not change live scores, rankings, or score
+      drivers.
+  - Verification: `python -m py_compile app.py` passed; `PYTHONPATH=. pytest
+    tests/test_peer_selection.py tests/test_calculated_series.py
+    tests/test_government_liquidity_features.py tests/test_liquidity_challenger.py
+    -q` passed (18 passed); direct `import app` succeeded in bare mode.

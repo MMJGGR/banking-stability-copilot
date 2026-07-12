@@ -343,6 +343,9 @@ MODEL_MONITORING_REPORT_PATHS = (
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
 CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
+LIQUIDITY_CHALLENGER_SCORES_PATH = (
+    BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
+)
 EXTERNAL_SOURCE_LABEL = "External liquidity"
 GOVT_FEATURES_PATHS = (
     EXTERNAL_REFERENCE_DIR / "government_liquidity_features.parquet",
@@ -602,6 +605,46 @@ def compute_country_drivers(snapshot: str, country_code: str,
 
     report = build_driver_table([country_code], model=_model, pipeline=_pipeline)
     return report["countries"][country_code]
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def compute_peer_dominant_drivers(
+    snapshot: str,
+    country_codes: tuple[str, ...],
+    version: str,
+    _model: dict,
+    _pipeline,
+) -> dict:
+    """Return the dominant live-score driver for each displayed peer country."""
+    from src.scripts.explain_country_scores import build_driver_table
+
+    report = build_driver_table(list(country_codes), model=_model, pipeline=_pipeline)
+    output = {}
+    for country_code in country_codes:
+        payload = report.get("countries", {}).get(country_code, {})
+        drivers = payload.get("drivers") or []
+        if not drivers:
+            output[country_code] = "—"
+            continue
+        dominant = max(drivers, key=lambda item: abs(item.get("risk_contribution", 0.0)))
+        contribution = dominant.get("risk_contribution")
+        direction = "raises risk" if contribution is not None and contribution >= 0 else "lowers risk"
+        output[country_code] = f"{dominant.get('feature', '—')} ({direction})"
+    return output
+
+
+@st.cache_data(show_spinner=False)
+def load_liquidity_challenger_scores() -> pd.DataFrame:
+    """Load optional liquidity challenger scores for non-production overlays."""
+    if not LIQUIDITY_CHALLENGER_SCORES_PATH.exists():
+        return pd.DataFrame()
+    frame = pd.read_parquet(LIQUIDITY_CHALLENGER_SCORES_PATH)
+    if "country_code" not in frame.columns or "risk_score" not in frame.columns:
+        return pd.DataFrame()
+    frame = frame[["country_code", "risk_score"]].copy()
+    frame["country_code"] = frame["country_code"].astype(str).str.upper()
+    frame = frame.rename(columns={"risk_score": "candidate_risk_score"})
+    return frame.drop_duplicates("country_code")
 
 
 @st.cache_data(show_spinner=False, max_entries=48)
@@ -2140,6 +2183,11 @@ def render_model_monitoring_summary():
         "Candidate features are reviewed through score movement before they are "
         "promoted into the active serving artifact."
     )
+    st.caption(
+        "The Country Profile peer table can optionally display the saved challenger "
+        "score as an overlay. That overlay is analytical only and does not change "
+        "the live score, ranking, or score drivers."
+    )
 
     if report:
         effect = _comparison_block(report)
@@ -2952,7 +3000,10 @@ with tab_profile:
         peer_codes = custom_peer_codes or nearest_peer_codes[:4]
 
         if peer_codes:
-            comparison_cols = ['country_name', 'risk_score', 'economic_pillar', 'industry_pillar', 'data_coverage']
+            comparison_cols = [
+                'country_code', 'country_name', 'risk_score',
+                'economic_pillar', 'industry_pillar', 'data_coverage'
+            ]
             display_names = {
                 'country_name': 'Country',
                 'risk_score': 'Risk Score',
@@ -2970,6 +3021,57 @@ with tab_profile:
             )
             peer_rows = peer_rows.sort_values('_peer_order')
             peers_comparison = pd.concat([selected_row, peer_rows[comparison_cols]], ignore_index=True)
+
+            displayed_codes = tuple(peers_comparison["country_code"].astype(str).str.upper().tolist())
+            try:
+                peer_driver_version = _serving_ver if selected_snapshot == "Active" else selected_snapshot
+                peer_driver_pipeline = load_inference_pipeline(selected_snapshot, peer_driver_version)
+                peer_driver_model = (
+                    active_model
+                    if selected_snapshot == "Active"
+                    else load_archived_snapshot_cached(selected_snapshot)[0]
+                )
+                dominant_drivers = compute_peer_dominant_drivers(
+                    selected_snapshot,
+                    displayed_codes,
+                    peer_driver_version,
+                    peer_driver_model,
+                    peer_driver_pipeline,
+                )
+            except Exception:
+                dominant_drivers = {code: "—" for code in displayed_codes}
+
+            peers_comparison["Dominant Driver"] = (
+                peers_comparison["country_code"].astype(str).str.upper().map(dominant_drivers).fillna("—")
+            )
+
+            show_challenger_overlay = st.toggle(
+                "Show liquidity challenger overlay",
+                value=False,
+                key=f"show_liquidity_challenger_{selected_country_code}",
+                help=(
+                    "Shows the monitoring-only balanced liquidity challenger score "
+                    "beside the live score. It does not change the live model."
+                ),
+            )
+            if show_challenger_overlay:
+                challenger_scores = load_liquidity_challenger_scores()
+                if challenger_scores.empty:
+                    st.caption("Liquidity challenger scores are not packaged with this deployment.")
+                else:
+                    peers_comparison = peers_comparison.merge(
+                        challenger_scores,
+                        on="country_code",
+                        how="left",
+                    )
+                    peers_comparison["Challenger Score"] = peers_comparison[
+                        "candidate_risk_score"
+                    ]
+                    peers_comparison["Δ Challenger"] = (
+                        peers_comparison["candidate_risk_score"]
+                        - pd.to_numeric(peers_comparison["risk_score"], errors="coerce")
+                    )
+
             peers_comparison = peers_comparison.rename(columns=display_names)
             peers_comparison.insert(
                 0,
@@ -2984,13 +3086,23 @@ with tab_profile:
             peers_comparison['Operating Env.'] = peers_comparison['Operating Env.'].apply(lambda x: f"{x:.1f}")
             peers_comparison['Banking System'] = peers_comparison['Banking System'].apply(lambda x: f"{x:.1f}")
             peers_comparison['Coverage'] = peers_comparison['Coverage'].apply(lambda x: f"{x:.0%}")
+            if "Challenger Score" in peers_comparison.columns:
+                peers_comparison["Challenger Score"] = peers_comparison["Challenger Score"].apply(
+                    lambda x: "—" if pd.isna(x) else f"{x:.1f}"
+                )
+                peers_comparison["Δ Challenger"] = peers_comparison["Δ Challenger"].apply(
+                    lambda x: "—" if pd.isna(x) else f"{x:+.1f}"
+                )
+                peers_comparison = peers_comparison.drop(columns=["candidate_risk_score"], errors="ignore")
+            peers_comparison = peers_comparison.drop(columns=["country_code"], errors="ignore")
 
             st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
 
             st.caption(
                 "Defaults use model score proximity, economic scale, development "
                 "level, banking structure, and liquidity features. Edit the peer "
-                "set above for a custom comparison."
+                "set above for a custom comparison. Dominant Driver is based on "
+                "the live score attribution; challenger overlay is monitoring-only."
             )
         else:
             st.caption("Unable to find peer countries.")
