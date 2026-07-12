@@ -483,6 +483,14 @@ def build_external_liquidity_features(
         model_country_set = set(
             model["country_scores"]["country_code"].dropna().astype(str).str.upper()
         )
+    else:
+        try:
+            model = load_model_artifact()
+            model_country_set = set(
+                model["country_scores"]["country_code"].dropna().astype(str).str.upper()
+            )
+        except Exception:  # noqa: BLE001 - coverage can still be computed from the passed frame
+            model_country_set = None
     base_columns = ["country_code", "nominal_gdp"]
     if "fiscal_balance_gdp" in model_features.columns:
         base_columns.append("fiscal_balance_gdp")
@@ -641,7 +649,7 @@ def build_external_liquidity_features(
             for col in feature_cols
         },
         "notes": [
-            "Features are staged challenger inputs and are not wired into production scoring.",
+            "A curated subset is production-scored when included in the active model artifact; lower-coverage World Bank debt-service and market-access fields are monitored as challenger / insight features pending score-movement review.",
             "gross_external_financing_need_proxy_gdp is a proxy: current-account deficit plus absolute portfolio-liability flow over GDP.",
             "WB additions intentionally avoid duplicating current-account, reserves, and broad external-liquidity metrics already covered by IMF/WEO/MFS/BOP/IIP.",
             "wb_public_financing_need_ext_debt_service_proxy_gdp is a fiscal/debt-service stress proxy: fiscal deficit plus public-and-publicly-guaranteed external debt service over GDP; it is not a classic gross financing need measure because debt service includes interest.",

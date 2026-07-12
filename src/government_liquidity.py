@@ -170,6 +170,14 @@ def build_government_liquidity_features(
         model_country_set = set(
             model["country_scores"]["country_code"].dropna().astype(str).str.upper()
         )
+    else:
+        try:
+            model = load_model_artifact()
+            model_country_set = set(
+                model["country_scores"]["country_code"].dropna().astype(str).str.upper()
+            )
+        except Exception:  # noqa: BLE001 - coverage can still be computed from the passed frame
+            model_country_set = None
 
     base = model_features[["country_code"]].copy()
     base["country_code"] = base["country_code"].astype(str).str.upper()

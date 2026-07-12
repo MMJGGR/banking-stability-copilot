@@ -29,6 +29,12 @@ ECONOMIC_FEATURES = [
     "reserves_to_goods_services_imports",
     "gross_external_financing_need_proxy_gdp",
     "investment_income_debits_to_cxr",
+    "reserves_to_current_account_payments",
+    "portfolio_liabilities_gdp",
+    "commodity_export_share_pct",
+    "wb_total_external_debt_service_gni_pct",
+    "wb_ppg_external_debt_service_gdp",
+    "wb_public_financing_need_ext_debt_service_proxy_gdp",
 ]
 
 # Challenger v2 (2026-07-10): the level-share features `real_estate_loans`
@@ -89,6 +95,12 @@ FEATURE_RISK_DIRECTIONS = {
     "reserves_to_goods_services_imports": -1.0,  # more import cover = safer
     "gross_external_financing_need_proxy_gdp": 1.0,
     "investment_income_debits_to_cxr": 1.0,  # external income-service burden
+    "reserves_to_current_account_payments": -1.0,
+    "portfolio_liabilities_gdp": 1.0,
+    "commodity_export_share_pct": 1.0,
+    "wb_total_external_debt_service_gni_pct": 1.0,
+    "wb_ppg_external_debt_service_gdp": 1.0,
+    "wb_public_financing_need_ext_debt_service_proxy_gdp": 1.0,
     # Industry pillar
     "capital_adequacy": -1.0,
     "npl_ratio": 1.0,

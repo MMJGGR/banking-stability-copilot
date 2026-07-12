@@ -144,7 +144,13 @@ APP_PEER_FEATURE_WEIGHTS = getattr(
         "net_iip_gdp": 0.65,
         "external_liabilities_gdp": 0.55,
         "reserves_to_goods_services_imports": 0.65,
+        "reserves_to_current_account_payments": 0.55,
         "gross_external_financing_need_proxy_gdp": 0.75,
+        "portfolio_liabilities_gdp": 0.45,
+        "commodity_export_share_pct": 0.35,
+        "wb_total_external_debt_service_gni_pct": 0.35,
+        "wb_ppg_external_debt_service_gdp": 0.35,
+        "wb_public_financing_need_ext_debt_service_proxy_gdp": 0.35,
         "current_account_gdp": 0.35,
         "govt_debt_gdp": 0.35,
     },
@@ -325,6 +331,12 @@ EXTERNAL_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "external_liquidity_features_report.json",
     BASE_DIR / "artifacts" / "wb_debt_service_report.json",
 )
+MODEL_MONITORING_REPORT_PATHS = (
+    BASE_DIR / "artifacts" / "liquidity_candidate_score_movement.json",
+    BASE_DIR / "artifacts" / "liquidity_challenger_comparison.json",
+)
+CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
+CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
 EXTERNAL_SOURCE_LABEL = "External liquidity"
 GOVT_FEATURES_PATHS = (
     EXTERNAL_REFERENCE_DIR / "government_liquidity_features.parquet",
@@ -646,7 +658,121 @@ def load_external_insight_data() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         observations["frequency"] = "A"
         observations = observations.dropna(subset=["period", "value"])
 
+    observations = _append_external_derived_observations(observations)
+
     return features, observations, report
+
+
+def _append_external_derived_observations(observations: pd.DataFrame) -> pd.DataFrame:
+    """Append derived annual external-liquidity series for Explorer charts."""
+    if observations is None or observations.empty:
+        return observations
+
+    required = {
+        "country_code",
+        "period",
+        "period_label",
+        "frequency",
+        "feature_key",
+        "value",
+    }
+    if not required.issubset(observations.columns):
+        return observations
+
+    base = observations.copy()
+    base["value"] = pd.to_numeric(base["value"], errors="coerce")
+    pivot = (
+        base.dropna(subset=["value"])
+        .sort_values("period")
+        .pivot_table(
+            index=["country_code", "period", "period_label", "frequency"],
+            columns="feature_key",
+            values="value",
+            aggfunc="last",
+        )
+        .reset_index()
+    )
+    if pivot.empty:
+        return observations
+
+    def col(name: str) -> pd.Series:
+        if name in pivot.columns:
+            return pd.to_numeric(pivot[name], errors="coerce")
+        return pd.Series(pd.NA, index=pivot.index, dtype="Float64")
+
+    derived = pd.DataFrame(
+        {
+            "country_code": pivot["country_code"],
+            "period": pivot["period"],
+            "period_label": pivot["period_label"],
+            "frequency": pivot["frequency"],
+        }
+    )
+
+    commodity_components = pd.concat(
+        [
+            col("wb_fuel_exports_pct"),
+            col("wb_ores_metals_exports_pct"),
+            col("wb_agri_raw_exports_pct"),
+            col("wb_food_exports_pct"),
+        ],
+        axis=1,
+    )
+    derived["commodity_export_share_pct"] = commodity_components.sum(
+        axis=1,
+        min_count=1,
+    ).clip(upper=100)
+
+    if {"fdi_liability_flows_usd", "portfolio_liability_flows_usd"}.issubset(pivot.columns):
+        fdi = col("fdi_liability_flows_usd").abs()
+        portfolio = col("portfolio_liability_flows_usd").abs()
+        denominator = (fdi + portfolio).replace({0: pd.NA})
+        derived["stable_financing_share"] = fdi / denominator * 100.0
+
+    if "wb_reer_index" in pivot.columns:
+        ordered = pivot[["country_code", "period", "wb_reer_index"]].copy()
+        ordered["wb_reer_index"] = pd.to_numeric(
+            ordered["wb_reer_index"],
+            errors="coerce",
+        )
+        ordered = ordered.sort_values(["country_code", "period"])
+        baseline = (
+            ordered.groupby("country_code")["wb_reer_index"]
+            .transform(lambda s: s.shift(1).rolling(5, min_periods=3).mean())
+        )
+        gap = (ordered["wb_reer_index"] / baseline - 1.0) * 100.0
+        derived["reer_appreciation_5y_pct"] = gap.to_numpy()
+
+    value_columns = [
+        column for column in derived.columns
+        if column not in {"country_code", "period", "period_label", "frequency"}
+    ]
+    rows = []
+    for feature_key in value_columns:
+        part = derived[
+            ["country_code", "period", "period_label", "frequency", feature_key]
+        ].rename(columns={feature_key: "value"})
+        part = part.dropna(subset=["value"])
+        if part.empty:
+            continue
+        part["feature_key"] = feature_key
+        part["indicator_code"] = feature_key
+        part["feature_label"] = EXTERNAL_FEATURE_LABELS.get(
+            feature_key,
+            feature_key.replace("_", " ").title(),
+        )
+        part["indicator_name"] = part["feature_label"]
+        rows.append(part)
+
+    if not rows:
+        return observations
+
+    additions = pd.concat(rows, ignore_index=True)
+    combined = pd.concat([observations, additions], ignore_index=True, sort=False)
+    return combined.drop_duplicates(
+        ["country_code", "period", "feature_key"],
+        keep="last",
+    ).reset_index(drop=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -1849,6 +1975,107 @@ def _source_role(source_name: str) -> str:
     return roles.get(source_name, "Supporting source")
 
 
+def _load_first_json(paths: tuple[Path, ...]) -> dict:
+    for path in paths:
+        if path.exists():
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    return {}
+
+
+def _comparison_block(report: dict) -> dict:
+    for key in (
+        "candidate_effect_vs_active_retrain",
+        "feature_effect_challenger_vs_control",
+        "headline_candidate_vs_production",
+        "headline_challenger_vs_production",
+    ):
+        value = report.get(key)
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def render_model_monitoring_summary():
+    report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
+    validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
+
+    st.markdown("#### Model Monitoring")
+    st.caption(
+        "Candidate features are reviewed through score movement before they are "
+        "promoted into the active serving artifact."
+    )
+
+    if report:
+        effect = _comparison_block(report)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Cutoff", _display_value(report.get("cutoff")))
+        c2.metric(
+            "Countries Compared",
+            _display_value(effect.get("countries_compared"), integer=True),
+        )
+        c3.metric(
+            "Mean |Δ Score|",
+            _display_value(effect.get("mean_absolute_score_change")),
+        )
+        c4.metric(
+            "Tier Changes",
+            _display_value(effect.get("risk_tier_changes"), integer=True),
+        )
+
+        candidate_features = report.get("candidate_features") or report.get("added_features") or []
+        if candidate_features:
+            st.caption(
+                "Monitored candidate inputs: "
+                + ", ".join(str(feature) for feature in candidate_features)
+            )
+
+        movements = effect.get("largest_movements") or []
+        if movements:
+            movement_df = pd.DataFrame(movements).rename(
+                columns={
+                    "country_code": "Country",
+                    "base": "Baseline",
+                    "challenger": "Candidate",
+                    "delta": "Δ Score",
+                }
+            )
+            st.dataframe(movement_df, use_container_width=True, hide_index=True)
+
+        if report.get("promotion_requires_owner_review"):
+            st.warning("Candidate promotion requires owner review under the score-movement gate.")
+        else:
+            st.success("Candidate score movement is within the configured review gate.")
+    else:
+        st.info("No liquidity candidate score-movement report is packaged with this deployment.")
+
+    with st.expander("Crisis classifier validation", expanded=False):
+        if validation:
+            metric_rows = [
+                {
+                    "Metric": str(key).replace("_", " ").title(),
+                    "Value": _display_value(value),
+                }
+                for key, value in validation.items()
+                if key not in {"notes", "confusion_matrix"}
+            ]
+            if metric_rows:
+                st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
+            if isinstance(validation.get("confusion_matrix"), dict):
+                matrix = pd.DataFrame(validation["confusion_matrix"])
+                st.dataframe(matrix, use_container_width=True)
+            if validation.get("notes"):
+                for note in validation["notes"]:
+                    st.caption(str(note))
+        else:
+            st.info("No structured crisis-validation summary is packaged with this deployment.")
+
+        if CRISIS_CONFUSION_MATRIX_PATH.exists():
+            st.image(str(CRISIS_CONFUSION_MATRIX_PATH), caption="Crisis classifier confusion matrix")
+
+
 def render_model_card_summary(
     scores: pd.DataFrame,
     features: pd.DataFrame | None,
@@ -1937,8 +2164,8 @@ Do not use for:
             },
             {
                 "Issue": "External liquidity gap",
-                "Why it matters": "Debt service burden, gross external financing needs, current-account receipts, reserves adequacy and portfolio-flow stress are not yet fully modeled.",
-                "Status": "Priority enhancement candidate",
+                "Why it matters": "Debt-service, reserves, current-account, portfolio and commodity-exposure fields have uneven official-source coverage.",
+                "Status": "Core fields active; lower-coverage fields monitored as candidates",
             },
             {
                 "Issue": "Imputation sensitivity",
@@ -1954,6 +2181,7 @@ Do not use for:
         "grouped/out-of-time validation, material score-movement review, challenger comparison, "
         "and named approval with rollback artifacts."
     )
+    render_model_monitoring_summary()
 
 
 def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):

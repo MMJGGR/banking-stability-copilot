@@ -26,7 +26,13 @@ PEER_FEATURE_WEIGHTS = {
     "net_iip_gdp": 0.65,
     "external_liabilities_gdp": 0.55,
     "reserves_to_goods_services_imports": 0.65,
+    "reserves_to_current_account_payments": 0.55,
     "gross_external_financing_need_proxy_gdp": 0.75,
+    "portfolio_liabilities_gdp": 0.45,
+    "commodity_export_share_pct": 0.35,
+    "wb_total_external_debt_service_gni_pct": 0.35,
+    "wb_ppg_external_debt_service_gdp": 0.35,
+    "wb_public_financing_need_ext_debt_service_proxy_gdp": 0.35,
     "current_account_gdp": 0.35,
     "govt_debt_gdp": 0.35,
 }

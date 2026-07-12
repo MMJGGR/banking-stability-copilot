@@ -1,0 +1,443 @@
+{
+  "active_features": [
+    "govt_interest_to_revenue",
+    "govt_debt_to_revenue",
+    "net_iip_gdp",
+    "external_liabilities_gdp",
+    "reserves_to_goods_services_imports",
+    "gross_external_financing_need_proxy_gdp",
+    "investment_income_debits_to_cxr"
+  ],
+  "candidate_effect_vs_active_retrain": {
+    "countries_compared": 201,
+    "countries_moving_at_least_one_point": 60,
+    "label": "candidate_vs_active_retrain",
+    "largest_movements": [
+      {
+        "base": 3.6,
+        "challenger": 6.3,
+        "country_code": "BLZ",
+        "delta": 2.7
+      },
+      {
+        "base": 7.1,
+        "challenger": 4.5,
+        "country_code": "CHN",
+        "delta": -2.6
+      },
+      {
+        "base": 2.2,
+        "challenger": 4.6,
+        "country_code": "LIE",
+        "delta": 2.4
+      },
+      {
+        "base": 2.4,
+        "challenger": 4.7,
+        "country_code": "SYC",
+        "delta": 2.3
+      },
+      {
+        "base": 5.3,
+        "challenger": 7.6,
+        "country_code": "MDV",
+        "delta": 2.3
+      },
+      {
+        "base": 4.3,
+        "challenger": 6.5,
+        "country_code": "KWT",
+        "delta": 2.2
+      },
+      {
+        "base": 4.7,
+        "challenger": 6.9,
+        "country_code": "GMB",
+        "delta": 2.2
+      },
+      {
+        "base": 6.8,
+        "challenger": 4.6,
+        "country_code": "VNM",
+        "delta": -2.2
+      },
+      {
+        "base": 2.5,
+        "challenger": 4.6,
+        "country_code": "SGP",
+        "delta": 2.1
+      },
+      {
+        "base": 6.5,
+        "challenger": 4.4,
+        "country_code": "PHL",
+        "delta": -2.1
+      },
+      {
+        "base": 4.6,
+        "challenger": 2.5,
+        "country_code": "ISR",
+        "delta": -2.1
+      },
+      {
+        "base": 5.3,
+        "challenger": 3.2,
+        "country_code": "MEX",
+        "delta": -2.1
+      },
+      {
+        "base": 5.7,
+        "challenger": 7.8,
+        "country_code": "ECU",
+        "delta": 2.1
+      },
+      {
+        "base": 5.6,
+        "challenger": 7.6,
+        "country_code": "PNG",
+        "delta": 2.0
+      },
+      {
+        "base": 3.3,
+        "challenger": 5.2,
+        "country_code": "ISL",
+        "delta": 1.9
+      },
+      {
+        "base": 6.3,
+        "challenger": 4.4,
+        "country_code": "SVN",
+        "delta": -1.9
+      },
+      {
+        "base": 7.8,
+        "challenger": 5.9,
+        "country_code": "HUN",
+        "delta": -1.9
+      },
+      {
+        "base": 6.9,
+        "challenger": 5.1,
+        "country_code": "MAR",
+        "delta": -1.8
+      },
+      {
+        "base": 2.6,
+        "challenger": 4.4,
+        "country_code": "SLB",
+        "delta": 1.8
+      },
+      {
+        "base": 4.7,
+        "challenger": 6.5,
+        "country_code": "PRY",
+        "delta": 1.8
+      }
+    ],
+    "max_absolute_score_change": 2.7,
+    "mean_absolute_score_change": 0.716,
+    "rank_correlation_spearman": 0.912,
+    "risk_tier_changes": 67
+  },
+  "candidate_features": [
+    "reserves_to_current_account_payments",
+    "portfolio_liabilities_gdp",
+    "commodity_export_share_pct",
+    "wb_total_external_debt_service_gni_pct",
+    "wb_ppg_external_debt_service_gdp",
+    "wb_public_financing_need_ext_debt_service_proxy_gdp"
+  ],
+  "cutoff": "2026-06-30",
+  "faithfulness_active_retrain_vs_production": {
+    "countries_compared": 201,
+    "countries_moving_at_least_one_point": 0,
+    "label": "active_retrain_vs_production",
+    "largest_movements": [
+      {
+        "base": 4.6,
+        "challenger": 4.7,
+        "country_code": "DEU",
+        "delta": 0.1
+      },
+      {
+        "base": 5.3,
+        "challenger": 5.4,
+        "country_code": "GBR",
+        "delta": 0.1
+      },
+      {
+        "base": 4.1,
+        "challenger": 4.0,
+        "country_code": "MNE",
+        "delta": -0.1
+      },
+      {
+        "base": 4.5,
+        "challenger": 4.6,
+        "country_code": "ISR",
+        "delta": 0.1
+      },
+      {
+        "base": 6.0,
+        "challenger": 5.9,
+        "country_code": "GEO",
+        "delta": -0.1
+      },
+      {
+        "base": 8.5,
+        "challenger": 8.6,
+        "country_code": "BDI",
+        "delta": 0.1
+      },
+      {
+        "base": 1.2,
+        "challenger": 1.2,
+        "country_code": "NOR",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "TWN",
+        "delta": 0.0
+      },
+      {
+        "base": 7.4,
+        "challenger": 7.4,
+        "country_code": "JOR",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "ROU",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "PLW",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "NRU",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "MHL",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "UGA",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "PRI",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "TUV",
+        "delta": 0.0
+      },
+      {
+        "base": 7.3,
+        "challenger": 7.3,
+        "country_code": "KOS",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "TUR",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "LAO",
+        "delta": 0.0
+      },
+      {
+        "base": 7.5,
+        "challenger": 7.5,
+        "country_code": "KIR",
+        "delta": 0.0
+      }
+    ],
+    "max_absolute_score_change": 0.1,
+    "mean_absolute_score_change": 0.003,
+    "rank_correlation_spearman": 1.0,
+    "risk_tier_changes": 1
+  },
+  "feature_directions": {
+    "commodity_export_share_pct": "+1 (higher export concentration = riskier)",
+    "external_liabilities_gdp": "+1 (higher = riskier)",
+    "govt_debt_to_revenue": "+1 (higher = riskier)",
+    "govt_interest_to_revenue": "+1 (higher = riskier)",
+    "gross_external_financing_need_proxy_gdp": "+1 (higher = riskier)",
+    "investment_income_debits_to_cxr": "+1 (higher income-service burden = riskier)",
+    "net_iip_gdp": "-1 (higher net creditor = safer)",
+    "portfolio_liabilities_gdp": "+1 (larger market funding stock = riskier)",
+    "reserves_to_current_account_payments": "-1 (more reserve cover = safer)",
+    "reserves_to_goods_services_imports": "-1 (more import cover = safer)",
+    "wb_ppg_external_debt_service_gdp": "+1 (higher public external debt service = riskier)",
+    "wb_public_financing_need_ext_debt_service_proxy_gdp": "+1 (higher public financing pressure = riskier)",
+    "wb_total_external_debt_service_gni_pct": "+1 (higher debt-service burden = riskier)"
+  },
+  "generated": "2026-07-12",
+  "governance_thresholds": {
+    "mean_absolute_score_change": 0.5,
+    "rank_correlation_spearman": 0.9,
+    "risk_tier_changes": 15
+  },
+  "headline_candidate_vs_production": {
+    "countries_compared": 201,
+    "countries_moving_at_least_one_point": 60,
+    "label": "candidate_vs_production",
+    "largest_movements": [
+      {
+        "base": 3.6,
+        "challenger": 6.3,
+        "country_code": "BLZ",
+        "delta": 2.7
+      },
+      {
+        "base": 7.1,
+        "challenger": 4.5,
+        "country_code": "CHN",
+        "delta": -2.6
+      },
+      {
+        "base": 2.2,
+        "challenger": 4.6,
+        "country_code": "LIE",
+        "delta": 2.4
+      },
+      {
+        "base": 2.4,
+        "challenger": 4.7,
+        "country_code": "SYC",
+        "delta": 2.3
+      },
+      {
+        "base": 5.3,
+        "challenger": 7.6,
+        "country_code": "MDV",
+        "delta": 2.3
+      },
+      {
+        "base": 6.8,
+        "challenger": 4.6,
+        "country_code": "VNM",
+        "delta": -2.2
+      },
+      {
+        "base": 4.7,
+        "challenger": 6.9,
+        "country_code": "GMB",
+        "delta": 2.2
+      },
+      {
+        "base": 4.3,
+        "challenger": 6.5,
+        "country_code": "KWT",
+        "delta": 2.2
+      },
+      {
+        "base": 5.7,
+        "challenger": 7.8,
+        "country_code": "ECU",
+        "delta": 2.1
+      },
+      {
+        "base": 6.5,
+        "challenger": 4.4,
+        "country_code": "PHL",
+        "delta": -2.1
+      },
+      {
+        "base": 5.3,
+        "challenger": 3.2,
+        "country_code": "MEX",
+        "delta": -2.1
+      },
+      {
+        "base": 2.5,
+        "challenger": 4.6,
+        "country_code": "SGP",
+        "delta": 2.1
+      },
+      {
+        "base": 4.5,
+        "challenger": 2.5,
+        "country_code": "ISR",
+        "delta": -2.0
+      },
+      {
+        "base": 5.6,
+        "challenger": 7.6,
+        "country_code": "PNG",
+        "delta": 2.0
+      },
+      {
+        "base": 3.3,
+        "challenger": 5.2,
+        "country_code": "ISL",
+        "delta": 1.9
+      },
+      {
+        "base": 6.3,
+        "challenger": 4.4,
+        "country_code": "SVN",
+        "delta": -1.9
+      },
+      {
+        "base": 7.8,
+        "challenger": 5.9,
+        "country_code": "HUN",
+        "delta": -1.9
+      },
+      {
+        "base": 6.9,
+        "challenger": 5.1,
+        "country_code": "MAR",
+        "delta": -1.8
+      },
+      {
+        "base": 2.6,
+        "challenger": 4.4,
+        "country_code": "SLB",
+        "delta": 1.8
+      },
+      {
+        "base": 6.7,
+        "challenger": 4.9,
+        "country_code": "THA",
+        "delta": -1.8
+      }
+    ],
+    "max_absolute_score_change": 2.7,
+    "mean_absolute_score_change": 0.713,
+    "rank_correlation_spearman": 0.913,
+    "risk_tier_changes": 66
+  },
+  "notes": [
+    "Candidate comparison only. The active serving artifacts are unchanged; this script never calls model.save().",
+    "Both trains reuse the cached crisis classifier, so the classifier overlay is held fixed and the delta isolates the pillar effect of the monitored candidate features.",
+    "active_retrain_vs_production should be near zero; a non-trivial value means the retrain itself does not reproduce production and the effect estimate is confounded. A large value indicates the active cache/risk_model.pkl is stale relative to the current pipeline and should be rebuilt independently of this challenger.",
+    "FDI/REER columns are omitted from the candidate set until the external source refresh provides non-null cross-country coverage."
+  ],
+  "promotion_requires_owner_review": true,
+  "review_basis": "candidate_vs_active_retrain",
+  "stale_active_artifact_finding": false
+}

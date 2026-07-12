@@ -1,0 +1,16 @@
+{
+  "basis": "Grouped out-of-fold crisis-classifier validation",
+  "country_epochs": 2178,
+  "countries": 158,
+  "base_rate": 0.085,
+  "roc_auc": 0.616,
+  "threshold_policy": "Youden-optimal review threshold",
+  "recall": 0.83,
+  "precision": 0.10,
+  "confusion_matrix_image": "artifacts/crisis_confusion_matrix.png",
+  "notes": [
+    "The classifier is a weak early-warning overlay, not a literal crisis probability for production decisioning.",
+    "The low precision means many false positives are expected at a high-recall review threshold.",
+    "The app uses the classifier as an upward-only score overlay so it cannot reduce a high pillar-based risk score."
+  ]
+}

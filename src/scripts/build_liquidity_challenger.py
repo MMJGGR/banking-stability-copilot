@@ -7,9 +7,9 @@ call ``model.save()`` and never touches the active serving artifacts.
 
 Two trains are run at the same cutoff, both reusing the cached classifier:
 
-- control (no extra features), to confirm the retrain reproduces production and
-  isolate the pure effect of the added features; and
-- challenger (with the curated liquidity features).
+- active-retrain (with the production-promoted liquidity features), to confirm
+  the retrain reproduces production; and
+- candidate (with the production-promoted features plus monitored candidates).
 
 Outputs:
 - ``artifacts/liquidity_challenger_comparison.json``
@@ -31,16 +31,6 @@ from src.lfs_resolver import ensure_lfs_file
 from src.model_store import load_model_artifact
 
 
-# Curated, data-backed, non-duplicative additions (see pillar_pipeline.py).
-GOVT_CHALLENGER_FEATURES = ["govt_interest_to_revenue", "govt_debt_to_revenue"]
-EXTERNAL_CHALLENGER_FEATURES = [
-    "net_iip_gdp",
-    "external_liabilities_gdp",
-    "reserves_to_goods_services_imports",
-    "gross_external_financing_need_proxy_gdp",
-    "investment_income_debits_to_cxr",
-]
-
 TIER_BINS = [2, 4, 6, 8]
 
 
@@ -58,12 +48,14 @@ def _resolve_caches() -> None:
                 print(f"  WARN could not resolve {name}: {exc}")
 
 
-def _build_extra_features(as_of_date: str) -> pd.DataFrame:
+def _build_extra_features(as_of_date: str, include_candidates: bool = False) -> pd.DataFrame:
     from src.government_liquidity import model_country_codes
     from src.liquidity_features import assemble_liquidity_features
 
     return assemble_liquidity_features(
-        as_of_date=as_of_date, model_countries=model_country_codes()
+        as_of_date=as_of_date,
+        model_countries=model_country_codes(),
+        include_candidates=include_candidates,
     )
 
 
@@ -130,21 +122,25 @@ def main() -> None:
     from src.scripts.build_local_snapshot import _load_cached_sources
 
     fsic, weo, mfs = _load_cached_sources()
-    extra = _build_extra_features(args.as_of)
-    added = [c for c in extra.columns if c != "country_code"]
-    print(f"Added liquidity features: {added}")
+    active_extra = _build_extra_features(args.as_of, include_candidates=False)
+    candidate_extra = _build_extra_features(args.as_of, include_candidates=True)
+    active_columns = [c for c in active_extra.columns if c != "country_code"]
+    candidate_columns = [c for c in candidate_extra.columns if c != "country_code"]
+    added = [c for c in candidate_columns if c not in set(active_columns)]
+    print(f"Active liquidity features: {active_columns}")
+    print(f"Candidate liquidity features: {added}")
 
     production = load_model_artifact()["country_scores"][["country_code", "risk_score"]].copy()
     production["country_code"] = production["country_code"].astype(str).str.upper()
 
-    print("\n=== CONTROL TRAIN (no extra features) ===")
-    control = _train_scores(fsic, weo, mfs, args.as_of)
-    print("\n=== CHALLENGER TRAIN (with liquidity features) ===")
-    challenger = _train_scores(fsic, weo, mfs, args.as_of, extra_features=extra)
+    print("\n=== ACTIVE RETRAIN (production liquidity features) ===")
+    control = _train_scores(fsic, weo, mfs, args.as_of, extra_features=active_extra)
+    print("\n=== CANDIDATE TRAIN (active + monitored liquidity candidates) ===")
+    challenger = _train_scores(fsic, weo, mfs, args.as_of, extra_features=candidate_extra)
 
-    faithfulness = _compare(production, control, "control_vs_production")
-    effect = _compare(control, challenger, "challenger_vs_control")
-    headline = _compare(production, challenger, "challenger_vs_production")
+    faithfulness = _compare(production, control, "active_retrain_vs_production")
+    effect = _compare(control, challenger, "candidate_vs_active_retrain")
+    headline = _compare(production, challenger, "candidate_vs_production")
 
     thresholds = {
         "mean_absolute_score_change": 0.5,
@@ -167,7 +163,8 @@ def main() -> None:
     report = {
         "generated": date.today().isoformat(),
         "cutoff": args.as_of,
-        "added_features": added,
+        "active_features": active_columns,
+        "candidate_features": added,
         "feature_directions": {
             "govt_interest_to_revenue": "+1 (higher = riskier)",
             "govt_debt_to_revenue": "+1 (higher = riskier)",
@@ -176,27 +173,33 @@ def main() -> None:
             "reserves_to_goods_services_imports": "-1 (more import cover = safer)",
             "gross_external_financing_need_proxy_gdp": "+1 (higher = riskier)",
             "investment_income_debits_to_cxr": "+1 (higher income-service burden = riskier)",
+            "reserves_to_current_account_payments": "-1 (more reserve cover = safer)",
+            "portfolio_liabilities_gdp": "+1 (larger market funding stock = riskier)",
+            "commodity_export_share_pct": "+1 (higher export concentration = riskier)",
+            "wb_total_external_debt_service_gni_pct": "+1 (higher debt-service burden = riskier)",
+            "wb_ppg_external_debt_service_gdp": "+1 (higher public external debt service = riskier)",
+            "wb_public_financing_need_ext_debt_service_proxy_gdp": "+1 (higher public financing pressure = riskier)",
         },
         "governance_thresholds": thresholds,
         "promotion_requires_owner_review": bool(trips_review),
-        "review_basis": "feature_effect_challenger_vs_control",
+        "review_basis": "candidate_vs_active_retrain",
         "stale_active_artifact_finding": bool(stale_active_artifact),
-        "faithfulness_control_vs_production": faithfulness,
-        "feature_effect_challenger_vs_control": effect,
-        "headline_challenger_vs_production": headline,
+        "faithfulness_active_retrain_vs_production": faithfulness,
+        "candidate_effect_vs_active_retrain": effect,
+        "headline_candidate_vs_production": headline,
         "notes": [
-            "Staged challenger only. The active serving artifacts are unchanged; "
+            "Candidate comparison only. The active serving artifacts are unchanged; "
             "this script never calls model.save().",
             "Both trains reuse the cached crisis classifier, so the classifier "
             "overlay is held fixed and the delta isolates the pillar effect of "
-            "the added liquidity features.",
-            "control_vs_production should be near zero; a non-trivial value means "
+            "the monitored candidate features.",
+            "active_retrain_vs_production should be near zero; a non-trivial value means "
             "the retrain itself does not reproduce production and the effect "
             "estimate is confounded. A large value indicates the active "
             "cache/risk_model.pkl is stale relative to the current pipeline and "
             "should be rebuilt independently of this challenger.",
-            "Market/FDI/REER columns are omitted here because they are null until "
-            "the next CI fetch of the external block.",
+            "FDI/REER columns are omitted from the candidate set until the external "
+            "source refresh provides non-null cross-country coverage.",
         ],
     }
 
@@ -209,15 +212,15 @@ def main() -> None:
     challenger.to_parquet(archive / "challenger_scores.parquet", index=False)
 
     print("\n=== SUMMARY ===")
-    print(f"Faithfulness (control vs production): mean|delta|="
+    print(f"Faithfulness (active retrain vs production): mean|delta|="
           f"{faithfulness['mean_absolute_score_change']} "
           f"spearman={faithfulness['rank_correlation_spearman']}")
-    print(f"Feature effect (challenger vs control): mean|delta|="
+    print(f"Candidate effect (candidate vs active retrain): mean|delta|="
           f"{effect['mean_absolute_score_change']} "
           f">=1pt={effect['countries_moving_at_least_one_point']} "
           f"tier_changes={effect['risk_tier_changes']} "
           f"spearman={effect['rank_correlation_spearman']}")
-    print(f"Headline (challenger vs production): mean|delta|="
+    print(f"Headline (candidate vs production): mean|delta|="
           f"{headline['mean_absolute_score_change']} "
           f"tier_changes={headline['risk_tier_changes']} "
           f"spearman={headline['rank_correlation_spearman']}")

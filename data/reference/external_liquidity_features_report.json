@@ -1,5 +1,9 @@
 {
   "feature_coverage": {
+    "commodity_export_share_pct": {
+      "countries": 172,
+      "pct_model_countries": 85.6
+    },
     "current_account_balance_gdp_bop": {
       "countries": 181,
       "pct_model_countries": 90.0
@@ -17,8 +21,16 @@
       "pct_model_countries": 80.6
     },
     "external_liquidity_feature_count": {
-      "countries": 185,
-      "pct_model_countries": 92.0
+      "countries": 198,
+      "pct_model_countries": 98.5
+    },
+    "fdi_liability_flows_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
+    },
+    "fdi_net_flows_gdp": {
+      "countries": 181,
+      "pct_model_countries": 90.0
     },
     "goods_services_exports_gdp": {
       "countries": 181,
@@ -52,6 +64,14 @@
       "countries": 177,
       "pct_model_countries": 88.1
     },
+    "reer_appreciation_5y_pct": {
+      "countries": 0,
+      "pct_model_countries": 0.0
+    },
+    "reer_index": {
+      "countries": 0,
+      "pct_model_countries": 0.0
+    },
     "reserves_gdp_iip": {
       "countries": 162,
       "pct_model_countries": 80.6
@@ -64,61 +84,74 @@
       "countries": 166,
       "pct_model_countries": 82.6
     },
+    "stable_financing_share": {
+      "countries": 176,
+      "pct_model_countries": 87.6
+    },
+    "terms_of_trade_index": {
+      "countries": 190,
+      "pct_model_countries": 94.5
+    },
     "wb_government_interest_payments_revenue_pct": {
-      "countries": 70,
-      "pct_model_countries": 34.8
+      "countries": 142,
+      "pct_model_countries": 70.6
     },
     "wb_government_revenue_ex_grants_gdp_pct": {
-      "countries": 0,
-      "pct_model_countries": 0.0
+      "countries": 143,
+      "pct_model_countries": 71.1
     },
     "wb_ppg_external_debt_service_exports_pct": {
-      "countries": 0,
-      "pct_model_countries": 0.0
+      "countries": 111,
+      "pct_model_countries": 55.2
     },
     "wb_ppg_external_debt_service_gdp": {
-      "countries": 30,
-      "pct_model_countries": 14.9
+      "countries": 120,
+      "pct_model_countries": 59.7
     },
     "wb_ppg_external_debt_service_gni_pct": {
-      "countries": 63,
-      "pct_model_countries": 31.3
+      "countries": 119,
+      "pct_model_countries": 59.2
     },
     "wb_ppg_external_debt_service_revenue_proxy": {
-      "countries": 0,
-      "pct_model_countries": 0.0
+      "countries": 85,
+      "pct_model_countries": 42.3
     },
     "wb_public_financing_need_ext_debt_service_proxy_gdp": {
-      "countries": 30,
-      "pct_model_countries": 14.9
+      "countries": 120,
+      "pct_model_countries": 59.7
     },
     "wb_total_external_debt_service_exports_pct": {
-      "countries": 60,
-      "pct_model_countries": 29.9
+      "countries": 116,
+      "pct_model_countries": 57.7
     },
     "wb_total_external_debt_service_gdp": {
-      "countries": 63,
-      "pct_model_countries": 31.3
+      "countries": 120,
+      "pct_model_countries": 59.7
     },
     "wb_total_external_debt_service_gni_pct": {
-      "countries": 63,
-      "pct_model_countries": 31.3
+      "countries": 119,
+      "pct_model_countries": 59.2
     },
     "wb_total_external_debt_service_revenue_proxy": {
-      "countries": 0,
-      "pct_model_countries": 0.0
+      "countries": 85,
+      "pct_model_countries": 42.3
     }
   },
-  "generated_at": "2026-07-11T00:00:00+03:00",
+  "generated_at": "2026-07-12T07:41:04.103812+00:00",
   "model_countries": 201,
   "notes": [
-    "Compact derived dataset committed for hosted app visibility; raw upstream downloads remain excluded from Git.",
-    "Features are staged analytics and are not used in the active production risk score unless the active model artifact explicitly includes them.",
-    "Gross external financing need is a proxy based on current-account deficit plus absolute portfolio-liability flow over GDP.",
-    "WB debt-service coverage is materially weaker than IMF BOP/IIP coverage in the staged run and is not available for every country."
+    "A curated subset is production-scored when included in the active model artifact; lower-coverage World Bank debt-service and market-access fields are monitored as challenger / insight features pending score-movement review.",
+    "gross_external_financing_need_proxy_gdp is a proxy: current-account deficit plus absolute portfolio-liability flow over GDP.",
+    "WB additions intentionally avoid duplicating current-account, reserves, and broad external-liquidity metrics already covered by IMF/WEO/MFS/BOP/IIP.",
+    "wb_public_financing_need_ext_debt_service_proxy_gdp is a fiscal/debt-service stress proxy: fiscal deficit plus public-and-publicly-guaranteed external debt service over GDP; it is not a classic gross financing need measure because debt service includes interest.",
+    "wb_total_external_debt_service_revenue_proxy and wb_ppg_external_debt_service_revenue_proxy combine WB debt-service USD with WB revenue/GDP and model nominal GDP.",
+    "investment_income_debits_to_cxr is a broad external-income-service proxy, not contractual debt service.",
+    "stable_financing_share is FDI liability flows over gross inward financing (|FDI| + |portfolio| liability flows); it measures how much external financing is stable FDI rather than fickle portfolio capital.",
+    "commodity_export_share_pct sums World Bank fuel, ores/metals, agricultural-raw, and food merchandise-export shares as an export-concentration / commodity-dependence proxy (capped at 100).",
+    "terms_of_trade_index (WB, 2015=100) and reer_index (WB real effective exchange rate, 2010=100) are levels; reer_appreciation_5y_pct is the latest REER versus its trailing five-year mean (positive = real appreciation / valuation stress).",
+    "Equity-price and property-price stress remain uncovered: no reliable public API series is wired yet (BIS/IMF/OECD/national coverage is a follow-up).",
+    "QEDS/CPIS/CDIS and principal-only amortization remain separate source-family gaps pending usable current API coverage."
   ],
-  "observation_countries": 191,
-  "observation_rows": 21510,
-  "source": "local compact reference export from staged IMF BOP/IIP and WB debt-service feature runs",
-  "status": "staged_insight_not_production_scored"
+  "observation_countries": 198,
+  "observation_rows": 34231
 }

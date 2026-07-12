@@ -2608,3 +2608,55 @@ Items that remain open and why they cannot be closed from this environment:
     src/dashboard/styles.py` passed; `PYTHONPATH=. pytest
     tests/test_peer_selection.py tests/test_calculated_series.py
     tests/test_model_store.py -q` passed (13 passed).
+- [x] Checkpoint 38: Wire candidate liquidity upgrades cross-app and add model
+  monitoring.
+  - Scope: data/model governance and app surfacing. Active serving scores are
+    not silently changed by this checkpoint.
+  - Issue: new official-source candidate fields needed to be available
+    app-wide, evaluated through the model pipeline, and disclosed in
+    Methodology without creating separate liquidity silos or promoting weak
+    fields prematurely.
+  - Changes:
+    - Refreshed packaged external-liquidity reference artifacts from the
+      current WB/IMF observation cache and corrected coverage denominators to
+      the 201 scored countries.
+    - Added monitored candidate model fields with explicit risk directions:
+      `reserves_to_current_account_payments`, `portfolio_liabilities_gdp`,
+      `commodity_export_share_pct`, `wb_total_external_debt_service_gni_pct`,
+      `wb_ppg_external_debt_service_gdp`, and
+      `wb_public_financing_need_ext_debt_service_proxy_gdp`.
+    - Kept the active production feature list separate from candidate fields in
+      `src/liquidity_features.py`; the candidate comparison path can include
+      them without changing live scores.
+    - Updated the liquidity challenger to compare active-liquidity retrain vs
+      active-plus-candidate retrain, so score movement isolates the incremental
+      candidate effect.
+    - Added derived annual external series for Explorer where source history
+      supports them, including commodity-export concentration and REER gap
+      calculations.
+    - Added Methodology / Model Card monitoring output for candidate
+      score-movement results and packaged the crisis classifier validation
+      summary plus confusion-matrix image.
+  - Data status:
+    - At least one external-liquidity feature covers 198/201 scored countries
+      (98.5%).
+    - Candidate coverage: `commodity_export_share_pct` 172/201 (85.6%),
+      `reserves_to_current_account_payments` 166/201 (82.6%),
+      `portfolio_liabilities_gdp` 159/201 (79.1%), and WB debt-service/public
+      financing proxies about 119-120/201 (59.2-59.7%).
+    - IMF FDI/REER fields remain zero coverage in the current packaged pull, so
+      they remain insight/backlog fields until the external-source resolver
+      returns usable observations.
+  - Model-monitoring result:
+    - Candidate effect vs active-liquidity retrain: mean absolute score movement
+      0.716, 60 countries move by at least 1 point, 67 risk-tier changes,
+      Spearman rank correlation 0.912.
+    - This trips the configured owner-review gate; candidate fields should be
+      reviewed before promotion into the active serving artifact.
+  - Verification: `python -m py_compile app.py src/liquidity_features.py
+    src/pillar_pipeline.py src/external_liquidity.py src/government_liquidity.py
+    src/scripts/build_liquidity_challenger.py src/utils.py` passed;
+    `PYTHONPATH=. pytest tests/test_external_liquidity_features.py
+    tests/test_directional_scoring.py tests/test_peer_selection.py
+    tests/test_calculated_series.py tests/test_liquidity_challenger.py -q`
+    passed (25 passed).

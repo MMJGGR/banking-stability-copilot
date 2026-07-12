@@ -31,6 +31,14 @@ EXTERNAL_LIQUIDITY_FEATURES = [
     "gross_external_financing_need_proxy_gdp",
     "investment_income_debits_to_cxr",
 ]
+EXTERNAL_CANDIDATE_MODEL_FEATURES = [
+    "reserves_to_current_account_payments",
+    "portfolio_liabilities_gdp",
+    "commodity_export_share_pct",
+    "wb_total_external_debt_service_gni_pct",
+    "wb_ppg_external_debt_service_gdp",
+    "wb_public_financing_need_ext_debt_service_proxy_gdp",
+]
 
 EXTERNAL_REFERENCE_PATH = (
     Path(BASE_DIR) / "data" / "reference" / "external_liquidity_features.parquet"
@@ -53,12 +61,15 @@ def _government_features(as_of_date, model_countries) -> pd.DataFrame:
     return features[columns].copy()
 
 
-def _external_features() -> pd.DataFrame:
+def _external_features(include_candidates: bool = False) -> pd.DataFrame:
     if not EXTERNAL_REFERENCE_PATH.exists():
         return pd.DataFrame(columns=["country_code"])
     frame = pd.read_parquet(EXTERNAL_REFERENCE_PATH)
+    selected = list(EXTERNAL_LIQUIDITY_FEATURES)
+    if include_candidates:
+        selected.extend(EXTERNAL_CANDIDATE_MODEL_FEATURES)
     columns = ["country_code"] + [
-        c for c in EXTERNAL_LIQUIDITY_FEATURES if c in frame.columns
+        c for c in selected if c in frame.columns
     ]
     external = frame[columns].copy()
     external["country_code"] = external["country_code"].astype(str).str.upper()
@@ -68,6 +79,7 @@ def _external_features() -> pd.DataFrame:
 def assemble_liquidity_features(
     as_of_date=None,
     model_countries: list[str] | None = None,
+    include_candidates: bool = False,
 ) -> pd.DataFrame:
     """Return the merged government + external liquidity feature matrix.
 
@@ -82,7 +94,7 @@ def assemble_liquidity_features(
     except Exception as exc:  # noqa: BLE001 - never break training on staged data
         print(f"  WARN government-liquidity features unavailable: {exc}")
     try:
-        ext = _external_features()
+        ext = _external_features(include_candidates=include_candidates)
         if not ext.empty and len(ext.columns) > 1:
             frames.append(ext)
     except Exception as exc:  # noqa: BLE001
