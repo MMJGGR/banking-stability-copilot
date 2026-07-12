@@ -1509,7 +1509,7 @@ AUC around 0.57-0.59 (out-of-time holdout 0.56-0.80 depending on fold),
 replacing the leakage-inflated historical 0.84. Promotion of retrained
 artifacts requires owner review under items 4, 8, and 11.
 
-### 21.5 Current Open Issues Backlog (Updated 2026-07-10)
+### 21.5 Current Open Issues Backlog (Updated 2026-07-12)
 
 This section is the current working backlog. Older issue-register items above
 remain useful history, but this table reflects what is still open after the
@@ -1743,6 +1743,96 @@ Items that remain open and why they cannot be closed from this environment:
 - **Rank 33 (LFS history rewrite):** destructive repository operation
   requiring owner coordination (all clones invalidated).
 - **Rank 34 (repo privacy):** owner account decision.
+
+#### 21.5.6 Crisis Classifier Deep Diagnostic and Reliability Gate (2026-07-12)
+
+The crisis classifier is now the highest-priority open model workstream. The
+2026-07-12 review supersedes the optimistic interpretation in Checkpoints 43
+and 44: the classifier may remain a capped early-warning overlay, but its
+influence must not be expanded and its validation must not be described as
+production-grade until the P0 items below are resolved.
+
+**What remains defensible today**
+
+- The probability ranking has weak-to-moderate discrimination: deployment
+  country-grouped CV ROC-AUC 0.655, one unseen-country holdout ROC-AUC 0.683,
+  and the 2018 out-of-time epoch ROC-AUC 0.646.
+- ROC-AUC is threshold-independent, so those ranking results are not invalidated
+  by the threshold defect below. The 0.683 result is nevertheless only one of
+  five possible grouped holdouts and should not be treated as the headline
+  performance estimate without repeated/nested validation and uncertainty.
+- The classifier is not yet a reliable stand-alone crisis predictor. The
+  currently published precision, recall, F1, flagged-country count, and
+  confusion matrix are diagnostic/provisional rather than clean external-test
+  results.
+
+**P0 findings**
+
+| Rank | Finding | Evidence and impact | Required resolution |
+|---:|---|---|---|
+| C1 | Crisis ground truth is incomplete and partly inconsistent with the cited source | `CrisisLabels` contains 103 systemic episodes across 81 countries plus 3 optional borderline episodes. IMF WP/26/94 reports 164 episodes including 3 borderline cases, implying 161 systemic episodes. The repository therefore represents only about 64% of the cited systemic episodes before a line-by-line date reconciliation. Examples: IMF Table A1 includes Mozambique 1987-1991, which is absent; Kenya 1985 and 1992-1994, while the code has only 1992-1995; and the United States 2007-2011, while the code ends it in 2009. Incomplete or shifted labels corrupt both positive targets and apparent false alarms. | Ingest the official supplemental dataset as a versioned source artifact; map country codes deterministically; reconcile all 161 systemic and 3 borderline episodes; preserve start/end/borderline fields; add exact episode-count, date, and checksum tests. Do not hand-transcribe the replacement. |
+| C2 | Threshold selection leaks test labels | `evaluate()` derives every threshold policy from the same `y` and probabilities later used to report precision, recall, F1, flagged count, and the confusion matrix. This affects both the unseen-country holdout and the 2018 out-of-time holdout. ROC-AUC remains usable, but the threshold-dependent metrics are optimistically selected on their own test sets. | Select the operating threshold only inside training/inner CV, freeze it, and apply it once to each untouched outer test fold. Store development and test metrics separately. Replace the packaged confusion matrix after the redesign. |
+| C3 | The supposed banking-crisis model has almost no historical banking inputs for half the panel | In the current FSIC cache, all six banking features used by the classifier have zero country coverage for feature years 1986, 1989, 1992, 1994, 1997, and 1999. In 2004, coverage is only 2-6 countries. Coverage becomes meaningful only from 2007 onward. The first six epochs and almost all of the GFC training origin are therefore a macro/fiscal model with banking fields median-imputed. The robust-scaler IQR is exactly 1.0/defaulted for the sparse banking fields, consistent with a large median-imputed mass. | Publish row/epoch/feature availability; add missingness and staleness indicators; build longer historical credit/funding/liquidity series from appropriate IMF/WB/BIS sources; and compare macro-only, banking-only, and combined challengers. A feature that cannot support an epoch must be excluded from that experiment rather than silently presented as observed banking evidence. |
+| C4 | The chosen logistic model ignores the declared monotonic directions | `MONOTONE_DIRECTION` is passed through the training API but only XGBoost consumes it. The active logistic coefficients contain material sign reversals: higher current-account-deficit severity and higher debt/revenue reduce predicted risk; higher government revenue and improving current-account change increase risk; unemployment, real-estate lending, and time since the last crisis have the opposite declared signs. Correlated duplicate ratios make these reversals more likely. | Test a sign-constrained logistic/GAM and a monotonic boosted-tree challenger under the same nested folds. Remove or group collinear transformations, publish coefficient/direction audits, and fail promotion when a governed direction is violated. |
+| C5 | The panel and split design overstates independent information | The dataset has 2,178 country-epoch rows but only 197 countries and 103 encoded crisis episodes. Hand-picked epochs have overlapping three-year target windows (notably 1993/1995 and 2014/2015), so one event can create more than one positive row. The headline unseen-country score uses only the first fold returned by a five-fold splitter. | Build an annual event panel with explicit forecast origin, feature cutoff, crisis start, exclusion/embargo windows, post-crisis censoring, and event identifiers. Use repeated outer country-grouped folds plus forward-chaining temporal tests; report both row-level and unique-event performance. |
+| C6 | The out-of-time test is revised-data, not real-time-vintage validation | Historical features are reconstructed from the current 2026 WEO/FSIC vintage. Later revisions therefore enter old forecast origins, and nearest-prior observations have no stored age/staleness field. The 2018 epoch also contains only 8 positives, making the point estimate unstable. | Call this a revised-data temporal backtest until archived vintages exist. Store selected observation period, vintage, status, and age for every feature; add vintage-aware pseudo-real-time tests where source archives permit; bootstrap confidence intervals at country/event level. |
+
+**P1 diagnostic requirements before estimator selection**
+
+- Produce an out-of-fold prediction ledger with country, forecast origin,
+  crisis event ID, actual label, raw and calibrated probability, frozen
+  threshold, prediction, source vintage, feature ages, and imputation flags.
+- Report ROC-AUC, PR-AUC/average precision, Brier score, log loss, calibration
+  intercept/slope, reliability plot, confusion matrix, false-positive rate,
+  precision, recall, and alert burden. Show bootstrap confidence intervals,
+  not only point estimates.
+- Break results down by epoch, pre/post-2000 regime, region, income group,
+  data-completeness band, and countries with/without direct banking data.
+  Review every false negative and the largest/persistent false positives.
+- Measure lead time and signal persistence. An early-warning model should be
+  judged on whether it signals sufficiently before the event without firing
+  continuously, not only on a pooled row-level confusion matrix.
+- Benchmark against prevalence-only, country-history-only, macro-only, and
+  simple literature baselines. The BIS credit-to-GDP gap and private-sector
+  debt-service ratio must be tested where coverage exists; model complexity is
+  justified only by out-of-sample improvement over those baselines.
+- Compare calibration methods using cross-fitted predictions. Isotonic
+  calibration is likely unstable with few positive events; Platt/logistic and
+  beta calibration should be challengers, with the method chosen inside the
+  training folds only.
+
+**Promotion acceptance gate**
+
+- Official label reconciliation passes exact-count/date/provenance tests.
+- No preprocessing, calibration, feature selection, hyperparameter choice, or
+  threshold selection uses an outer test fold.
+- The frozen review threshold retains at least 60% recall on aggregated outer
+  tests and materially enriches precision over the crisis prevalence, with
+  uncertainty reported. It must also remain usable under the temporal test;
+  one favourable grouped split is insufficient.
+- ROC-AUC and PR-AUC improve over simple baselines across grouped and temporal
+  tests; calibration beats the prevalence-only Brier benchmark.
+- No governed feature direction is violated, performance is not carried by one
+  epoch/region, and score/overlay movement stays inside approved governance
+  thresholds or receives explicit owner approval.
+
+**Execution order**
+
+1. Reconcile and version the official IMF labels.
+2. Build the auditable annual/event panel and out-of-fold prediction ledger.
+3. Implement nested grouped plus forward-chaining evaluation with a frozen
+   threshold and clean preprocessing/calibration boundaries.
+4. Run baselines and feature-family ablations; diagnose errors by country,
+   cohort, epoch, coverage, and lead time.
+5. Compare sign-constrained logistic/GAM and monotonic boosting challengers.
+6. Only then refresh production probabilities, confusion matrix, model card,
+   Methodology content, and the capped score overlay.
+
+Primary references: [Laeven and Valencia, IMF WP/26/94, Systemic Banking
+Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/05/14/systemic-banking-crises-database-1970-2025-576036);
+[Drehmann and Juselius, BIS Working Paper 421](https://www.bis.org/publ/work421.htm);
+[BIS credit-to-GDP gaps](https://data.bis.org/topics/CREDIT_GAPS); and
+[BIS debt-service ratios](https://data.bis.org/topics/DSR).
 
 ### 21.1 GitHub Checkpoints
 
@@ -2864,3 +2954,22 @@ Items that remain open and why they cannot be closed from this environment:
     versus Checkpoint 43; `python -m py_compile src/crisis_classifier.py`
     passed; `PYTHONPATH=. pytest tests/test_crisis_classifier.py -q` passed
     (5 passed).
+- [x] Checkpoint 45: Complete the deep crisis-classifier reliability diagnosis.
+  - Scope: evidence audit only; no model probability, country score, threshold,
+    or live-app behavior changed.
+  - Result: promotion/expansion is blocked by six P0 findings recorded in
+    section 21.5.6: incomplete official labels, holdout threshold leakage,
+    sparse historical banking inputs, unconstrained logistic coefficient signs,
+    overlapping/underpowered panel design, and revised-vintage temporal bias.
+  - Evidence: repository labels encode 103 systemic episodes plus 3 optional
+    borderline episodes versus 161 systemic plus 3 borderline episodes in IMF
+    WP/26/94; FSIC coverage is zero for all six classifier banking variables in
+    the first six feature epochs and only 2-6 countries in 2004; direct model
+    inspection confirmed material coefficient-direction reversals; code review
+    confirmed threshold selection and reporting occur on the same holdout.
+  - Interpretation correction: ROC-AUC 0.655 grouped CV / 0.683 single grouped
+    holdout / 0.646 revised-data temporal holdout remain provisional ranking
+    evidence. Published precision, recall, F1, alert count, and confusion matrix
+    are not clean external-test results until the threshold is frozen upstream.
+  - Next action: follow the six-step execution order and promotion gate in
+    section 21.5.6, beginning with official label ingestion/reconciliation.
