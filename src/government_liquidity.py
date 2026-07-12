@@ -158,6 +158,108 @@ def safe_ratio(numerator: pd.Series, denominator: pd.Series, scale: float = 100.
     return numerator / denominator * scale
 
 
+def historical_fiscal_metrics(observations: pd.DataFrame) -> pd.DataFrame:
+    """Return annual derived fiscal-liquidity metrics for every country/period."""
+    columns = [
+        "country_code",
+        "period",
+        "govt_interest_to_revenue",
+        "govt_debt_to_revenue",
+        "govt_primary_deficit_gdp",
+        "govt_revenue_gdp",
+    ]
+    if observations is None or observations.empty:
+        return pd.DataFrame(columns=columns)
+
+    required = {"country_code", "period", "feature_key", "value"}
+    if not required.issubset(observations.columns):
+        return pd.DataFrame(columns=columns)
+
+    base = observations.copy()
+    base["country_code"] = base["country_code"].astype(str).str.upper()
+    base["period"] = pd.to_datetime(base["period"], errors="coerce")
+    base["value"] = pd.to_numeric(base["value"], errors="coerce")
+    pivot = (
+        base.dropna(subset=["period", "value"])
+        .sort_values("period")
+        .pivot_table(
+            index=["country_code", "period"],
+            columns="feature_key",
+            values="value",
+            aggfunc="last",
+        )
+        .reset_index()
+    )
+    if pivot.empty:
+        return pd.DataFrame(columns=columns)
+
+    def col(name: str) -> pd.Series:
+        if name in pivot.columns:
+            return pd.to_numeric(pivot[name], errors="coerce")
+        return pd.Series(pd.NA, index=pivot.index, dtype="Float64")
+
+    fiscal_balance = col("fiscal_balance_gdp")
+    primary_balance = col("primary_balance_gdp")
+    revenue = col("revenue_gdp")
+    gross_debt = col("gross_debt_gdp")
+    interest_gdp = primary_balance - fiscal_balance
+
+    metrics = pd.DataFrame(
+        {
+            "country_code": pivot["country_code"],
+            "period": pivot["period"],
+            "govt_interest_to_revenue": safe_ratio(interest_gdp, revenue),
+            "govt_debt_to_revenue": safe_ratio(gross_debt, revenue),
+            "govt_primary_deficit_gdp": (
+                (-primary_balance).where(primary_balance < 0, 0).where(primary_balance.notna())
+            ),
+            "govt_revenue_gdp": revenue,
+        }
+    )
+    return metrics
+
+
+def latest_fiscal_trend_features(
+    observations: pd.DataFrame,
+    years: int = 3,
+) -> pd.DataFrame:
+    """Compute latest fiscal-liquidity changes versus roughly ``years`` prior."""
+    metrics = historical_fiscal_metrics(observations)
+    if metrics.empty:
+        return pd.DataFrame(columns=["country_code"])
+
+    metric_columns = [
+        "govt_interest_to_revenue",
+        "govt_debt_to_revenue",
+        "govt_primary_deficit_gdp",
+        "govt_revenue_gdp",
+    ]
+    rows: list[dict] = []
+    offset = pd.DateOffset(years=years)
+
+    for country_code, group in metrics.groupby("country_code"):
+        group = group.sort_values("period")
+        row = {"country_code": country_code}
+        for metric in metric_columns:
+            valid = group.dropna(subset=[metric])
+            if valid.empty:
+                row[f"{metric}_change_{years}y"] = pd.NA
+                continue
+            latest = valid.iloc[-1]
+            target_period = latest["period"] - offset
+            prior = valid[valid["period"] <= target_period]
+            if prior.empty:
+                row[f"{metric}_change_{years}y"] = pd.NA
+                continue
+            baseline = prior.iloc[-1]
+            row[f"{metric}_change_{years}y"] = (
+                float(latest[metric]) - float(baseline[metric])
+            )
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
 def build_government_liquidity_features(
     observations: pd.DataFrame,
     model_features: pd.DataFrame | None = None,
@@ -219,6 +321,10 @@ def build_government_liquidity_features(
     derived["govt_overall_deficit_gdp"] = overall_deficit
     derived["govt_primary_deficit_gdp"] = primary_deficit
 
+    trend_features = latest_fiscal_trend_features(observations)
+    if not trend_features.empty:
+        derived = derived.merge(trend_features, on="country_code", how="left")
+
     derived["government_liquidity_feature_count"] = (
         derived.drop(columns=["country_code"]).notna().sum(axis=1)
     )
@@ -267,6 +373,9 @@ def build_government_liquidity_features(
             "govt_overall_deficit_gdp and govt_primary_deficit_gdp are financing-requirement "
             "flow signals; a full gross financing need also needs debt amortization/rollover, "
             "which WEO does not carry and remains an IMF Fiscal Monitor / GFS source gap.",
+            "The *_change_3y fields are latest available annual derived ratios minus the "
+            "nearest observation at least three years earlier; they are challenger signals "
+            "for fiscal-liquidity momentum, not separate source series.",
             "govt_structural_balance_gdp (GGSB_NPGDP) has limited country coverage in WEO.",
         ],
     }

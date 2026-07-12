@@ -165,9 +165,23 @@ def main() -> None:
         "cutoff": args.as_of,
         "active_features": active_columns,
         "candidate_features": added,
+        "candidate_groups": {
+            "government_liquidity": [
+                feature for feature in added if feature.startswith("govt_")
+            ],
+            "external_liquidity": [
+                feature for feature in added if not feature.startswith("govt_")
+            ],
+        },
         "feature_directions": {
             "govt_interest_to_revenue": "+1 (higher = riskier)",
             "govt_debt_to_revenue": "+1 (higher = riskier)",
+            "govt_revenue_gdp": "-1 (higher revenue capacity = safer)",
+            "govt_primary_deficit_gdp": "+1 (higher primary deficit = riskier)",
+            "govt_interest_to_revenue_change_3y": "+1 (rising interest burden = riskier)",
+            "govt_debt_to_revenue_change_3y": "+1 (rising debt burden = riskier)",
+            "govt_primary_deficit_gdp_change_3y": "+1 (worsening primary deficit = riskier)",
+            "govt_revenue_gdp_change_3y": "-1 (rising revenue base = safer)",
             "net_iip_gdp": "-1 (higher net creditor = safer)",
             "external_liabilities_gdp": "+1 (higher = riskier)",
             "reserves_to_goods_services_imports": "-1 (more import cover = safer)",

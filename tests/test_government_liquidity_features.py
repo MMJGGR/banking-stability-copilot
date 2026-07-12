@@ -3,6 +3,7 @@ import pytest
 
 from src.government_liquidity import (
     build_government_liquidity_features,
+    latest_fiscal_trend_features,
     latest_fiscal_matrix,
     load_weo_fiscal_observations,
 )
@@ -121,3 +122,43 @@ def test_surplus_country_has_zero_floored_deficits():
     assert nor["govt_primary_deficit_gdp"] == pytest.approx(0.0)
     # interest = 7 - 8 = -1 (implied net interest income); ratio still computed
     assert nor["govt_interest_gdp"] == pytest.approx(-1.0)
+
+
+def test_latest_fiscal_trend_features_compute_three_year_changes():
+    rows = []
+    for year, debt, balance, primary, revenue in [
+        (2021, 60.0, -4.0, -1.0, 20.0),
+        (2022, 62.0, -4.5, -1.5, 21.0),
+        (2023, 65.0, -5.0, -2.0, 22.0),
+        (2024, 68.0, -5.5, -2.5, 22.5),
+        (2025, 72.0, -7.0, -3.0, 24.0),
+    ]:
+        rows.extend(
+            [
+                ("KEN", "gross_debt_gdp", year, debt),
+                ("KEN", "fiscal_balance_gdp", year, balance),
+                ("KEN", "primary_balance_gdp", year, primary),
+                ("KEN", "revenue_gdp", year, revenue),
+            ]
+        )
+    observations = pd.DataFrame(
+        rows,
+        columns=["country_code", "feature_key", "year", "value"],
+    )
+    observations["period"] = pd.to_datetime(observations["year"].astype(str) + "-12-31")
+
+    trends = latest_fiscal_trend_features(observations).set_index("country_code")
+    ken = trends.loc["KEN"]
+
+    # Latest 2025 values are compared with the nearest observation at least
+    # three years earlier: 2022.
+    interest_2025 = (-3.0) - (-7.0)
+    interest_2022 = (-1.5) - (-4.5)
+    assert ken["govt_interest_to_revenue_change_3y"] == pytest.approx(
+        interest_2025 / 24.0 * 100 - interest_2022 / 21.0 * 100
+    )
+    assert ken["govt_debt_to_revenue_change_3y"] == pytest.approx(
+        72.0 / 24.0 * 100 - 62.0 / 21.0 * 100
+    )
+    assert ken["govt_primary_deficit_gdp_change_3y"] == pytest.approx(3.0 - 1.5)
+    assert ken["govt_revenue_gdp_change_3y"] == pytest.approx(24.0 - 21.0)

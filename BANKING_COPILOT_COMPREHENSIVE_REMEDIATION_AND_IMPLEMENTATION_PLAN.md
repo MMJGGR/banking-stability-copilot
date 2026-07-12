@@ -2660,3 +2660,54 @@ Items that remain open and why they cannot be closed from this environment:
     tests/test_directional_scoring.py tests/test_peer_selection.py
     tests/test_calculated_series.py tests/test_liquidity_challenger.py -q`
     passed (25 passed).
+- [x] Checkpoint 39: Balance liquidity challenger with government dynamics and
+  improve Methodology surfacing.
+  - Scope: challenger/data-card/country-evidence surfacing. Active production
+    scores remain unchanged.
+  - Issue: the first candidate challenger leaned too heavily toward external
+    liquidity and commodity-export exposure. Government liquidity was already
+    partly live (`govt_debt_gdp`, `fiscal_balance_gdp`,
+    `govt_interest_to_revenue`, `govt_debt_to_revenue`), so the fix needed
+    genuinely incremental fiscal-liquidity dynamics rather than duplicate
+    levels.
+  - Changes:
+    - Added WEO-derived government candidate fields:
+      `govt_revenue_gdp`, `govt_primary_deficit_gdp`,
+      `govt_interest_to_revenue_change_3y`,
+      `govt_debt_to_revenue_change_3y`,
+      `govt_primary_deficit_gdp_change_3y`, and
+      `govt_revenue_gdp_change_3y`.
+    - Added government fiscal trend construction from historical WEO
+      observations and regenerated the packaged government-liquidity reference
+      files.
+    - Wired the government candidates into the challenger-only feature assembly
+      with explicit risk directions; default production assembly still includes
+      only the approved active liquidity features.
+    - Updated the challenger report to group candidates into government and
+      external liquidity, so Methodology can show balance rather than a flat
+      list.
+    - Added a collapsed Country Profile `Additional candidate evidence`
+      section. Score Drivers remain live-score-only.
+    - Expanded Methodology / Model Card monitoring to show active vs candidate
+      liquidity features, coverage, score movement, promotion status, and the
+      crisis classifier validation/confusion-matrix section.
+  - Data status:
+    - New government candidate coverage: `govt_primary_deficit_gdp` 201/201
+      (100.0%), `govt_revenue_gdp` 197/201 (98.0%),
+      `govt_debt_to_revenue_change_3y` 193/201 (96.0%), and the other
+      government change fields 190/201 (94.5%).
+  - Model-monitoring result:
+    - Balanced candidate effect vs active-liquidity retrain: mean absolute
+      score movement 0.683, 63 countries move by at least 1 point, 59
+      risk-tier changes, Spearman rank correlation 0.923.
+    - Result: still monitoring-only. The balanced challenger is more complete
+      and better surfaced, but movement remains too large for silent production
+      promotion.
+  - Verification: `python -m py_compile app.py src/government_liquidity.py
+    src/liquidity_features.py src/pillar_pipeline.py
+    src/scripts/build_liquidity_challenger.py src/utils.py` passed;
+    `PYTHONPATH=. pytest tests/test_government_liquidity_features.py
+    tests/test_external_liquidity_features.py tests/test_directional_scoring.py
+    tests/test_peer_selection.py tests/test_calculated_series.py
+    tests/test_liquidity_challenger.py -q` passed (31 passed); direct
+    `import app` succeeded in bare mode.

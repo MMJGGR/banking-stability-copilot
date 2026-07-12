@@ -141,6 +141,12 @@ APP_PEER_FEATURE_WEIGHTS = getattr(
         "customer_deposits_loans": 0.35,
         "govt_interest_to_revenue": 0.75,
         "govt_debt_to_revenue": 0.75,
+        "govt_revenue_gdp": 0.40,
+        "govt_primary_deficit_gdp": 0.45,
+        "govt_interest_to_revenue_change_3y": 0.35,
+        "govt_debt_to_revenue_change_3y": 0.35,
+        "govt_primary_deficit_gdp_change_3y": 0.30,
+        "govt_revenue_gdp_change_3y": 0.30,
         "net_iip_gdp": 0.65,
         "external_liabilities_gdp": 0.55,
         "reserves_to_goods_services_imports": 0.65,
@@ -364,6 +370,10 @@ GOVT_FEATURE_LABELS = {
     "govt_debt_to_revenue": "Gross debt / revenue",
     "govt_overall_deficit_gdp": "Overall deficit / GDP",
     "govt_primary_deficit_gdp": "Primary deficit / GDP",
+    "govt_interest_to_revenue_change_3y": "Interest / revenue change, 3Y",
+    "govt_debt_to_revenue_change_3y": "Debt / revenue change, 3Y",
+    "govt_primary_deficit_gdp_change_3y": "Primary deficit / GDP change, 3Y",
+    "govt_revenue_gdp_change_3y": "Revenue / GDP change, 3Y",
     "gross_debt_gdp": "General government gross debt / GDP",
     "fiscal_balance_gdp": "Fiscal balance / GDP",
     "primary_balance_gdp": "Primary balance / GDP",
@@ -875,11 +885,13 @@ def _append_government_derived_observations(observations: pd.DataFrame) -> pd.Da
     revenue = col("revenue_gdp")
     gross_debt = col("gross_debt_gdp")
     interest_gdp = primary_balance - fiscal_balance
+    id_columns = ["country_code", "period", "period_label", "frequency"]
 
     derived_values = {
         "govt_interest_gdp": interest_gdp,
         "govt_interest_to_revenue": safe_ratio(interest_gdp, revenue),
         "govt_debt_to_revenue": safe_ratio(gross_debt, revenue),
+        "govt_revenue_gdp": revenue,
         "govt_overall_deficit_gdp": (
             (-fiscal_balance).where(fiscal_balance < 0, 0).where(fiscal_balance.notna())
         ),
@@ -887,9 +899,21 @@ def _append_government_derived_observations(observations: pd.DataFrame) -> pd.Da
             (-primary_balance).where(primary_balance < 0, 0).where(primary_balance.notna())
         ),
     }
+    derived_frame = pivot[id_columns].copy().sort_values(["country_code", "period"])
+    for feature_key, values in derived_values.items():
+        derived_frame[feature_key] = pd.to_numeric(values, errors="coerce")
+    for feature_key in [
+        "govt_interest_to_revenue",
+        "govt_debt_to_revenue",
+        "govt_primary_deficit_gdp",
+        "govt_revenue_gdp",
+    ]:
+        derived_values[f"{feature_key}_change_3y"] = (
+            derived_frame.groupby("country_code")[feature_key]
+            .transform(lambda s: s - s.shift(3))
+        )
 
     rows = []
-    id_columns = ["country_code", "period", "period_label", "frequency"]
     for feature_key, values in derived_values.items():
         series = pivot[id_columns].copy()
         series["value"] = pd.to_numeric(values, errors="coerce")
@@ -1881,6 +1905,72 @@ def render_government_insight_panel(
     )
 
 
+def render_candidate_country_evidence(country_code: str, model_features: pd.DataFrame | None):
+    """Show monitored candidate liquidity evidence for the selected country."""
+    report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
+    candidate_features = report.get("candidate_features") or report.get("added_features") or []
+    if not candidate_features:
+        return
+
+    external_features, _, external_report = load_external_insight_data()
+    government_features, _, government_report = load_government_insight_data()
+    frames = []
+    if not government_features.empty:
+        frames.append(government_features)
+    if not external_features.empty:
+        frames.append(external_features)
+    if not frames:
+        return
+
+    feature_frame = frames[0]
+    for frame in frames[1:]:
+        feature_frame = feature_frame.merge(frame, on="country_code", how="outer")
+    feature_frame["country_code"] = feature_frame["country_code"].astype(str).str.upper()
+    country = feature_frame[feature_frame["country_code"] == str(country_code).upper()]
+    if country.empty:
+        return
+    country_row = country.iloc[0]
+
+    govt_coverage = government_report.get("feature_coverage", {})
+    external_coverage = external_report.get("feature_coverage", {})
+    active_columns = set(model_features.columns) if model_features is not None else set()
+    rows = []
+    for feature in candidate_features:
+        if feature not in feature_frame.columns:
+            continue
+        raw_value = pd.to_numeric(pd.Series([country_row.get(feature)]), errors="coerce").iloc[0]
+        value = "—" if pd.isna(raw_value) else f"{float(raw_value):,.2f}"
+        is_govt = feature.startswith("govt_")
+        coverage = (govt_coverage if is_govt else external_coverage).get(feature, {})
+        labels = GOVT_FEATURE_LABELS if is_govt else EXTERNAL_FEATURE_LABELS
+        rows.append(
+            {
+                "Feature": labels.get(feature, feature.replace("_", " ").title()),
+                "Value": value,
+                "Group": "Government" if is_govt else "External",
+                "Coverage": (
+                    f"{coverage.get('countries')} countries"
+                    if coverage.get("countries") is not None
+                    else "—"
+                ),
+                "Role": (
+                    "Active score input"
+                    if feature in active_columns
+                    else "Candidate / monitoring"
+                ),
+            }
+        )
+    if not rows:
+        return
+
+    with st.expander("Additional candidate evidence", expanded=False):
+        st.caption(
+            "These fields are packaged for review and analysis. They do not explain "
+            "the current live score unless marked as active score inputs."
+        )
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 def render_staged_methodology_summary(
     features: pd.DataFrame,
     observations: pd.DataFrame,
@@ -1998,6 +2088,49 @@ def _comparison_block(report: dict) -> dict:
     return {}
 
 
+def _liquidity_feature_status_rows(report: dict) -> list[dict]:
+    govt_report = _load_first_json(GOVT_REPORT_PATHS)
+    external_report = _load_first_json(EXTERNAL_REPORT_PATHS)
+    govt_coverage = govt_report.get("feature_coverage", {})
+    external_coverage = external_report.get("feature_coverage", {})
+
+    def row(feature: str, status: str, group: str) -> dict:
+        source = "Government liquidity" if feature.startswith("govt_") else "External liquidity"
+        coverage = govt_coverage.get(feature) if feature.startswith("govt_") else external_coverage.get(feature)
+        coverage = coverage or {}
+        labels = GOVT_FEATURE_LABELS if feature.startswith("govt_") else EXTERNAL_FEATURE_LABELS
+        return {
+            "Feature": labels.get(feature, feature.replace("_", " ").title()),
+            "Code": feature,
+            "Group": group,
+            "Role": status,
+            "Coverage": _display_value(coverage.get("countries"), integer=True),
+            "% Scored Countries": (
+                f"{coverage.get('pct_model_countries'):.1f}%"
+                if coverage.get("pct_model_countries") is not None
+                else _display_value(None)
+            ),
+            "Source": source,
+        }
+
+    rows: list[dict] = []
+    for feature in report.get("active_features") or []:
+        group = "Government" if feature.startswith("govt_") else "External"
+        rows.append(row(feature, "Active score input", group))
+
+    candidate_groups = report.get("candidate_groups") or {}
+    if candidate_groups:
+        for group_name, features in candidate_groups.items():
+            group = str(group_name).replace("_", " ").title()
+            for feature in features:
+                rows.append(row(feature, "Candidate / monitoring", group))
+    else:
+        for feature in report.get("candidate_features") or report.get("added_features") or []:
+            group = "Government" if feature.startswith("govt_") else "External"
+            rows.append(row(feature, "Candidate / monitoring", group))
+    return rows
+
+
 def render_model_monitoring_summary():
     report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
     validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
@@ -2025,33 +2158,38 @@ def render_model_monitoring_summary():
             _display_value(effect.get("risk_tier_changes"), integer=True),
         )
 
-        candidate_features = report.get("candidate_features") or report.get("added_features") or []
-        if candidate_features:
-            st.caption(
-                "Monitored candidate inputs: "
-                + ", ".join(str(feature) for feature in candidate_features)
-            )
+        review_basis = str(report.get("review_basis") or "candidate comparison").replace("_", " ")
+        st.caption(f"Review basis: {review_basis}. Active serving scores are unchanged by this report.")
+
+        status_rows = _liquidity_feature_status_rows(report)
+        if status_rows:
+            with st.expander("Active and candidate liquidity features", expanded=True):
+                st.dataframe(pd.DataFrame(status_rows), use_container_width=True, hide_index=True)
 
         movements = effect.get("largest_movements") or []
         if movements:
-            movement_df = pd.DataFrame(movements).rename(
-                columns={
-                    "country_code": "Country",
-                    "base": "Baseline",
-                    "challenger": "Candidate",
-                    "delta": "Δ Score",
-                }
-            )
-            st.dataframe(movement_df, use_container_width=True, hide_index=True)
+            with st.expander("Largest candidate score movements", expanded=False):
+                movement_df = pd.DataFrame(movements).rename(
+                    columns={
+                        "country_code": "Country",
+                        "base": "Baseline",
+                        "challenger": "Candidate",
+                        "delta": "Δ Score",
+                    }
+                )
+                st.dataframe(movement_df, use_container_width=True, hide_index=True)
 
         if report.get("promotion_requires_owner_review"):
-            st.warning("Candidate promotion requires owner review under the score-movement gate.")
+            st.warning(
+                "Monitoring only: candidate promotion requires owner review under the "
+                "score-movement gate."
+            )
         else:
             st.success("Candidate score movement is within the configured review gate.")
     else:
         st.info("No liquidity candidate score-movement report is packaged with this deployment.")
 
-    with st.expander("Crisis classifier validation", expanded=False):
+    with st.expander("Crisis classifier validation and confusion matrix", expanded=False):
         if validation:
             metric_rows = [
                 {
@@ -2776,6 +2914,9 @@ with tab_profile:
                     st.caption("No WGI data for this country.")
             else:
                 st.caption("WGI data not loaded.")
+
+        render_candidate_country_evidence(selected_country_code, model_features)
+
     with st.container(border=True):
         st.markdown("### Peer Countries")
 

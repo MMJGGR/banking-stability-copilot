@@ -29,6 +29,12 @@ ECONOMIC_FEATURES = [
     "reserves_to_goods_services_imports",
     "gross_external_financing_need_proxy_gdp",
     "investment_income_debits_to_cxr",
+    "govt_revenue_gdp",
+    "govt_primary_deficit_gdp",
+    "govt_interest_to_revenue_change_3y",
+    "govt_debt_to_revenue_change_3y",
+    "govt_primary_deficit_gdp_change_3y",
+    "govt_revenue_gdp_change_3y",
     "reserves_to_current_account_payments",
     "portfolio_liabilities_gdp",
     "commodity_export_share_pct",
@@ -95,6 +101,12 @@ FEATURE_RISK_DIRECTIONS = {
     "reserves_to_goods_services_imports": -1.0,  # more import cover = safer
     "gross_external_financing_need_proxy_gdp": 1.0,
     "investment_income_debits_to_cxr": 1.0,  # external income-service burden
+    "govt_revenue_gdp": -1.0,  # stronger revenue base = more fiscal capacity
+    "govt_primary_deficit_gdp": 1.0,
+    "govt_interest_to_revenue_change_3y": 1.0,
+    "govt_debt_to_revenue_change_3y": 1.0,
+    "govt_primary_deficit_gdp_change_3y": 1.0,
+    "govt_revenue_gdp_change_3y": -1.0,
     "reserves_to_current_account_payments": -1.0,
     "portfolio_liabilities_gdp": 1.0,
     "commodity_export_share_pct": 1.0,

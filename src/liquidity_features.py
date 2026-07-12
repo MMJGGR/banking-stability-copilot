@@ -24,6 +24,14 @@ from src.config import BASE_DIR
 # Curated, non-duplicative additions. Keep in sync with the challenger feature
 # lists in ``pillar_pipeline.ECONOMIC_FEATURES`` / ``FEATURE_RISK_DIRECTIONS``.
 GOVERNMENT_LIQUIDITY_FEATURES = ["govt_interest_to_revenue", "govt_debt_to_revenue"]
+GOVERNMENT_CANDIDATE_MODEL_FEATURES = [
+    "govt_revenue_gdp",
+    "govt_primary_deficit_gdp",
+    "govt_interest_to_revenue_change_3y",
+    "govt_debt_to_revenue_change_3y",
+    "govt_primary_deficit_gdp_change_3y",
+    "govt_revenue_gdp_change_3y",
+]
 EXTERNAL_LIQUIDITY_FEATURES = [
     "net_iip_gdp",
     "external_liabilities_gdp",
@@ -45,7 +53,11 @@ EXTERNAL_REFERENCE_PATH = (
 )
 
 
-def _government_features(as_of_date, model_countries) -> pd.DataFrame:
+def _government_features(
+    as_of_date,
+    model_countries,
+    include_candidates: bool = False,
+) -> pd.DataFrame:
     from src.government_liquidity import (
         build_government_liquidity_features,
         load_weo_fiscal_observations,
@@ -55,8 +67,11 @@ def _government_features(as_of_date, model_countries) -> pd.DataFrame:
         as_of_date=as_of_date, model_countries=model_countries
     )
     features, _ = build_government_liquidity_features(observations)
+    selected = list(GOVERNMENT_LIQUIDITY_FEATURES)
+    if include_candidates:
+        selected.extend(GOVERNMENT_CANDIDATE_MODEL_FEATURES)
     columns = ["country_code"] + [
-        c for c in GOVERNMENT_LIQUIDITY_FEATURES if c in features.columns
+        c for c in selected if c in features.columns
     ]
     return features[columns].copy()
 
@@ -88,7 +103,11 @@ def assemble_liquidity_features(
     """
     frames = []
     try:
-        gov = _government_features(as_of_date, model_countries)
+        gov = _government_features(
+            as_of_date,
+            model_countries,
+            include_candidates=include_candidates,
+        )
         if not gov.empty:
             frames.append(gov)
     except Exception as exc:  # noqa: BLE001 - never break training on staged data
