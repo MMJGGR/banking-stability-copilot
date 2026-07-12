@@ -2731,3 +2731,21 @@ Items that remain open and why they cannot be closed from this environment:
     tests/test_peer_selection.py tests/test_calculated_series.py
     tests/test_government_liquidity_features.py tests/test_liquidity_challenger.py
     -q` passed (18 passed); direct `import app` succeeded in bare mode.
+- [x] Checkpoint 41: Move liquidity challenger overlay to country-level state.
+  - Scope: app UX/state only. Active production scores and model artifacts are
+    unchanged.
+  - Issue: the challenger overlay was initially toggled only inside the peer
+    table, even though the overlay is a country-level analytical lens that
+    should affect the selected country header, candidate evidence, and peer
+    comparison consistently.
+  - Changes:
+    - Moved `Show liquidity challenger overlay` to the top of the Country tab.
+    - When enabled, the selected country header shows the challenger score and
+      delta versus the live score.
+    - The same country-level toggle controls peer-table challenger columns and
+      expands the `Additional candidate evidence` section.
+    - Removed the duplicate peer-level toggle and renamed the peer delta column
+      to plain `Delta Challenger` for cleaner rendering.
+  - Verification: `python -m py_compile app.py` passed; `PYTHONPATH=. pytest
+    tests/test_peer_selection.py tests/test_calculated_series.py -q` passed
+    (9 passed); direct `import app` succeeded in bare mode.

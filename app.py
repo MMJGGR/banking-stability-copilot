@@ -2006,7 +2006,8 @@ def render_candidate_country_evidence(country_code: str, model_features: pd.Data
     if not rows:
         return
 
-    with st.expander("Additional candidate evidence", expanded=False):
+    default_expanded = bool(st.session_state.get("profile_liquidity_challenger_overlay", False))
+    with st.expander("Additional candidate evidence", expanded=default_expanded):
         st.caption(
             "These fields are packaged for review and analysis. They do not explain "
             "the current live score unless marked as active score inputs."
@@ -2792,16 +2793,48 @@ with tab_profile:
     risk_score = country_score_row['risk_score']
     tier = score_to_tier(risk_score)
     percentile = (scores_df['risk_score'] < risk_score).mean()
+    challenger_scores_for_profile = load_liquidity_challenger_scores()
+    challenger_score = None
+    if not challenger_scores_for_profile.empty:
+        challenger_row = challenger_scores_for_profile[
+            challenger_scores_for_profile["country_code"] == selected_country_code
+        ]
+        if not challenger_row.empty:
+            challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
+    show_challenger_overlay = st.toggle(
+        "Show liquidity challenger overlay",
+        value=False,
+        key="profile_liquidity_challenger_overlay",
+        help=(
+            "Shows the monitoring-only balanced liquidity challenger beside the "
+            "live score for this country and peer table. It does not change the "
+            "live model, ranking, or score drivers."
+        ),
+    )
 
     with st.container(border=True):
         st.markdown(f"## {selected_country_name}")
         tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
-        m1, m2, m3, m4 = st.columns(4)
+        metric_columns = st.columns(5 if show_challenger_overlay else 4)
+        m1, m2, m3, m4 = metric_columns[:4]
         m1.metric("Risk Score", f"{risk_score:.1f}/10")
         m2.metric("Risk Tier", tier_labels.get(tier, "N/A"))
         m3.metric("Risk Percentile", f"{percentile:.0%}", help="Share of scored countries with a lower risk score.")
         coverage = country_score_row.get('data_coverage', 0)
         m4.metric("Data Coverage", f"{coverage:.0%}")
+        if show_challenger_overlay and challenger_score is not None:
+            m5 = metric_columns[4]
+            m5.metric(
+                "Challenger",
+                f"{challenger_score:.1f}/10",
+                delta=f"{challenger_score - risk_score:+.1f} vs live",
+                help="Monitoring-only liquidity challenger score; not the live score.",
+            )
+        if show_challenger_overlay:
+            st.caption(
+                "Liquidity challenger overlay is analytical only. Score Drivers and "
+                "rankings below remain based on the live production score."
+            )
         if country_score_row.get('risk_floor_applied', False):
             st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
 
@@ -3045,15 +3078,6 @@ with tab_profile:
                 peers_comparison["country_code"].astype(str).str.upper().map(dominant_drivers).fillna("—")
             )
 
-            show_challenger_overlay = st.toggle(
-                "Show liquidity challenger overlay",
-                value=False,
-                key=f"show_liquidity_challenger_{selected_country_code}",
-                help=(
-                    "Shows the monitoring-only balanced liquidity challenger score "
-                    "beside the live score. It does not change the live model."
-                ),
-            )
             if show_challenger_overlay:
                 challenger_scores = load_liquidity_challenger_scores()
                 if challenger_scores.empty:
@@ -3067,7 +3091,7 @@ with tab_profile:
                     peers_comparison["Challenger Score"] = peers_comparison[
                         "candidate_risk_score"
                     ]
-                    peers_comparison["Δ Challenger"] = (
+                    peers_comparison["Delta Challenger"] = (
                         peers_comparison["candidate_risk_score"]
                         - pd.to_numeric(peers_comparison["risk_score"], errors="coerce")
                     )
@@ -3090,7 +3114,7 @@ with tab_profile:
                 peers_comparison["Challenger Score"] = peers_comparison["Challenger Score"].apply(
                     lambda x: "—" if pd.isna(x) else f"{x:.1f}"
                 )
-                peers_comparison["Δ Challenger"] = peers_comparison["Δ Challenger"].apply(
+                peers_comparison["Delta Challenger"] = peers_comparison["Delta Challenger"].apply(
                     lambda x: "—" if pd.isna(x) else f"{x:+.1f}"
                 )
                 peers_comparison = peers_comparison.drop(columns=["candidate_risk_score"], errors="ignore")
