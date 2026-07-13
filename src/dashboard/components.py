@@ -14,6 +14,106 @@ from src.dashboard.styles import get_risk_color_hex, get_risk_label, COLORS
 
 RESERVE_CURRENCY_COUNTRIES = ['USA', 'GBR', 'JPN', 'CHE', 'EMU', 'DEU', 'FRA', 'ITA', 'ESP', 'NLD', 'BEL', 'AUT']
 
+SOURCE_CONTEXT = {
+    "WEO": ("IMF World Economic Outlook", "Country macroeconomic, fiscal and external-sector series."),
+    "FSIC": ("IMF Financial Soundness Indicators, core set", "Banking-sector soundness ratios and related values."),
+    "FSI": ("IMF Financial Soundness Indicators", "Banking-sector soundness ratios and related values."),
+    "FSIBSIS": ("IMF Financial Soundness Indicators balance sheets", "Deposit-taker balance-sheet and income-statement items."),
+    "MFS": ("IMF Monetary and Financial Statistics, MFS_DC", "Monetary-sector balance sheets; not deposit-takers-only unless ODCORP is selected."),
+    "WGI": ("World Bank Worldwide Governance Indicators", "Annual country governance scores."),
+}
+
+MFS_PREFIX_CONTEXT = {
+    "DCORP": "Depository corporations aggregate: central bank plus other depository corporations; not deposit-takers-only.",
+    "ODCORP": "Other depository corporations: closest MFS proxy for deposit-taking banks/commercial banks; excludes central bank.",
+    "S121": "Central bank sector; not commercial banks/deposit takers.",
+}
+
+
+def _source_history_context(dataset_name: str, chart_data: pd.DataFrame, selected_key, label: str) -> dict:
+    dataset_key = str(dataset_name).upper()
+    dataflow, source_scope = SOURCE_CONTEXT.get(
+        dataset_key,
+        (dataset_name, "Source-specific observations."),
+    )
+    if "indicator_code" in chart_data.columns and len(chart_data) > 0:
+        code = str(chart_data["indicator_code"].dropna().astype(str).iloc[0])
+    else:
+        code = str(selected_key)
+    text = f"{code} {label}".lower()
+    prefix = code.split("_", 1)[0].upper()
+
+    if dataset_key == "MFS":
+        institutional_scope = MFS_PREFIX_CONTEXT.get(
+            prefix,
+            "MFS institutional sector could not be inferred from the code prefix.",
+        )
+    elif dataset_key == "FSIBSIS":
+        institutional_scope = "Deposit takers / banking balance-sheet sector."
+    elif dataset_key in {"FSIC", "FSI"}:
+        institutional_scope = "Financial soundness indicator reporting sector; often deposit-taker focused."
+    else:
+        institutional_scope = "Country-level source series."
+
+    if "claims on" in text:
+        side = "Asset-side claim or exposure."
+    elif "assets" in text:
+        side = "Asset-side balance-sheet item."
+    elif "liabilities" in text:
+        side = "Liability-side balance-sheet item."
+    elif "capital" in text or "equity" in text or "reserves" in text:
+        side = "Capital, reserves or equity denominator candidate."
+    elif "percent" in text:
+        side = "Ratio or percentage series."
+    else:
+        side = "Source-defined indicator."
+
+    counterpart = "Not specified in label"
+    for pattern, value in [
+        ("state and local government", "State and local government"),
+        ("central government", "Central government"),
+        ("general government", "General government"),
+        ("private sector", "Private sector"),
+        ("central bank", "Central bank"),
+        ("nonresidents", "Nonresidents"),
+    ]:
+        if pattern in text:
+            counterpart = value
+            break
+
+    unit = "Not specified"
+    if "unit" in chart_data.columns:
+        values = [str(value).strip() for value in chart_data["unit"].dropna().unique() if str(value).strip()]
+        unit = ", ".join(values[:3]) if values else unit
+    frequencies = "Not specified"
+    if "frequency" in chart_data.columns:
+        freq_map = {"M": "Monthly", "Q": "Quarterly", "A": "Annual"}
+        values = [freq_map.get(str(value), str(value)) for value in chart_data["frequency"].dropna().unique()]
+        frequencies = ", ".join(values[:3]) if values else frequencies
+    observation_status = "Not specified"
+    if "observation_status" in chart_data.columns:
+        values = [str(value) for value in chart_data["observation_status"].dropna().unique()]
+        observation_status = ", ".join(values[:4]) if values else observation_status
+    latest_actual_year = "Not specified"
+    if "latest_actual_year" in chart_data.columns:
+        numeric = pd.to_numeric(chart_data["latest_actual_year"], errors="coerce").dropna().unique()
+        values = [str(int(value)) if float(value).is_integer() else str(value) for value in numeric]
+        latest_actual_year = ", ".join(values[:3]) if values else latest_actual_year
+
+    return {
+        "Dataflow": dataflow,
+        "Source scope": source_scope,
+        "Code": code,
+        "Source label": label,
+        "Institutional scope": institutional_scope,
+        "Instrument / side": side,
+        "Counterparty / sector": counterpart,
+        "Unit": unit,
+        "Frequency": frequencies,
+        "Observation status": observation_status,
+        "Latest actual year": latest_actual_year,
+    }
+
 # ==============================================================================
 # SUMMARY COMPONENTS
 # ==============================================================================
@@ -379,6 +479,17 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
     # Parse period/date
     chart_data['date'] = pd.to_datetime(chart_data['period'].astype(str), errors='coerce')
     chart_data = chart_data.dropna(subset=['date', 'value']).sort_values('date')
+
+    if use_name_as_key:
+        context_label = selected_key
+    else:
+        context_label = get_display_name(selected_key)
+    with st.expander("Selected indicator context", expanded=False):
+        st.dataframe(
+            pd.DataFrame([_source_history_context(dataset_name, chart_data, selected_key, context_label)]),
+            use_container_width=True,
+            hide_index=True,
+        )
 
     # Sources mix reporting frequencies for the same indicator, so surface
     # one frequency at a time at its native periodicity.

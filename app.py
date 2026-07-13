@@ -1201,6 +1201,19 @@ def render_indicator_comparison(
             index=1,
             key=f"compare_range_{dataset}",
         )
+    _render_indicator_metadata(
+        [
+            _indicator_metadata_row(
+                source_df,
+                dataset,
+                source_choice,
+                selected_indicator,
+                indicator_col,
+                display_map[selected_indicator],
+                "Compare item",
+            )
+        ]
+    )
 
     chart_df = source_df[source_df[indicator_col] == selected_indicator].copy()
     chart_df['date'] = pd.to_datetime(chart_df['period'].astype(str), errors='coerce')
@@ -1374,6 +1387,123 @@ def _unit_display(value) -> str:
     }.get(text, text)
 
 
+SOURCE_CONTEXT = {
+    "WEO": {
+        "dataflow": "IMF World Economic Outlook (WEO)",
+        "scope": "Country macroeconomic, fiscal and external-sector series.",
+        "caution": "WEO may include IMF estimates/projections; use observation status where shown.",
+    },
+    "FSIC": {
+        "dataflow": "IMF Financial Soundness Indicators, core set (FSIC)",
+        "scope": "Banking-sector soundness ratios and related numerators/denominators.",
+        "caution": "Many FSIC items are ratios; avoid mixing percent and currency-valued items without checking units.",
+    },
+    "FSIBSIS": {
+        "dataflow": "IMF Financial Soundness Indicators balance sheets (FSIBSIS)",
+        "scope": "Deposit-taker balance-sheet and income-statement items.",
+        "caution": "Closest source for bank balance-sheet levels; some exposure concepts may be narrower than MFS claims.",
+    },
+    "MFS": {
+        "dataflow": "IMF Monetary and Financial Statistics, depository corporations (MFS_DC)",
+        "scope": "Monetary-sector balance sheets split across central bank, other depository corporations and aggregate depository corporations.",
+        "caution": "MFS is not deposit-takers-only. Use ODCORP for other depository corporations; DCORP includes the central bank.",
+    },
+    "WGI": {
+        "dataflow": "World Bank Worldwide Governance Indicators (WGI)",
+        "scope": "Annual country governance percentile-style scores.",
+        "caution": "Governance scores are not balance-sheet values and should not be mixed with monetary levels.",
+    },
+    "EXTERNAL": {
+        "dataflow": "Derived external-liquidity reference observations",
+        "scope": "Staged external-sector and liquidity indicators assembled for BankEnv insights.",
+        "caution": "Derived series should be interpreted with the feature metadata and source report.",
+    },
+    "GOVT": {
+        "dataflow": "Derived government-liquidity reference observations",
+        "scope": "Staged fiscal and government-liquidity indicators assembled for BankEnv insights.",
+        "caution": "Derived fiscal ratios depend on aligned source observations and available coverage.",
+    },
+}
+
+
+MFS_PREFIX_CONTEXT = {
+    "DCORP": "Depository corporations aggregate: central bank plus other depository corporations; not deposit-takers-only.",
+    "ODCORP": "Other depository corporations: closest MFS proxy for deposit-taking banks/commercial banks; excludes central bank.",
+    "S121": "Central bank sector; not commercial banks/deposit takers.",
+}
+
+
+def _first_indicator_code(subset: pd.DataFrame, fallback) -> str:
+    if "indicator_code" in subset.columns:
+        codes = subset["indicator_code"].dropna().astype(str)
+        codes = codes[codes.str.strip() != ""]
+        if len(codes) > 0:
+            return codes.iloc[0]
+    return str(fallback)
+
+
+def _source_context(dataset: str, code: str, label: str) -> dict[str, str]:
+    """Return source-specific context for a selected indicator."""
+    context = SOURCE_CONTEXT.get(
+        dataset,
+        {
+            "dataflow": dataset,
+            "scope": "Source-specific observations.",
+            "caution": "Check units, frequency and coverage before combining with other series.",
+        },
+    ).copy()
+    text = f"{code} {label}".lower()
+    prefix = str(code).split("_", 1)[0].upper()
+
+    if dataset == "MFS":
+        context["institutional sector"] = MFS_PREFIX_CONTEXT.get(
+            prefix,
+            "MFS institutional sector could not be inferred from the code prefix.",
+        )
+        if str(code).endswith("_EAWR"):
+            context["caution"] += " This code uses euro-area-wide residency treatment."
+    elif dataset == "FSIBSIS":
+        context["institutional sector"] = "Deposit takers / banking balance-sheet sector."
+    elif dataset == "FSIC":
+        context["institutional sector"] = "Financial soundness indicator reporting sector; often deposit-taker focused."
+    else:
+        context["institutional sector"] = "Country-level source series."
+
+    if "claims on" in text:
+        context["instrument / side"] = "Asset-side claim or exposure."
+    elif "assets" in text:
+        context["instrument / side"] = "Asset-side balance-sheet item."
+    elif "liabilities to" in text:
+        context["instrument / side"] = "Liability owed to the named counterparty."
+    elif "liabilities" in text:
+        context["instrument / side"] = "Liability-side balance-sheet item."
+    elif "capital" in text or "equity" in text or "reserves" in text:
+        context["instrument / side"] = "Capital, reserves or equity denominator candidate."
+    elif "percent" in text:
+        context["instrument / side"] = "Ratio or percentage series."
+    else:
+        context["instrument / side"] = "Source-defined indicator."
+
+    counterpart_checks = [
+        ("state and local government", "State and local government"),
+        ("state and local governments", "State and local government"),
+        ("central government", "Central government"),
+        ("general government", "General government"),
+        ("public non-financial corporations", "Public non-financial corporations"),
+        ("private sector", "Private sector"),
+        ("other financial corporations", "Other financial corporations"),
+        ("central bank", "Central bank"),
+        ("nonresidents", "Nonresidents"),
+    ]
+    counterpart = "Not specified in label"
+    for pattern, value in counterpart_checks:
+        if pattern in text:
+            counterpart = value
+            break
+    context["counterparty / sector"] = counterpart
+    return context
+
+
 def _join_distinct(values, limit: int = 4) -> str:
     cleaned = []
     for value in values:
@@ -1435,16 +1565,25 @@ def _indicator_metadata_row(
     """Build one compact metadata row for a selected source item."""
     subset = source_df.loc[source_df[indicator_col] == indicator_value].copy()
     if subset.empty:
+        context = _source_context(dataset, str(indicator_value), display_label)
         return {
             "Role": role,
             "Source": source_label,
+            "Dataflow": context["dataflow"],
+            "Source scope": context["scope"],
             "Code": str(indicator_value),
             "Source label": display_label,
             "Source dimensions": _indicator_label_components(display_label),
+            "Institutional scope": context["institutional sector"],
+            "Instrument / side": context["instrument / side"],
+            "Counterparty / sector": context["counterparty / sector"],
             "Unit": "Not specified",
             "Frequency": "Not specified",
+            "Observation status": "Not specified",
+            "Latest actual year": "Not specified",
             "Coverage": "No selected-country observations",
             "Plain-language note": _indicator_plain_language_note(dataset, display_label),
+            "Use caution": context["caution"],
         }
 
     source_name = display_label
@@ -1454,9 +1593,11 @@ def _indicator_metadata_row(
         if len(names) > 0:
             source_name = names.iloc[0]
 
+    representative_code = _first_indicator_code(subset, indicator_value)
     code = str(indicator_value)
     if "indicator_code" in subset.columns:
         code = _join_distinct(subset["indicator_code"].dropna().astype(str).unique(), limit=3)
+    context = _source_context(dataset, representative_code, source_name)
 
     if "unit" in subset.columns:
         unit = _join_distinct([_unit_display(value) for value in subset["unit"].unique()], limit=3)
@@ -1474,6 +1615,23 @@ def _indicator_metadata_row(
     else:
         frequency = "Not specified"
 
+    observation_status = (
+        _join_distinct(subset["observation_status"].dropna().astype(str).unique(), limit=4)
+        if "observation_status" in subset.columns
+        else "Not specified"
+    )
+    latest_actual_year = (
+        _join_distinct(
+            [
+                str(int(value)) if pd.notna(value) and float(value).is_integer() else str(value)
+                for value in pd.to_numeric(subset["latest_actual_year"], errors="coerce").dropna().unique()
+            ],
+            limit=3,
+        )
+        if "latest_actual_year" in subset.columns
+        else "Not specified"
+    )
+
     period = pd.to_datetime(subset.get("period"), errors="coerce")
     valid_period = period.dropna()
     if valid_period.empty:
@@ -1487,13 +1645,21 @@ def _indicator_metadata_row(
     return {
         "Role": role,
         "Source": source_label,
+        "Dataflow": context["dataflow"],
+        "Source scope": context["scope"],
         "Code": code,
         "Source label": source_name,
         "Source dimensions": _indicator_label_components(source_name),
+        "Institutional scope": context["institutional sector"],
+        "Instrument / side": context["instrument / side"],
+        "Counterparty / sector": context["counterparty / sector"],
         "Unit": unit,
         "Frequency": frequency,
+        "Observation status": observation_status,
+        "Latest actual year": latest_actual_year,
         "Coverage": coverage,
         "Plain-language note": _indicator_plain_language_note(dataset, source_name),
+        "Use caution": context["caution"],
     }
 
 
