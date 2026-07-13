@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import time
 import os
 import json
+import re
 from pathlib import Path
 
 from src.data_loader import (
@@ -56,12 +57,14 @@ from src.dashboard.components import (
 from src.dashboard.calculated_series import (
     available_frequencies,
     compute_cross_sectional_share,
-    compute_formula,
+    compute_expression_formula,
     compute_ratio,
     compute_temporal_change,
     filter_time_range,
+    FormulaValidationError,
     normalize_observation_frame,
     restrict_frequency,
+    validate_formula,
 )
 from src.dashboard.global_view import render_global_summary
 from src import utils as dashboard_utils
@@ -1561,6 +1564,199 @@ def _render_calculated_chart(
     )
 
 
+def _render_custom_formula_builder(
+    source_options: list[str],
+    source_to_dataset: dict[str, str],
+    calc_countries: list[str],
+    wgi_panel: pd.DataFrame | None,
+    time_range: str,
+    country_formatter,
+):
+    """Render a safe expression-based formula builder with per-operand sources."""
+    setup_col, formula_col, scale_col = st.columns([1, 3, 1])
+    with setup_col:
+        operand_count = st.number_input(
+            "Operands",
+            min_value=2,
+            max_value=12,
+            value=4,
+            step=1,
+            key="calc_formula_operand_count",
+            help="Creates operand slots A, B, C... dynamically.",
+        )
+    allowed_operands = [chr(ord("A") + idx) for idx in range(int(operand_count))]
+    with formula_col:
+        default_formula = (
+            "(A - B) / (B - D)"
+            if "D" in allowed_operands
+            else ("(A - B) / C" if "C" in allowed_operands else "A / B")
+        )
+        formula_text = st.text_input(
+            "Formula",
+            value=default_formula,
+            key="calc_formula_expression",
+            help=(
+                "Use declared operand slots with +, -, *, / and parentheses. "
+                "Function calls, attributes, indexing and comparisons are rejected."
+            ),
+        )
+    with scale_col:
+        scale_label = st.selectbox(
+            "Scale",
+            ["As calculated", "Percent / x100"],
+            key="calc_formula_scale",
+        )
+    scale = 100.0 if scale_label == "Percent / x100" else 1.0
+
+    try:
+        formula_plan = validate_formula(formula_text, allowed_operands)
+    except FormulaValidationError as exc:
+        st.error(str(exc))
+        return
+
+    operand_sources = {}
+    used_operands = list(formula_plan.used_operands)
+    source_cols = st.columns(min(4, max(1, len(used_operands))))
+    for idx, operand in enumerate(used_operands):
+        with source_cols[idx % len(source_cols)]:
+            operand_sources[operand] = st.selectbox(
+                f"{operand} source",
+                source_options,
+                key=f"calc_formula_{operand.lower()}_source",
+            )
+
+    loaded_sources = {}
+
+    def load_formula_source(source_label: str):
+        source_dataset = source_to_dataset[source_label]
+        if source_dataset not in loaded_sources:
+            with st.spinner(f"Loading {source_dataset} formula history..."):
+                frame = _load_comparison_source(source_dataset, calc_countries, wgi_panel)
+            if frame is None or len(frame) == 0:
+                return source_dataset, pd.DataFrame(), [], {}, "indicator_code"
+            options, labels, key_col = _indicator_selector_metadata(frame, source_dataset)
+            loaded_sources[source_dataset] = (frame, options, labels, key_col)
+        frame, options, labels, key_col = loaded_sources[source_dataset]
+        return source_dataset, frame, options, labels, key_col
+
+    operand_data = {}
+    for operand in used_operands:
+        operand_dataset, operand_df, options, labels, key_col = load_formula_source(
+            operand_sources[operand]
+        )
+        if operand_df is None or len(operand_df) == 0 or not options:
+            st.info(f"No {operand_dataset} data is available for operand {operand}.")
+            return
+        operand_data[operand] = (operand_dataset, operand_df, options, labels, key_col)
+
+    operand_keys = {}
+    operand_cols = st.columns(min(4, max(1, len(used_operands))))
+    for idx, operand in enumerate(used_operands):
+        with operand_cols[idx % len(operand_cols)]:
+            operand_dataset, _, options, labels, _ = operand_data[operand]
+            operand_keys[operand] = st.selectbox(
+                f"{operand} item",
+                options,
+                format_func=lambda value, label_map=labels: label_map[value],
+                key=f"calc_formula_{operand.lower()}_item_{operand_dataset}",
+            )
+
+    metadata_rows = []
+    operand_frames = {}
+    operand_labels = {}
+    for operand in used_operands:
+        operand_dataset, operand_df, _, labels, key_col = operand_data[operand]
+        operand_key = operand_keys[operand]
+        operand_labels[operand] = f"{labels[operand_key]} [{operand_dataset}]"
+        metadata_rows.append(
+            _indicator_metadata_row(
+                operand_df,
+                operand_dataset,
+                operand_sources[operand],
+                operand_key,
+                key_col,
+                labels[operand_key],
+                operand,
+            )
+        )
+        operand_frames[operand] = normalize_observation_frame(
+            operand_df,
+            operand_key,
+            key_col,
+            labels[operand_key],
+        )
+    _render_indicator_metadata(metadata_rows)
+
+    with st.expander("Formula audit", expanded=True):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Check": "Accepted syntax",
+                        "Result": "Operands, numbers, +, -, *, / and parentheses only",
+                    },
+                    {
+                        "Check": "Rejected syntax",
+                        "Result": "No function calls, attributes, indexing, comparisons or eval",
+                    },
+                    {
+                        "Check": "Parsed formula",
+                        "Result": formula_plan.normalized_formula,
+                    },
+                    {
+                        "Check": "Operands used",
+                        "Result": ", ".join(formula_plan.used_operands),
+                    },
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    frequency_sets = [set(available_frequencies(frame)) for frame in operand_frames.values()]
+    common_freqs = [
+        frequency
+        for frequency in ("M", "Q", "A")
+        if all(frequency in present for present in frequency_sets)
+    ]
+    selected_freq = None
+    if len(common_freqs) > 1:
+        selected_freq = st.selectbox(
+            "Periodicity",
+            common_freqs,
+            format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+            key=f"calc_formula_frequency_{formula_plan.normalized_formula}",
+        )
+    elif common_freqs:
+        selected_freq = common_freqs[0]
+
+    restricted_operands = {
+        operand: restrict_frequency(frame, selected_freq)
+        for operand, frame in operand_frames.items()
+    }
+    formula, formula_plan = compute_expression_formula(
+        formula_text,
+        restricted_operands,
+        scale=scale,
+    )
+    formula = filter_time_range(formula, time_range)
+
+    title = formula_plan.normalized_formula
+    for operand in sorted(operand_labels, key=len, reverse=True):
+        title = re.sub(rf"\b{operand}\b", operand_labels[operand], title)
+    _render_calculated_chart(
+        formula,
+        title=title,
+        country_formatter=country_formatter,
+        y_title=scale_label,
+        chart_key=f"calc_formula_chart_{formula_plan.normalized_formula}",
+    )
+    st.caption(
+        f"Formula: {title}{' x 100' if scale != 1.0 else ''}. "
+        "Only exact country/date/frequency matches are used; invalid or zero-denominator rows are excluded."
+    )
+
+
 def render_calculated_series_builder(
     scores: pd.DataFrame,
     selected_country: str,
@@ -1601,12 +1797,18 @@ def render_calculated_series_builder(
         GOVT_SOURCE_LABEL: "GOVT",
     }
 
-    source_col, country_col = st.columns([1, 3])
-    with source_col:
-        source_choice = st.selectbox(
-            "Source",
-            source_options,
-            key="calc_source",
+    mode_col, country_col, range_col = st.columns([2, 3, 1])
+    with mode_col:
+        calc_mode = st.selectbox(
+            "Calculation",
+            [
+                "Raw multi-indicator panels",
+                "Ratio",
+                "Custom formula",
+                "Cross-sectional share",
+                "Temporal change / index",
+            ],
+            key="calc_mode",
         )
     with country_col:
         calc_countries = st.multiselect(
@@ -1617,6 +1819,13 @@ def render_calculated_series_builder(
             key=f"calc_countries_{selected_country}",
             help="Selected countries are capped at 8 for hosted performance.",
         )
+    with range_col:
+        time_range = st.selectbox(
+            "Range",
+            ["5 Years", "10 Years", "20 Years", "All Data"],
+            index=1,
+            key="calc_range",
+        )
     if not calc_countries:
         st.info("Select at least one country.")
         return
@@ -1624,6 +1833,22 @@ def render_calculated_series_builder(
         st.warning("Using the first 8 selected countries to keep the hosted app responsive.")
         calc_countries = calc_countries[:8]
 
+    if calc_mode == "Custom formula":
+        _render_custom_formula_builder(
+            source_options=source_options,
+            source_to_dataset=source_to_dataset,
+            calc_countries=calc_countries,
+            wgi_panel=wgi_panel,
+            time_range=time_range,
+            country_formatter=country_formatter,
+        )
+        return
+
+    source_choice = st.selectbox(
+        "Source",
+        source_options,
+        key="calc_source",
+    )
     dataset = source_to_dataset[source_choice]
 
     with st.spinner(f"Loading {dataset} history for calculated series..."):
@@ -1636,27 +1861,6 @@ def render_calculated_series_builder(
     if not indicator_options:
         st.info("No indicators are available for this source/country selection.")
         return
-
-    mode_col, range_col = st.columns([2, 1])
-    with mode_col:
-        calc_mode = st.selectbox(
-            "Calculation",
-            [
-                "Raw multi-indicator panels",
-                "Ratio",
-                "Custom formula",
-                "Cross-sectional share",
-                "Temporal change / index",
-            ],
-            key=f"calc_mode_{dataset}",
-        )
-    with range_col:
-        time_range = st.selectbox(
-            "Range",
-            ["5 Years", "10 Years", "20 Years", "All Data"],
-            index=1,
-            key=f"calc_range_{dataset}",
-        )
 
     if calc_mode == "Raw multi-indicator panels":
         selected_indicators = st.multiselect(
@@ -1836,200 +2040,6 @@ def render_calculated_series_builder(
         st.caption(
             f"Formula: {numerator_label} ÷ {denominator_label}"
             f"{' × 100' if scale_label == 'Percent' else ''}. "
-            "Only exact country/date/frequency matches are used; zero denominators are excluded."
-        )
-        return
-
-    if calc_mode == "Custom formula":
-        formula_options = {
-            "a_div_b": "A / B",
-            "a_minus_b_div_c": "(A - B) / C",
-            "a_plus_b_div_c": "(A + B) / C",
-            "a_minus_b": "A - B",
-            "a_plus_b": "A + B",
-        }
-        operation = st.selectbox(
-            "Formula",
-            list(formula_options.keys()),
-            format_func=lambda value: formula_options[value],
-            key=f"calc_formula_operation_{dataset}",
-            help="A uses the top Source selection. B and C can use any source.",
-        )
-        needs_c = operation in {"a_minus_b_div_c", "a_plus_b_div_c"}
-
-        b_source_col, c_source_col, scale_col = st.columns([2, 2, 1])
-        with b_source_col:
-            b_source = st.selectbox(
-                "B source",
-                source_options,
-                index=source_options.index(source_choice),
-                key=f"calc_formula_b_source_{dataset}",
-            )
-        with c_source_col:
-            if needs_c:
-                c_source = st.selectbox(
-                    "C source",
-                    source_options,
-                    index=source_options.index(source_choice),
-                    key=f"calc_formula_c_source_{dataset}",
-                )
-            else:
-                c_source = None
-                st.caption("C is not used for this formula.")
-        with scale_col:
-            scale_label = st.selectbox(
-                "Scale",
-                ["As calculated", "Percent / x100"],
-                key=f"calc_formula_scale_{dataset}",
-            )
-        scale = 100.0 if scale_label == "Percent / x100" else 1.0
-
-        loaded_sources = {dataset: (source_df, indicator_options, display_map, indicator_col, source_choice)}
-
-        def load_formula_source(source_label: str):
-            source_dataset = source_to_dataset[source_label]
-            if source_dataset not in loaded_sources:
-                with st.spinner(f"Loading {source_dataset} formula history..."):
-                    frame = _load_comparison_source(source_dataset, calc_countries, wgi_panel)
-                if frame is None or len(frame) == 0:
-                    return source_dataset, pd.DataFrame(), [], {}, "indicator_code"
-                options, labels, key_col = _indicator_selector_metadata(frame, source_dataset)
-                loaded_sources[source_dataset] = (frame, options, labels, key_col, source_label)
-            frame, options, labels, key_col, _ = loaded_sources[source_dataset]
-            return source_dataset, frame, options, labels, key_col
-
-        b_dataset, b_source_df, b_options, b_display, b_col = load_formula_source(b_source)
-        if b_source_df is None or len(b_source_df) == 0 or not b_options:
-            st.info(f"No {b_dataset} data is available for operand B.")
-            return
-
-        c_dataset = None
-        c_source_df = None
-        c_options = []
-        c_display = {}
-        c_col = "indicator_code"
-        if needs_c:
-            c_dataset, c_source_df, c_options, c_display, c_col = load_formula_source(c_source)
-            if c_source_df is None or len(c_source_df) == 0 or not c_options:
-                st.info(f"No {c_dataset} data is available for operand C.")
-                return
-
-        operand_cols = st.columns(3 if needs_c else 2)
-        with operand_cols[0]:
-            a_key = st.selectbox(
-                "A item",
-                indicator_options,
-                format_func=lambda x: display_map[x],
-                key=f"calc_formula_a_item_{dataset}",
-            )
-        with operand_cols[1]:
-            b_key = st.selectbox(
-                "B item",
-                b_options,
-                format_func=lambda x: b_display[x],
-                key=f"calc_formula_b_item_{b_dataset}",
-            )
-        c_key = None
-        if needs_c:
-            with operand_cols[2]:
-                c_key = st.selectbox(
-                    "C item",
-                    c_options,
-                    format_func=lambda x: c_display[x],
-                    key=f"calc_formula_c_item_{c_dataset}",
-                )
-
-        metadata_rows = [
-            _indicator_metadata_row(
-                source_df,
-                dataset,
-                source_choice,
-                a_key,
-                indicator_col,
-                display_map[a_key],
-                "A",
-            ),
-            _indicator_metadata_row(
-                b_source_df,
-                b_dataset,
-                b_source,
-                b_key,
-                b_col,
-                b_display[b_key],
-                "B",
-            ),
-        ]
-        if needs_c:
-            metadata_rows.append(
-                _indicator_metadata_row(
-                    c_source_df,
-                    c_dataset,
-                    c_source,
-                    c_key,
-                    c_col,
-                    c_display[c_key],
-                    "C",
-                )
-            )
-        _render_indicator_metadata(metadata_rows)
-
-        a_frame = normalize_observation_frame(source_df, a_key, indicator_col, display_map[a_key])
-        b_frame = normalize_observation_frame(b_source_df, b_key, b_col, b_display[b_key])
-        c_frame = (
-            normalize_observation_frame(c_source_df, c_key, c_col, c_display[c_key])
-            if needs_c
-            else None
-        )
-
-        operand_frames = [a_frame, b_frame] + ([c_frame] if needs_c else [])
-        frequency_sets = [set(available_frequencies(frame)) for frame in operand_frames]
-        common_freqs = [
-            frequency
-            for frequency in ("M", "Q", "A")
-            if all(frequency in present for present in frequency_sets)
-        ]
-        selected_freq = None
-        if len(common_freqs) > 1:
-            selected_freq = st.selectbox(
-                "Periodicity",
-                common_freqs,
-                format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
-                key=f"calc_formula_frequency_{dataset}_{b_dataset}_{c_dataset}_{operation}",
-            )
-        elif common_freqs:
-            selected_freq = common_freqs[0]
-
-        formula = compute_formula(
-            restrict_frequency(a_frame, selected_freq),
-            restrict_frequency(b_frame, selected_freq),
-            operation,
-            restrict_frequency(c_frame, selected_freq) if needs_c else None,
-            scale=scale,
-        )
-        formula = filter_time_range(formula, time_range)
-
-        a_label = f"{display_map[a_key]} [{dataset}]"
-        b_label = f"{b_display[b_key]} [{b_dataset}]"
-        c_label = f"{c_display[c_key]} [{c_dataset}]" if needs_c else None
-        if operation == "a_div_b":
-            title = f"{a_label} / {b_label}"
-        elif operation == "a_minus_b":
-            title = f"{a_label} - {b_label}"
-        elif operation == "a_plus_b":
-            title = f"{a_label} + {b_label}"
-        elif operation == "a_minus_b_div_c":
-            title = f"({a_label} - {b_label}) / {c_label}"
-        else:
-            title = f"({a_label} + {b_label}) / {c_label}"
-        _render_calculated_chart(
-            formula,
-            title=title,
-            country_formatter=country_formatter,
-            y_title=scale_label,
-            chart_key=f"calc_formula_chart_{dataset}_{b_dataset}_{c_dataset}_{operation}",
-        )
-        st.caption(
-            f"Formula: {title}{' x 100' if scale != 1.0 else ''}. "
             "Only exact country/date/frequency matches are used; zero denominators are excluded."
         )
         return

@@ -3,10 +3,12 @@ import pytest
 
 from src.dashboard.calculated_series import (
     compute_cross_sectional_share,
-    compute_formula,
+    compute_expression_formula,
     compute_ratio,
     compute_temporal_change,
+    FormulaValidationError,
     normalize_observation_frame,
+    validate_formula,
 )
 
 
@@ -73,43 +75,73 @@ def test_compute_ratio_drops_zero_denominator():
     assert ratio.empty
 
 
-def test_compute_formula_supports_difference_divided_by_third_operand():
+def test_compute_expression_formula_supports_parentheses_and_reused_operands():
     frame = pd.DataFrame(
         {
             "country_code": ["KEN", "KEN", "KEN"],
-            "indicator_code": ["NPL", "PROV", "CAP"],
+            "indicator_code": ["A", "B", "D"],
             "period": ["2025-12-31", "2025-12-31", "2025-12-31"],
             "frequency": ["A", "A", "A"],
-            "value": [120.0, 45.0, 300.0],
+            "value": [120.0, 70.0, 20.0],
         }
     )
-    npl = normalize_observation_frame(frame, "NPL", "indicator_code", "NPL")
-    provisions = normalize_observation_frame(frame, "PROV", "indicator_code", "Provisions")
-    capital = normalize_observation_frame(frame, "CAP", "indicator_code", "Capital")
+    operands = {
+        key: normalize_observation_frame(frame, key, "indicator_code", key)
+        for key in ("A", "B", "D")
+    }
 
-    result = compute_formula(npl, provisions, "a_minus_b_div_c", capital, scale=100)
+    result, plan = compute_expression_formula("(A-B)/(B-D)", operands, scale=100)
 
-    assert result["value"].iloc[0] == pytest.approx(25.0)
-    assert result["a_value"].iloc[0] == pytest.approx(120.0)
-    assert result["b_value"].iloc[0] == pytest.approx(45.0)
-    assert result["c_value"].iloc[0] == pytest.approx(300.0)
+    assert plan.normalized_formula == "(A - B) / (B - D)"
+    assert plan.used_operands == ("A", "B", "D")
+    assert result["value"].iloc[0] == pytest.approx(100.0)
 
 
-def test_compute_formula_drops_zero_third_operand():
-    base = pd.DataFrame(
+def test_compute_expression_formula_supports_numeric_constants():
+    frame = pd.DataFrame(
         {
             "country_code": ["KEN"],
-            "date": [pd.Timestamp("2025-12-31")],
+            "indicator_code": ["A"],
+            "period": ["2025-12-31"],
             "frequency": ["A"],
             "value": [10.0],
         }
     )
-    zero = base.copy()
-    zero["value"] = 0.0
+    operands = {"A": normalize_observation_frame(frame, "A", "indicator_code", "A")}
 
-    result = compute_formula(base, base, "a_minus_b_div_c", zero)
+    result, _ = compute_expression_formula("(A * 2) + 5", operands)
+
+    assert result["value"].iloc[0] == pytest.approx(25.0)
+
+
+def test_compute_expression_formula_drops_zero_denominator():
+    frame = pd.DataFrame(
+        {
+            "country_code": ["KEN", "KEN", "KEN"],
+            "indicator_code": ["A", "B", "D"],
+            "period": ["2025-12-31", "2025-12-31", "2025-12-31"],
+            "frequency": ["A", "A", "A"],
+            "value": [10.0, 20.0, 20.0],
+        }
+    )
+    operands = {
+        key: normalize_observation_frame(frame, key, "indicator_code", key)
+        for key in ("A", "B", "D")
+    }
+
+    result, _ = compute_expression_formula("A / (B - D)", operands)
 
     assert result.empty
+
+
+def test_validate_formula_rejects_code_injection_syntax():
+    with pytest.raises(FormulaValidationError):
+        validate_formula("__import__('os').system('echo bad')", ["A", "B", "C", "D"])
+
+
+def test_validate_formula_rejects_unknown_operands():
+    with pytest.raises(FormulaValidationError):
+        validate_formula("A + Z", ["A", "B", "C", "D"])
 
 
 def test_compute_cross_sectional_share_sums_to_100_by_period():
