@@ -8,11 +8,31 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import html
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from src.dashboard.styles import get_risk_color_hex, get_risk_label, COLORS
 
 RESERVE_CURRENCY_COUNTRIES = ['USA', 'GBR', 'JPN', 'CHE', 'EMU', 'DEU', 'FRA', 'ITA', 'ESP', 'NLD', 'BEL', 'AUT']
+
+
+def _render_hover_full_label(label: str, prefix: str = "Selected item") -> None:
+    """Show a compact selected-label preview with the full text on hover."""
+    text = str(label or "").strip()
+    if not text:
+        return
+    safe_text = html.escape(text, quote=True)
+    safe_prefix = html.escape(prefix, quote=True)
+    st.markdown(
+        (
+            f'<div title="{safe_text}" '
+            'style="font-size:0.82rem;color:#6B7280;line-height:1.3;'
+            'margin-top:-0.35rem;margin-bottom:0.35rem;white-space:nowrap;'
+            'overflow:hidden;text-overflow:ellipsis;">'
+            f'<span style="font-weight:600;">{safe_prefix}:</span> {safe_text}</div>'
+        ),
+        unsafe_allow_html=True,
+    )
 
 SOURCE_CONTEXT = {
     "WEO": ("IMF World Economic Outlook", "Country macroeconomic, fiscal and external-sector series."),
@@ -21,6 +41,8 @@ SOURCE_CONTEXT = {
     "FSIBSIS": ("IMF Financial Soundness Indicators balance sheets", "Deposit-taker balance-sheet and income-statement items."),
     "MFS": ("IMF Monetary and Financial Statistics, MFS_DC", "Monetary-sector balance sheets; not deposit-takers-only unless ODCORP is selected."),
     "WGI": ("World Bank Worldwide Governance Indicators", "Annual country governance scores."),
+    "EXTERNAL": ("Derived external-liquidity reference observations", "Staged external-sector and liquidity indicators assembled for BankEnv insights."),
+    "GOVT": ("Derived government-liquidity reference observations", "Staged fiscal and government-liquidity indicators assembled for BankEnv insights."),
 }
 
 MFS_PREFIX_CONTEXT = {
@@ -431,8 +453,7 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
     if use_name_as_key:
         # For FSIC: Use indicator_name as the unique identifier
         options = df['indicator_name'].dropna().unique().tolist()
-        # Small truncation in dropdown only for readability
-        options_display = {name: name[:80] + "..." if len(name) > 80 else name for name in options}
+        options_display = {name: name for name in options}
         sorted_options = sorted(options, key=lambda x: x.lower())
     else:
         # For WEO/MFS: Use indicator_code as the unique identifier
@@ -461,6 +482,7 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
             format_func=lambda x: options_display[x],
             key=f"dd_select_{dataset_name}"
         )
+        _render_hover_full_label(options_display[selected_key])
         
     with col_range:
          time_range = st.selectbox(
