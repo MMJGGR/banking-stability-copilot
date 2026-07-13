@@ -56,6 +56,7 @@ from src.dashboard.components import (
 from src.dashboard.calculated_series import (
     available_frequencies,
     compute_cross_sectional_share,
+    compute_formula,
     compute_ratio,
     compute_temporal_change,
     filter_time_range,
@@ -1357,6 +1358,155 @@ def _indicator_selector_metadata(source_df: pd.DataFrame, dataset: str):
     return indicator_options, display_map, indicator_col
 
 
+def _unit_display(value) -> str:
+    """Return a readable unit label from source unit metadata when available."""
+    if pd.isna(value):
+        return ""
+    text = str(value).strip()
+    return {
+        "PT": "Percent",
+        "USD": "US dollar",
+        "EUR": "Euro",
+        "XDC": "Domestic currency",
+    }.get(text, text)
+
+
+def _join_distinct(values, limit: int = 4) -> str:
+    cleaned = []
+    for value in values:
+        if pd.isna(value):
+            continue
+        text = str(value).strip()
+        if text and text.lower() != "nan" and text not in cleaned:
+            cleaned.append(text)
+    if not cleaned:
+        return "Not specified"
+    if len(cleaned) > limit:
+        return ", ".join(cleaned[:limit]) + f" +{len(cleaned) - limit} more"
+    return ", ".join(cleaned)
+
+
+def _indicator_label_components(label: str) -> str:
+    parts = [
+        part.strip()
+        for part in str(label).split(",")
+        if part.strip() and part.strip().lower() != "nan"
+    ]
+    if not parts:
+        return "Not specified"
+    return " | ".join(parts)
+
+
+def _indicator_plain_language_note(dataset: str, label: str) -> str:
+    """Provide a short source-label-derived explanation for common item types."""
+    text = str(label or "").lower()
+    notes = []
+    if "assets" in text:
+        notes.append("asset-side position")
+    if "liabilities" in text:
+        notes.append("liability-side position")
+    if "claims on" in text:
+        notes.append("claim/exposure to the named counterpart")
+    if "state and local government" in text:
+        notes.append("counterparty is state and local government")
+    if "general government" in text:
+        notes.append("counterparty/sector is general government")
+    if "percent" in text:
+        notes.append("ratio or percentage series")
+    if dataset == "MFS" and not notes:
+        notes.append("monetary and financial statistics item")
+    if dataset == "FSIBSIS" and not notes:
+        notes.append("bank balance-sheet or income-statement item")
+    return "; ".join(notes) if notes else "Source label only"
+
+
+def _indicator_metadata_row(
+    source_df: pd.DataFrame,
+    dataset: str,
+    source_label: str,
+    indicator_value,
+    indicator_col: str,
+    display_label: str,
+    role: str,
+) -> dict:
+    """Build one compact metadata row for a selected source item."""
+    subset = source_df.loc[source_df[indicator_col] == indicator_value].copy()
+    if subset.empty:
+        return {
+            "Role": role,
+            "Source": source_label,
+            "Code": str(indicator_value),
+            "Source label": display_label,
+            "Source dimensions": _indicator_label_components(display_label),
+            "Unit": "Not specified",
+            "Frequency": "Not specified",
+            "Coverage": "No selected-country observations",
+            "Plain-language note": _indicator_plain_language_note(dataset, display_label),
+        }
+
+    source_name = display_label
+    if "indicator_name" in subset.columns:
+        names = subset["indicator_name"].dropna().astype(str)
+        names = names[names.str.strip() != ""]
+        if len(names) > 0:
+            source_name = names.iloc[0]
+
+    code = str(indicator_value)
+    if "indicator_code" in subset.columns:
+        code = _join_distinct(subset["indicator_code"].dropna().astype(str).unique(), limit=3)
+
+    if "unit" in subset.columns:
+        unit = _join_distinct([_unit_display(value) for value in subset["unit"].unique()], limit=3)
+    else:
+        unit = "Not specified"
+
+    if "frequency" in subset.columns:
+        frequency = _join_distinct(
+            [
+                {"M": "Monthly", "Q": "Quarterly", "A": "Annual"}.get(str(value), str(value))
+                for value in subset["frequency"].dropna().unique()
+            ],
+            limit=3,
+        )
+    else:
+        frequency = "Not specified"
+
+    period = pd.to_datetime(subset.get("period"), errors="coerce")
+    valid_period = period.dropna()
+    if valid_period.empty:
+        coverage = f"{subset['country_code'].nunique()} selected countries"
+    else:
+        coverage = (
+            f"{subset['country_code'].nunique()} selected countries; "
+            f"{valid_period.min().date()} to {valid_period.max().date()}"
+        )
+
+    return {
+        "Role": role,
+        "Source": source_label,
+        "Code": code,
+        "Source label": source_name,
+        "Source dimensions": _indicator_label_components(source_name),
+        "Unit": unit,
+        "Frequency": frequency,
+        "Coverage": coverage,
+        "Plain-language note": _indicator_plain_language_note(dataset, source_name),
+    }
+
+
+def _render_indicator_metadata(rows: list[dict]):
+    """Render selected item metadata beneath calculation controls."""
+    rows = [row for row in rows if row]
+    if not rows:
+        return
+    with st.expander("Selected item metadata", expanded=False):
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.caption(
+            "Metadata is taken from the loaded source cache and source codelist "
+            "labels. The plain-language note is derived from the source label."
+        )
+
+
 def _render_calculated_chart(
     chart_df: pd.DataFrame,
     title: str,
@@ -1421,7 +1571,7 @@ def render_calculated_series_builder(
     """Render bounded multi-indicator, ratio, share and temporal calculations."""
     st.markdown("### Calculated Series")
     st.caption(
-        "Build lightweight exploratory calculations from one source at a time. "
+        "Build lightweight exploratory calculations from source histories. "
         "Calculations align observations by country, date, and reporting frequency."
     )
 
@@ -1432,19 +1582,30 @@ def render_calculated_series_builder(
             default_countries.append(code)
     default_countries = default_countries[:5]
 
+    source_options = [
+        "Economic (WEO)",
+        "Banking ratios (FSIC)",
+        "Bank balance sheet (FSIBSIS)",
+        "Monetary (MFS)",
+        "Governance (WGI)",
+        EXTERNAL_SOURCE_LABEL,
+        GOVT_SOURCE_LABEL,
+    ]
+    source_to_dataset = {
+        "Economic (WEO)": "WEO",
+        "Banking ratios (FSIC)": "FSIC",
+        "Bank balance sheet (FSIBSIS)": "FSIBSIS",
+        "Monetary (MFS)": "MFS",
+        "Governance (WGI)": "WGI",
+        EXTERNAL_SOURCE_LABEL: "EXTERNAL",
+        GOVT_SOURCE_LABEL: "GOVT",
+    }
+
     source_col, country_col = st.columns([1, 3])
     with source_col:
         source_choice = st.selectbox(
             "Source",
-            [
-                "Economic (WEO)",
-                "Banking ratios (FSIC)",
-                "Bank balance sheet (FSIBSIS)",
-                "Monetary (MFS)",
-                "Governance (WGI)",
-                EXTERNAL_SOURCE_LABEL,
-                GOVT_SOURCE_LABEL,
-            ],
+            source_options,
             key="calc_source",
         )
     with country_col:
@@ -1463,15 +1624,7 @@ def render_calculated_series_builder(
         st.warning("Using the first 8 selected countries to keep the hosted app responsive.")
         calc_countries = calc_countries[:8]
 
-    dataset = {
-        "Economic (WEO)": "WEO",
-        "Banking ratios (FSIC)": "FSIC",
-        "Bank balance sheet (FSIBSIS)": "FSIBSIS",
-        "Monetary (MFS)": "MFS",
-        "Governance (WGI)": "WGI",
-        EXTERNAL_SOURCE_LABEL: "EXTERNAL",
-        GOVT_SOURCE_LABEL: "GOVT",
-    }[source_choice]
+    dataset = source_to_dataset[source_choice]
 
     with st.spinner(f"Loading {dataset} history for calculated series..."):
         source_df = _load_comparison_source(dataset, calc_countries, wgi_panel)
@@ -1491,6 +1644,7 @@ def render_calculated_series_builder(
             [
                 "Raw multi-indicator panels",
                 "Ratio",
+                "Custom formula",
                 "Cross-sectional share",
                 "Temporal change / index",
             ],
@@ -1517,6 +1671,20 @@ def render_calculated_series_builder(
         if not selected_indicators:
             st.info("Select at least one indicator.")
             return
+        _render_indicator_metadata(
+            [
+                _indicator_metadata_row(
+                    source_df,
+                    dataset,
+                    source_choice,
+                    indicator,
+                    indicator_col,
+                    display_map[indicator],
+                    f"Panel {idx + 1}",
+                )
+                for idx, indicator in enumerate(selected_indicators)
+            ],
+        )
         freq_options = available_frequencies(source_df)
         selected_freq = None
         if len(freq_options) > 1:
@@ -1546,20 +1714,13 @@ def render_calculated_series_builder(
         return
 
     if calc_mode == "Ratio":
-        num_col, den_col, scale_col = st.columns([2, 2, 1])
-        with num_col:
-            numerator_key = st.selectbox(
-                "Numerator",
-                indicator_options,
-                format_func=lambda x: display_map[x],
-                key=f"calc_ratio_num_{dataset}",
-            )
-        with den_col:
-            denominator_key = st.selectbox(
-                "Denominator",
-                indicator_options,
-                format_func=lambda x: display_map[x],
-                key=f"calc_ratio_den_{dataset}",
+        den_source_col, scale_col = st.columns([3, 1])
+        with den_source_col:
+            denominator_source = st.selectbox(
+                "Denominator source",
+                source_options,
+                index=source_options.index(source_choice),
+                key=f"calc_ratio_den_source_{dataset}",
             )
         with scale_col:
             scale_label = st.selectbox(
@@ -1567,6 +1728,66 @@ def render_calculated_series_builder(
                 ["Ratio", "Percent"],
                 key=f"calc_ratio_scale_{dataset}",
             )
+
+        denominator_dataset = source_to_dataset[denominator_source]
+        if denominator_dataset == dataset:
+            denominator_source_df = source_df
+        else:
+            with st.spinner(f"Loading {denominator_dataset} denominator history..."):
+                denominator_source_df = _load_comparison_source(
+                    denominator_dataset,
+                    calc_countries,
+                    wgi_panel,
+                )
+        if denominator_source_df is None or len(denominator_source_df) == 0:
+            st.info(f"No {denominator_dataset} data is available for the selected countries.")
+            return
+
+        denominator_options, denominator_display, denominator_col = _indicator_selector_metadata(
+            denominator_source_df,
+            denominator_dataset,
+        )
+        if not denominator_options:
+            st.info("No denominator indicators are available for this source/country selection.")
+            return
+
+        num_col, den_col = st.columns([2, 2])
+        with num_col:
+            numerator_key = st.selectbox(
+                "Numerator item",
+                indicator_options,
+                format_func=lambda x: display_map[x],
+                key=f"calc_ratio_num_{dataset}",
+            )
+        with den_col:
+            denominator_key = st.selectbox(
+                "Denominator item",
+                denominator_options,
+                format_func=lambda x: denominator_display[x],
+                key=f"calc_ratio_den_{denominator_dataset}",
+            )
+        _render_indicator_metadata(
+            [
+                _indicator_metadata_row(
+                    source_df,
+                    dataset,
+                    source_choice,
+                    numerator_key,
+                    indicator_col,
+                    display_map[numerator_key],
+                    "Numerator",
+                ),
+                _indicator_metadata_row(
+                    denominator_source_df,
+                    denominator_dataset,
+                    denominator_source,
+                    denominator_key,
+                    denominator_col,
+                    denominator_display[denominator_key],
+                    "Denominator",
+                ),
+            ],
+        )
         scale = 100.0 if scale_label == "Percent" else 1.0
         numerator = normalize_observation_frame(
             source_df,
@@ -1575,10 +1796,10 @@ def render_calculated_series_builder(
             display_map[numerator_key],
         )
         denominator = normalize_observation_frame(
-            source_df,
+            denominator_source_df,
             denominator_key,
-            indicator_col,
-            display_map[denominator_key],
+            denominator_col,
+            denominator_display[denominator_key],
         )
         common_freqs = [
             f for f in available_frequencies(numerator)
@@ -1590,7 +1811,10 @@ def render_calculated_series_builder(
                 "Periodicity",
                 common_freqs,
                 format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
-                key=f"calc_ratio_frequency_{dataset}_{numerator_key}_{denominator_key}",
+                key=(
+                    f"calc_ratio_frequency_{dataset}_{denominator_dataset}_"
+                    f"{numerator_key}_{denominator_key}"
+                ),
             )
         elif common_freqs:
             selected_freq = common_freqs[0]
@@ -1600,17 +1824,212 @@ def render_calculated_series_builder(
             scale=scale,
         )
         ratio = filter_time_range(ratio, time_range)
-        title = f"{display_map[numerator_key]} / {display_map[denominator_key]}"
+        numerator_label = f"{display_map[numerator_key]} [{dataset}]"
+        denominator_label = f"{denominator_display[denominator_key]} [{denominator_dataset}]"
         _render_calculated_chart(
             ratio,
+            title=f"{numerator_label} / {denominator_label}",
+            country_formatter=country_formatter,
+            y_title=scale_label,
+            chart_key=f"calc_ratio_chart_{dataset}_{denominator_dataset}",
+        )
+        st.caption(
+            f"Formula: {numerator_label} ÷ {denominator_label}"
+            f"{' × 100' if scale_label == 'Percent' else ''}. "
+            "Only exact country/date/frequency matches are used; zero denominators are excluded."
+        )
+        return
+
+    if calc_mode == "Custom formula":
+        formula_options = {
+            "a_div_b": "A / B",
+            "a_minus_b_div_c": "(A - B) / C",
+            "a_plus_b_div_c": "(A + B) / C",
+            "a_minus_b": "A - B",
+            "a_plus_b": "A + B",
+        }
+        operation = st.selectbox(
+            "Formula",
+            list(formula_options.keys()),
+            format_func=lambda value: formula_options[value],
+            key=f"calc_formula_operation_{dataset}",
+            help="A uses the top Source selection. B and C can use any source.",
+        )
+        needs_c = operation in {"a_minus_b_div_c", "a_plus_b_div_c"}
+
+        b_source_col, c_source_col, scale_col = st.columns([2, 2, 1])
+        with b_source_col:
+            b_source = st.selectbox(
+                "B source",
+                source_options,
+                index=source_options.index(source_choice),
+                key=f"calc_formula_b_source_{dataset}",
+            )
+        with c_source_col:
+            if needs_c:
+                c_source = st.selectbox(
+                    "C source",
+                    source_options,
+                    index=source_options.index(source_choice),
+                    key=f"calc_formula_c_source_{dataset}",
+                )
+            else:
+                c_source = None
+                st.caption("C is not used for this formula.")
+        with scale_col:
+            scale_label = st.selectbox(
+                "Scale",
+                ["As calculated", "Percent / x100"],
+                key=f"calc_formula_scale_{dataset}",
+            )
+        scale = 100.0 if scale_label == "Percent / x100" else 1.0
+
+        loaded_sources = {dataset: (source_df, indicator_options, display_map, indicator_col, source_choice)}
+
+        def load_formula_source(source_label: str):
+            source_dataset = source_to_dataset[source_label]
+            if source_dataset not in loaded_sources:
+                with st.spinner(f"Loading {source_dataset} formula history..."):
+                    frame = _load_comparison_source(source_dataset, calc_countries, wgi_panel)
+                if frame is None or len(frame) == 0:
+                    return source_dataset, pd.DataFrame(), [], {}, "indicator_code"
+                options, labels, key_col = _indicator_selector_metadata(frame, source_dataset)
+                loaded_sources[source_dataset] = (frame, options, labels, key_col, source_label)
+            frame, options, labels, key_col, _ = loaded_sources[source_dataset]
+            return source_dataset, frame, options, labels, key_col
+
+        b_dataset, b_source_df, b_options, b_display, b_col = load_formula_source(b_source)
+        if b_source_df is None or len(b_source_df) == 0 or not b_options:
+            st.info(f"No {b_dataset} data is available for operand B.")
+            return
+
+        c_dataset = None
+        c_source_df = None
+        c_options = []
+        c_display = {}
+        c_col = "indicator_code"
+        if needs_c:
+            c_dataset, c_source_df, c_options, c_display, c_col = load_formula_source(c_source)
+            if c_source_df is None or len(c_source_df) == 0 or not c_options:
+                st.info(f"No {c_dataset} data is available for operand C.")
+                return
+
+        operand_cols = st.columns(3 if needs_c else 2)
+        with operand_cols[0]:
+            a_key = st.selectbox(
+                "A item",
+                indicator_options,
+                format_func=lambda x: display_map[x],
+                key=f"calc_formula_a_item_{dataset}",
+            )
+        with operand_cols[1]:
+            b_key = st.selectbox(
+                "B item",
+                b_options,
+                format_func=lambda x: b_display[x],
+                key=f"calc_formula_b_item_{b_dataset}",
+            )
+        c_key = None
+        if needs_c:
+            with operand_cols[2]:
+                c_key = st.selectbox(
+                    "C item",
+                    c_options,
+                    format_func=lambda x: c_display[x],
+                    key=f"calc_formula_c_item_{c_dataset}",
+                )
+
+        metadata_rows = [
+            _indicator_metadata_row(
+                source_df,
+                dataset,
+                source_choice,
+                a_key,
+                indicator_col,
+                display_map[a_key],
+                "A",
+            ),
+            _indicator_metadata_row(
+                b_source_df,
+                b_dataset,
+                b_source,
+                b_key,
+                b_col,
+                b_display[b_key],
+                "B",
+            ),
+        ]
+        if needs_c:
+            metadata_rows.append(
+                _indicator_metadata_row(
+                    c_source_df,
+                    c_dataset,
+                    c_source,
+                    c_key,
+                    c_col,
+                    c_display[c_key],
+                    "C",
+                )
+            )
+        _render_indicator_metadata(metadata_rows)
+
+        a_frame = normalize_observation_frame(source_df, a_key, indicator_col, display_map[a_key])
+        b_frame = normalize_observation_frame(b_source_df, b_key, b_col, b_display[b_key])
+        c_frame = (
+            normalize_observation_frame(c_source_df, c_key, c_col, c_display[c_key])
+            if needs_c
+            else None
+        )
+
+        operand_frames = [a_frame, b_frame] + ([c_frame] if needs_c else [])
+        frequency_sets = [set(available_frequencies(frame)) for frame in operand_frames]
+        common_freqs = [
+            frequency
+            for frequency in ("M", "Q", "A")
+            if all(frequency in present for present in frequency_sets)
+        ]
+        selected_freq = None
+        if len(common_freqs) > 1:
+            selected_freq = st.selectbox(
+                "Periodicity",
+                common_freqs,
+                format_func=lambda f: {'M': 'Monthly', 'Q': 'Quarterly', 'A': 'Annual'}.get(f, f),
+                key=f"calc_formula_frequency_{dataset}_{b_dataset}_{c_dataset}_{operation}",
+            )
+        elif common_freqs:
+            selected_freq = common_freqs[0]
+
+        formula = compute_formula(
+            restrict_frequency(a_frame, selected_freq),
+            restrict_frequency(b_frame, selected_freq),
+            operation,
+            restrict_frequency(c_frame, selected_freq) if needs_c else None,
+            scale=scale,
+        )
+        formula = filter_time_range(formula, time_range)
+
+        a_label = f"{display_map[a_key]} [{dataset}]"
+        b_label = f"{b_display[b_key]} [{b_dataset}]"
+        c_label = f"{c_display[c_key]} [{c_dataset}]" if needs_c else None
+        if operation == "a_div_b":
+            title = f"{a_label} / {b_label}"
+        elif operation == "a_minus_b":
+            title = f"{a_label} - {b_label}"
+        elif operation == "a_plus_b":
+            title = f"{a_label} + {b_label}"
+        elif operation == "a_minus_b_div_c":
+            title = f"({a_label} - {b_label}) / {c_label}"
+        else:
+            title = f"({a_label} + {b_label}) / {c_label}"
+        _render_calculated_chart(
+            formula,
             title=title,
             country_formatter=country_formatter,
             y_title=scale_label,
-            chart_key=f"calc_ratio_chart_{dataset}_{numerator_key}_{denominator_key}",
+            chart_key=f"calc_formula_chart_{dataset}_{b_dataset}_{c_dataset}_{operation}",
         )
         st.caption(
-            f"Formula: {display_map[numerator_key]} ÷ {display_map[denominator_key]}"
-            f"{' × 100' if scale_label == 'Percent' else ''}. "
+            f"Formula: {title}{' x 100' if scale != 1.0 else ''}. "
             "Only exact country/date/frequency matches are used; zero denominators are excluded."
         )
         return
@@ -1621,6 +2040,19 @@ def render_calculated_series_builder(
             indicator_options,
             format_func=lambda x: display_map[x],
             key=f"calc_share_indicator_{dataset}",
+        )
+        _render_indicator_metadata(
+            [
+                _indicator_metadata_row(
+                    source_df,
+                    dataset,
+                    source_choice,
+                    indicator_key,
+                    indicator_col,
+                    display_map[indicator_key],
+                    "Share item",
+                )
+            ],
         )
         base = normalize_observation_frame(
             source_df,
@@ -1659,6 +2091,19 @@ def render_calculated_series_builder(
         indicator_options,
         format_func=lambda x: display_map[x],
         key=f"calc_temporal_indicator_{dataset}",
+    )
+    _render_indicator_metadata(
+        [
+            _indicator_metadata_row(
+                source_df,
+                dataset,
+                source_choice,
+                indicator_key,
+                indicator_col,
+                display_map[indicator_key],
+                "Temporal item",
+            )
+        ],
     )
     temporal_mode = st.radio(
         "Temporal calculation",

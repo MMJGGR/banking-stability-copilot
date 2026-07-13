@@ -142,6 +142,94 @@ def compute_ratio(
     ].dropna(subset=["value"]).reset_index(drop=True)
 
 
+def compute_formula(
+    a: pd.DataFrame,
+    b: pd.DataFrame,
+    operation: str,
+    c: pd.DataFrame | None = None,
+    scale: float = 1.0,
+) -> pd.DataFrame:
+    """Compute a bounded custom formula on exact aligned periods.
+
+    Supported operations:
+    - ``a_div_b``: ``A / B``
+    - ``a_minus_b``: ``A - B``
+    - ``a_plus_b``: ``A + B``
+    - ``a_minus_b_div_c``: ``(A - B) / C``
+    - ``a_plus_b_div_c``: ``(A + B) / C``
+    """
+    if operation not in {
+        "a_div_b",
+        "a_minus_b",
+        "a_plus_b",
+        "a_minus_b_div_c",
+        "a_plus_b_div_c",
+    }:
+        raise ValueError(f"Unsupported formula operation: {operation}")
+
+    merged = a.rename(columns={"value": "a_value"}).merge(
+        b.rename(columns={"value": "b_value"}),
+        on=ALIGN_KEYS,
+        how="inner",
+    )
+    needs_c = operation in {"a_minus_b_div_c", "a_plus_b_div_c"}
+    if needs_c:
+        if c is None:
+            raise ValueError(f"Operation {operation} requires operand C")
+        merged = merged.merge(
+            c.rename(columns={"value": "c_value"}),
+            on=ALIGN_KEYS,
+            how="inner",
+        )
+
+    value_cols = ["a_value", "b_value"] + (["c_value"] if needs_c else [])
+    if merged.empty:
+        return pd.DataFrame(
+            columns=ALIGN_KEYS
+            + [
+                "value",
+                *value_cols,
+                "calculation_flag",
+            ]
+        )
+
+    for column in value_cols:
+        merged[column] = pd.to_numeric(merged[column], errors="coerce")
+
+    valid = merged[value_cols].notna().all(axis=1)
+    if operation == "a_div_b":
+        valid = valid & (merged["b_value"] != 0)
+        merged["value"] = np.where(valid, merged["a_value"] / merged["b_value"] * scale, np.nan)
+    elif operation == "a_minus_b":
+        merged["value"] = np.where(valid, (merged["a_value"] - merged["b_value"]) * scale, np.nan)
+    elif operation == "a_plus_b":
+        merged["value"] = np.where(valid, (merged["a_value"] + merged["b_value"]) * scale, np.nan)
+    elif operation == "a_minus_b_div_c":
+        valid = valid & (merged["c_value"] != 0)
+        merged["value"] = np.where(
+            valid,
+            (merged["a_value"] - merged["b_value"]) / merged["c_value"] * scale,
+            np.nan,
+        )
+    else:
+        valid = valid & (merged["c_value"] != 0)
+        merged["value"] = np.where(
+            valid,
+            (merged["a_value"] + merged["b_value"]) / merged["c_value"] * scale,
+            np.nan,
+        )
+
+    merged["calculation_flag"] = np.where(valid, "calculated", "invalid_formula_input")
+    return merged[
+        ALIGN_KEYS
+        + [
+            "value",
+            *value_cols,
+            "calculation_flag",
+        ]
+    ].dropna(subset=["value"]).reset_index(drop=True)
+
+
 def compute_cross_sectional_share(
     frame: pd.DataFrame,
     group_keys: Iterable[str] = ("date", "frequency"),
@@ -210,4 +298,3 @@ def available_frequencies(frame: pd.DataFrame) -> list[str]:
         return []
     present = set(frame["frequency"].dropna().astype(str))
     return [frequency for frequency in ("M", "Q", "A") if frequency in present]
-
