@@ -3051,11 +3051,11 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
   - Verification: focused crisis-model/source suite passed (26 tests after the
     derived-source metadata correction); repository-wide suite passed (120
     tests, 1 skipped). GitHub CI status is recorded with the checkpoint push.
-- [~] Checkpoint 47: Retain the safe early-warning foundation without deploying
+- [x] Checkpoint 47: Retain the safe early-warning foundation without deploying
   the failed hierarchical challenger.
-  - Decision: preserve draft PR #13 as the complete audit record, but split the
-    mergeable infrastructure onto `agent/hazard-foundation` from clean
-    `master`. Do not cherry-pick the mixed implementation commit.
+  - Decision: PR #13 was preserved as the complete audit record while the
+    mergeable infrastructure was rebuilt on `agent/hazard-foundation` from
+    clean `master`. The mixed implementation commit was not cherry-picked.
   - Included: corrected regularization scaling for future retraining;
     horizon-embargoed expanding CV with event purge and forward-only
     calibration; opt-in BIS credit, gap, debt-service and property adapters;
@@ -3065,14 +3065,17 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     provisional alert thresholds, dashboard components, and all Streamlit
     wiring. Current production artifacts, scores, rankings, tabs, and live
     behavior remain unchanged.
-  - [~] Verification/publish: focused and full suites, serving smoke checks,
-    GitHub CI, foundation PR merge, and closure of PR #13 will be recorded here
-    before the checkpoint is complete. Local extraction evidence: 49 focused
+  - [x] Verification/publish: 49 focused
     tests and 163 repository-wide tests passed, one repository test was skipped,
     every serving-artifact smoke check passed for the unchanged 201-country
     snapshot, and an explicit diff guard confirmed no app, dashboard, serving
     artifact, generated hazard artifact, or snapshot-builder change.
-  - Foundation review: draft PR #14 passed its initial GitHub quality check. An
-    independent final audit then found and fixed two defensive-parser edge cases:
-    duplicate country rows now invalidate the optional frame, and records with
-    missing country codes can no longer become the literal code `NAN`.
+  - Foundation review: an independent final audit found and fixed two
+    defensive-parser edge cases: duplicate country rows now invalidate the
+    optional frame, and records with missing country codes can no longer become
+    the literal code `NAN`. The exact post-fix branch passed GitHub `Quality
+    checks / test` and PR #14 merged to `master` as `a1fb94d`.
+  - Handover: PR #13 was closed as superseded after the foundation merge. Its
+    remote `codex/hierarchical-risk-architecture` branch remains available as
+    the rejected-model evidence and research record; no failed probabilities or
+    alert surfaces reached production.
