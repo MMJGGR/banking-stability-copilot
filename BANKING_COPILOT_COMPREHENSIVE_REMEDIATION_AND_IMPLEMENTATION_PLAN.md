@@ -3067,8 +3067,12 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     behavior remain unchanged.
   - [~] Verification/publish: focused and full suites, serving smoke checks,
     GitHub CI, foundation PR merge, and closure of PR #13 will be recorded here
-    before the checkpoint is complete. Local extraction evidence: 47 focused
-    tests and 161 repository-wide tests passed, one repository test was skipped,
+    before the checkpoint is complete. Local extraction evidence: 49 focused
+    tests and 163 repository-wide tests passed, one repository test was skipped,
     every serving-artifact smoke check passed for the unchanged 201-country
     snapshot, and an explicit diff guard confirmed no app, dashboard, serving
     artifact, generated hazard artifact, or snapshot-builder change.
+  - Foundation review: draft PR #14 passed its initial GitHub quality check. An
+    independent final audit then found and fixed two defensive-parser edge cases:
+    duplicate country rows now invalidate the optional frame, and records with
+    missing country codes can no longer become the literal code `NAN`.

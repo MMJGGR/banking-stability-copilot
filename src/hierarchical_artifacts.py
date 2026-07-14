@@ -82,9 +82,12 @@ def _normalise_frame(snapshot: dict[str, Any]) -> pd.DataFrame:
             frame.get("dominant_mechanism", pd.Series(index=frame.index, dtype=object))
         )
 
-    frame["country_code"] = frame["country_code"].astype(str).str.strip().str.upper()
-    frame = frame[frame["country_code"].str.fullmatch(r"[A-Z]{3}", na=False)].copy()
+    country_codes = frame["country_code"].astype("string").str.strip().str.upper()
+    frame["country_code"] = country_codes
+    frame = frame[country_codes.str.fullmatch(r"[A-Z]{3}", na=False)].copy()
     if frame.empty:
+        return pd.DataFrame()
+    if frame["country_code"].duplicated(keep=False).any():
         return pd.DataFrame()
 
     for column in (*PROBABILITY_COLUMNS, *COVERAGE_COLUMNS):
@@ -112,7 +115,7 @@ def _normalise_frame(snapshot: dict[str, Any]) -> pd.DataFrame:
     else:
         frame["model_status"] = snapshot_status
     frame["as_of_date"] = snapshot.get("as_of_date")
-    return frame.drop_duplicates("country_code").reset_index(drop=True)
+    return frame.reset_index(drop=True)
 
 
 def load_hierarchical_artifacts(

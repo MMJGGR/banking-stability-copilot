@@ -119,3 +119,56 @@ def test_loader_preserves_mixed_country_model_statuses(tmp_path):
     assert not outputs_are_production(
         snapshot, frame, validation, expected_as_of="2026-06-30"
     )
+
+
+def test_loader_rejects_duplicate_country_statuses(tmp_path):
+    snapshot_path = tmp_path / "snapshot.json"
+    validation_path = tmp_path / "validation.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "as_of_date": "2026-06-30",
+                "model_status": "production",
+                "countries": [
+                    {"country_code": "USA", "model_status": "production"},
+                    {"country_code": "USA", "model_status": "research"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    validation_path.write_text(
+        json.dumps({"promotion_gates": {"passed": True}}), encoding="utf-8"
+    )
+
+    snapshot, frame, validation = load_hierarchical_artifacts(
+        snapshot_path, validation_path
+    )
+
+    assert frame.empty
+    assert not outputs_are_production(
+        snapshot, frame, validation, expected_as_of="2026-06-30"
+    )
+
+
+def test_loader_drops_records_with_missing_country_codes(tmp_path):
+    snapshot_path = tmp_path / "snapshot.json"
+    validation_path = tmp_path / "validation.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "as_of_date": "2026-06-30",
+                "model_status": "research",
+                "countries": [
+                    {"model_status": "research"},
+                    {"country_code": "KEN", "model_status": "research"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    validation_path.write_text("{}", encoding="utf-8")
+
+    _, frame, _ = load_hierarchical_artifacts(snapshot_path, validation_path)
+
+    assert frame["country_code"].tolist() == ["KEN"]

@@ -40,8 +40,9 @@ The repository includes an offline adapter for four official BIS bulk data
 sets: total credit (`WS_TC`), the published credit-to-GDP gap
 (`WS_CREDIT_GAP`), debt-service ratios (`WS_DSR`), and selected residential
 property prices (`WS_SPP`). These series are optional model-development inputs.
-They are not in the default feature contract, are not used by the committed
-serving artifacts, and are never retrieved by Streamlit at runtime.
+They are not in `DEFAULT_FEATURE_SPECS` or any active/default serving feature
+set, are not used by the committed serving artifacts, and are never retrieved
+by Streamlit at runtime.
 
 The normalized history is built with
 `python -m src.scripts.fetch_bis_financial_history`. Local cache and manifest
