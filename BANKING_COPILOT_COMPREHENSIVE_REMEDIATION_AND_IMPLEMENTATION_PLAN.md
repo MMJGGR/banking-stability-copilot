@@ -2778,3 +2778,28 @@ checklist.
     remote `codex/hierarchical-risk-architecture` branch remains available as
     the rejected-model evidence and research record; no failed probabilities or
     alert surfaces reached production.
+- [x] Checkpoint 48: Reconcile and close the comprehensive remediation plan.
+  - Implementation commit: `8cde277` (`agent/close-remediation-plan`).
+  - Re-audited every former open/partial marker against code, artifacts, tests,
+    workflows, GitHub state, and the live application. Section 21.5 now records
+    one current disposition for every issue; stale duplicate backlog tables and
+    all 31 false `Pending commit` labels were reconciled.
+  - Fixed the remaining relevant trust issues: invalid legacy crisis precision,
+    recall, and confusion metrics now fail closed; Methodology derives liquidity
+    roles from active loadings; current cards distinguish the served legacy
+    overlay from the exact WP/26/94 research label foundation.
+  - Fixed the remaining relevant data/release issues: candidate refresh and
+    promotion now rebuild, checksum, package, and install the compact government-
+    liquidity Explorer references from the same WEO snapshot; the live endpoint
+    has a bounded scheduled reachability check.
+  - Fixed the mobile brand clipping found during the final 390x844 browser pass.
+    Global, Country, Explorer, and Methodology rendered without a Streamlit
+    exception; the 201-country snapshot remained `2026-06-30 | verified`.
+  - Removed approximately 442 MB of unreferenced root raw exports from current
+    `HEAD` and ignored their download naming pattern. Historical rewriting was
+    deliberately rejected; compact serving caches remain intact.
+  - No risk-model, classifier, or inference-pipeline binary was rebuilt. Active
+    scores remain USA 7.0, Kenya 8.0, and Mozambique 8.6.
+  - Verification: 183 tests passed and one was skipped; serving-artifact smoke
+    tests passed all checks; focused live-probe, workflow-contract, manifest-
+    checksum, AppTest, compile, and diff checks passed.
