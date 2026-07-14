@@ -1535,7 +1535,7 @@ a stand-alone crisis prediction, a rating, or an automatic decision rule.
 | 25-26 deploy verification | Closed as a release control. Automation checks transport reachability only; promotion review still requires a browser check of rendered content and the expected snapshot/revision. Duplicate rank 26 was removed. | live baseline and exact-branch local browser checks on 2026-07-14; operations runbook |
 | 27 public snapshot selector | Retired from the public UI. Snapshot selection is an operator diagnostic because only reviewed artifacts may be served; exposing arbitrary local snapshots would undermine the publication gate. | `SHOW_ADMIN_DIAGNOSTICS` |
 | 28 stale Methodology | Closed. Model/data cards and source/model roles are rendered from current artifacts with concise limitations. | `app.py`; model/data cards |
-| 29 responsive/accessibility QA | Reopened at the final live gate. All primary tabs are exception-free, but Streamlit Cloud still clipped the brand row at 390x844 because the hosted WebView ignored the advanced safe-area padding declaration. A plain CSS fallback and regression guard are being applied; closure requires a post-deployment mobile check. Full WCAG certification remains outside this release because it is a separate assurance engagement. | live browser check; CSS regression guard |
+| 29 responsive/accessibility QA | Closed for the supported baseline. All primary tabs are exception-free, and the final Streamlit Cloud mobile check confirms the BankEnv brand and navigation clear the fixed toolbar after the plain-padding fallback was deployed. Full WCAG certification was removed because it is a separate assurance engagement, not a release blocker for this research app. | PR #17; owner-observed live mobile check on 2026-07-14; CSS regression guard |
 | 30-32 governance/ownership/rollback | Closed. Thresholds are approved; CODEOWNERS, release checklist, and rollback runbook are present. | `docs/GOVERNANCE.md`; `.github/CODEOWNERS`; `docs/RELEASE_CHECKLIST.md` |
 | 35 observation-status preservation | Closed. Manifest/caches preserve reported, estimate, projection, carried-forward, and imputed status where supplied. | manifest builder and tests |
 | 36 pickle portability/security | Closed under the approved policy: hashes, controlled repository provenance, and pinned training dependencies are required. Format migration remains optional technical debt, not an active incident. | governance; model-store checks |
@@ -1547,10 +1547,13 @@ Live baseline verification on 2026-07-14 found
 201 countries. The exact PR branch was then rendered locally at desktop and
 390x844 mobile dimensions. No Streamlit exception appeared in any primary tab.
 A Country warning and a Methodology monitoring notice were expected domain
-warnings, not runtime exceptions. The post-merge semantic check confirmed the
-new revision and exception-free tabs, but reopened item 29 because Streamlit
-Cloud still overlaid the brand row on mobile. The scheduled workflow alone is
-not semantic deployment validation.
+warnings, not runtime exceptions. The first post-merge semantic check confirmed
+the new revision and exception-free tabs but found Streamlit Cloud still
+overlaying the brand row on mobile. PR #17 added a plain mobile-padding fallback
+before the advanced safe-area expression. The owner-observed production check
+on 2026-07-14 then confirmed the complete BankEnv brand and navigation render
+below the fixed toolbar. The scheduled workflow alone is not semantic
+deployment validation.
 
 #### 21.5.3 Automation and repository hygiene — closed
 
@@ -2818,3 +2821,18 @@ checklist.
   - Verification: 192 tests passed and one was skipped; serving-artifact smoke
     tests passed all checks; focused live-probe, workflow-contract, manifest-
     checksum, AppTest, compile, and diff checks passed.
+- [x] Checkpoint 49: Close the live Streamlit mobile-header gate.
+  - Root cause: the hosted mobile WebView matched the responsive media query but
+    rejected the advanced `max(...env(...))` safe-area padding value, leaving
+    the desktop two-rem top padding in effect.
+  - Fix: PR #17 added a plain 4.5-rem mobile fallback immediately before the
+    safe-area enhancement and a regression test that protects declaration
+    presence and order. The fix merged to `master` as `c23ac4f`.
+  - Verification: the exact change passed independent review, 192 repository
+    tests with one skip, GitHub Quality checks, and the bounded live-reachability
+    workflow. The owner-observed production screenshot on 2026-07-14 confirms
+    the BankEnv mark, name, and navigation are fully visible below Streamlit's
+    fixed toolbar on an Android mobile browser.
+  - Disposition: closure-register item 29 is closed. No production-remediation
+    item remains open; future accessibility work requires a separately scoped
+    assurance engagement or a newly evidenced defect.
