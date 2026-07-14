@@ -3262,6 +3262,8 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     remediation scope were closed. Checkpoint 50 subsequently added the newly
     evidenced UX backlog in section 21.6 without reopening the fixed header.
 - [x] Checkpoint 50: Complete the comprehensive rendered UX audit.
+  - Publication: branch `agent/comprehensive-ux-audit`, audit commit `f2ae9da`,
+    draft PR [#19](https://github.com/MMJGGR/banking-stability-copilot/pull/19).
   - Scope: documentation and evidence only; no app, model, data, score, or
     serving artifact changed.
   - Evidence: production browser review sampled every primary page and Explorer
