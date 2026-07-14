@@ -80,10 +80,11 @@ Checkpoint evidence:
   WEO through 2025-12-31, FSIC through 2026-04-30, MFS through 2026-05-31,
   FSIBSIS through 2026-M04, and WGI through 2024-12-31.
 
-Section 21.5 is the authoritative **Current Closure Register**. It records what
-was completed, what was removed from the active remediation scope, and the
-specific evidence or re-entry gate for each retired item. Earlier issue tables
-are historical discovery records; they do not represent current open work.
+Section 21.5 is the authoritative **Current Closure Register** for the remediation
+scope completed through Checkpoint 49. Section 21.6 is the authoritative current
+UX audit backlog added on 2026-07-14. Earlier issue tables are historical
+discovery records; they do not represent current open work unless section 21.6
+explicitly carries the issue forward.
 
 ## 2. Historical Issue Register (Cleared, Superseded, or Carried Forward)
 
@@ -1268,9 +1269,10 @@ For a small team, one person may hold multiple roles, but production publication
 ## 21. Delivery Action Tracker and Closure Register
 
 This section records work execution history and final disposition. Section
-21.5 is the authoritative closure register. A checked item has been implemented
-and verified or has been deliberately retired with a recorded reason; it does
-not imply that a failed research candidate was approved for production.
+21.5 is the closure register through Checkpoint 49; section 21.6 is the current
+open UX backlog. A checked delivery item has been implemented and verified or
+has been deliberately retired with a recorded reason; it does not imply that a
+failed research candidate was approved for production.
 
 1. [x] Fix the critical classifier and application defects.
 2. [x] Establish a supported Python 3.11 dependency baseline.
@@ -1496,7 +1498,10 @@ foundation, and stopped promotion after the forward-time gate failed.
 
 This register replaces the earlier ranked backlog. Each original item was
 rechecked against the current code, active artifacts, tests, workflows, and live
-application. There are no unchecked production-remediation items in this plan.
+application. It records the scope completed through Checkpoint 49. The later UX
+audit in section 21.6 found presentation, interaction, accessibility, and
+trust-language improvements that were not fully tested by the earlier closure
+exercise; those new findings are now the current open backlog.
 
 "Closed" means implemented and verified. "Retired" means deliberately removed
 from the active remediation scope because it is a duplicate, a product-scope
@@ -1529,13 +1534,13 @@ a stand-alone crisis prediction, a rating, or an automatic decision rule.
 
 | Original rank/finding | Final disposition | Evidence |
 |---|---|---|
-| 22 explainability | Closed. Country Score Drivers show feature, pillar, raw value, contribution, imputation status, and dominant driver. | `app.py`; `src/scripts/explain_country_scores.py` |
+| 22 explainability | Functional foundation closed, but the 2026-07-14 UX audit supersedes the usability conclusion. Raw feature codes, mixed score polarity, incomplete input roles, and the absence of a reconciling score bridge remain open as UX-01, UX-03, UX-06, and UX-07. | `app.py`; `src/scripts/explain_country_scores.py`; section 21.6 |
 | 23 corrupt/stale artifacts | Closed. Checksum validation and last-known-good fallback protect startup. | `src/model_store.py`; fallback tests |
 | 24 health visibility | Closed with a utilitarian UX rule: users see a concise message only when serving is degraded; detailed health remains admin-only. | `app.py`; operations docs |
 | 25-26 deploy verification | Closed as a release control. Automation checks transport reachability only; promotion review still requires a browser check of rendered content and the expected snapshot/revision. Duplicate rank 26 was removed. | live baseline and exact-branch local browser checks on 2026-07-14; operations runbook |
 | 27 public snapshot selector | Retired from the public UI. Snapshot selection is an operator diagnostic because only reviewed artifacts may be served; exposing arbitrary local snapshots would undermine the publication gate. | `SHOW_ADMIN_DIAGNOSTICS` |
-| 28 stale Methodology | Closed. Model/data cards and source/model roles are rendered from current artifacts with concise limitations. | `app.py`; model/data cards |
-| 29 responsive/accessibility QA | Closed for the supported baseline. All primary tabs are exception-free, and the final Streamlit Cloud mobile check confirms the BankEnv brand and navigation clear the fixed toolbar after the plain-padding fallback was deployed. Full WCAG certification was removed because it is a separate assurance engagement, not a release blocker for this research app. | PR #17; owner-observed live mobile check on 2026-07-14; CSS regression guard |
+| 28 stale Methodology | Current-artifact content is closed, but information architecture and lifecycle wording are reopened by UX-04, UX-12, and UX-13. The content is no longer stale; its duplication and presentation remain open. | `app.py`; model/data cards; section 21.6 |
+| 29 responsive/accessibility QA | The specific mobile brand/header defect is closed: the final Streamlit Cloud check confirms the BankEnv brand and navigation clear the fixed toolbar. Broader responsive and accessibility issues found later are tracked separately as UX-09, UX-16, UX-17, and UX-21; this does not reopen the fixed header. | PR #17; owner-observed live mobile check on 2026-07-14; CSS regression guard |
 | 30-32 governance/ownership/rollback | Closed. Thresholds are approved; CODEOWNERS, release checklist, and rollback runbook are present. | `docs/GOVERNANCE.md`; `.github/CODEOWNERS`; `docs/RELEASE_CHECKLIST.md` |
 | 35 observation-status preservation | Closed. Manifest/caches preserve reported, estimate, projection, carried-forward, and imputed status where supplied. | manifest builder and tests |
 | 36 pickle portability/security | Closed under the approved policy: hashes, controlled repository provenance, and pinned training dependencies are required. Format migration remains optional technical debt, not an active incident. | governance; model-store checks |
@@ -1608,8 +1613,428 @@ Failure of a candidate is a valid stop outcome. It must remain in the research
 record and must not be converted into a production feature simply to close a
 checklist.
 
+### 21.6 Comprehensive UX Audit Backlog (2026-07-14)
 
-### 21.1 GitHub Checkpoints
+This is the authoritative open UX backlog. It was produced from:
+
+- a rendered production review of Global, Country, Explorer, Calculate, Source
+  Inspector, Methodology, Model Card, and Data Card;
+- desktop 1280x720, mobile 390x844, and narrow-mobile 320x800 checks;
+- light and dark Streamlit themes;
+- keyboard/focus, table, chart, empty-state, and responsive-layout inspection;
+- static review of `app.py`, `src/dashboard/`, the promoted artifact, and the
+  current model/data/governance cards.
+
+No app, model, data, or scoring artifact was changed in this audit checkpoint.
+An item is checked only after its acceptance criteria pass in the rendered app.
+
+#### 21.6.1 Strengths to preserve
+
+- The four primary destinations are compact and understandable.
+- The BankEnv brand and navigation now clear the hosted mobile toolbar at 390px.
+- Country and Explorer selectors are correctly scoped instead of controlling
+  unrelated global pages.
+- The source registry is shared across Compare, Calculate, and Source Inspector.
+- Light and dark dropdown text is currently legible.
+- Candidate overlays are identified as monitoring-only in supporting copy.
+- Primary tabs rendered without a Streamlit exception during the audit.
+
+#### 21.6.2 P0 — trust and correctness blockers
+
+##### [ ] UX-01 — Use one score direction and correct all risk semantics
+
+- **Finding:** headline Risk Score is higher = worse, while the displayed
+  Operating Environment, Banking System, and Combined Pillar percentiles are
+  higher = stronger/lower risk. The interface presents all of them as comparable
+  `/10` score components. Combined Pillar is a separate diagnostic PCA, not the
+  arithmetic precursor of the served score. Positive risk deviations and
+  penalties use Streamlit's default green styling. Global point-in-time context
+  also uses delta arrows, and the watchlist calls the higher/safer strength
+  percentile the "Main Driver."
+- **Evidence:** `src/pillar_pipeline.py:393-417`, `app.py:3672-3708`,
+  `app.py:3753-3760`, and `src/dashboard/global_view.py:102-142,265-290`;
+  live Global/Country checks showed green `Avg: 8.0`, green `+0.3 vs avg`, and
+  a green positive imputation penalty.
+- **Required change:** adopt one public direction, preferably risk-oriented
+  values where 10 always means worse. If strength percentiles remain, name them
+  explicitly and visually separate them from risk. Remove Combined Pillar from
+  the primary score bridge or label it "Diagnostic; not used in served score."
+  Replace the watchlist driver with actual positive feature attribution. Reserve
+  arrows for changes against a dated baseline; render counts, shares, and
+  averages as neutral context.
+- **Acceptance:** every `/10` states and follows one direction; higher risk and
+  penalties are red, lower risk is green, neutral context has no arrow; a country
+  with operating-environment strength 8 and banking strength 3 identifies
+  Banking as the weaker/risk-driving pillar; no diagnostic PCA appears as a
+  served-score component; light/dark regression tests pass.
+
+##### [ ] UX-02 — Separate risk floors from missing-data penalties
+
+- **Finding:** the app says a score may be "capped" even though a minimum risk
+  floor raises low scores. The persisted `risk_floor_applied` flag is calculated
+  after the critical-field penalty, so penalty-only countries can receive a
+  false floor warning.
+- **Evidence:** `src/pillar_pipeline.py:410-470` and `app.py:3685-3686`.
+  A read-only artifact audit found 136 flagged countries, of which only 51 meet
+  the intended floor conditions; 85 appear to be penalty-only flag cases.
+- **Required change:** persist `floor_delta`, `floor_applied`, and
+  `critical_penalty` separately; describe a floor as a minimum-risk adjustment;
+  show each adjustment only when it actually changes the served score.
+- **Acceptance:** penalty-only countries never receive a floor warning; "capped"
+  is absent; the score bridge reports the exact floor and penalty deltas and
+  names every critical field imputed; an artifact-level regression test covers
+  floor-only, penalty-only, both, and neither.
+
+##### [ ] UX-03 — Make the Country input inventory authoritative
+
+- **Finding:** the panel labelled "Model inputs" is a hard-coded 24-field key
+  subset rather than the active model inventory. The current artifact has 40
+  active inputs; the compact panel omits 19 active fields and includes three
+  non-active fields (`roe`, `net_interest_margin`, and
+  `deposit_funding_ratio`). "Data Coverage" does not identify its numerator or
+  denominator. The separate Governance tab repeats six WGI values without a
+  source year, peer benchmark, or explicit model role.
+- **Evidence:** `src/dashboard/components.py:305-398`, `app.py:3800-3814`, and
+  the promoted loading maps.
+- **Required change:** derive roles from the active loading maps. Rename the
+  compact surface "Key model inputs" and add a searchable complete inventory
+  with friendly label, value/unit, source, period, observation status, score
+  role, and active/insight-only state. Rename the summary "Direct active-input
+  coverage," expose its numerator/denominator and critical missing fields, and
+  fold Governance into the authoritative inventory unless it adds year, peer
+  context, and role sufficient to justify a separate view.
+- **Acceptance:** UI active counts and roles exactly match the promoted artifact;
+  no non-active field is labelled an active input; no partial list implies
+  completeness; reported, estimated, projected, proxy, carried-forward, and
+  imputed values are explicit; coverage and critical-field disclosure reconcile
+  to the score artifact.
+
+##### [ ] UX-04 — Use lifecycle-accurate trust language
+
+- **Finding:** bare "Verified" and "live production score" wording can imply
+  model approval or external validation, while governance records only artifact
+  integrity and no formal approval transition. "local cached sources" and raw
+  microsecond timestamps are implementation details, not useful public status.
+- **Evidence:** `app.py:3095-3107,3198-3205,3332-3342,3680`,
+  `docs/MODEL_CARD.md`, and `docs/GOVERNANCE.md`.
+- **Required change:** use "Served score" and "Artifact integrity verified;
+  model approval not recorded." Display one human-readable training date and one
+  source-state label such as "Dated verified snapshot."
+- **Acceptance:** no public surface implies lifecycle approval, rating status, or
+  validated crisis probability; integrity, model validation, and release
+  approval are distinct; metadata appears once and is human-readable.
+
+##### [ ] UX-05 — Distinguish unavailable data from application failure
+
+- **Finding:** some source/input exceptions are swallowed and become dashes,
+  while other caught exceptions are printed directly to public users. Both can
+  misrepresent a technical failure as missing evidence or expose internals.
+- **Evidence:** `src/dashboard/components.py:270,352`,
+  `app.py:583-592,1422-1425,3793-3797`.
+- **Required change:** define separate states for not reported, not packaged,
+  no overlap after filters, failed to load, and attribution unavailable. Log the
+  technical exception with an error identifier and give users a safe recovery
+  action.
+- **Acceptance:** corrupt/missing fixtures never appear as ordinary missing
+  country data; no raw Python error reaches the public app; every recoverable
+  state suggests retrying or changing country/source/indicator.
+
+#### 21.6.3 P1 — core analyst workflow and usability
+
+##### [ ] UX-06 — Add a reconciling Country score bridge and demote scenarios
+
+- **Finding:** the served score, pillar diagnostics, confidence/floor effects,
+  critical penalty, and legacy crisis adjustment are dispersed. Monitoring-only
+  liquidity/commodity toggles appear before the served profile and do not update
+  tier, percentile, rankings, or score drivers.
+- **Evidence:** `app.py:3621-3761` and the live Country profile.
+- **Required change:** order Country as served score/coverage, arithmetic score
+  bridge, leading drivers, peers, detailed evidence, then a clearly separate
+  "Saved scenario preview." Rename "Crisis Uplift" to "Legacy crisis
+  adjustment" and state at point of use that it is not a validated probability.
+- **Acceptance:** the bridge reconciles to the served score within rounding and
+  shows where each adjustment applies; scenario values never look like the live
+  score and either cascade through a complete reviewed scenario artifact or
+  remain visibly separate.
+
+##### [ ] UX-07 — Replace the driver debug table with analyst-readable evidence
+
+- **Finding:** the default Score Drivers view exposes snake-case codes, internal
+  `economic`/`industry` labels, eight wide columns, and a dense technical note.
+  The dominant-driver logic uses largest absolute contribution, which can select
+  a risk-mitigating feature as the dominant risk driver. On mobile the table is
+  clipped horizontally and the green penalty badge implies a benefit.
+- **Evidence:** `app.py:648,3710-3791` and the live 390px Score Drivers view.
+- **Required change:** show the five largest risk-raising and risk-mitigating
+  drivers separately using friendly names, formatted values/units, source
+  period, explicit imputation status, direction, and contribution bars. Keep the
+  full audit table under "Show all scoring features."
+- **Acceptance:** a non-technical analyst can identify why risk is high without
+  interpreting internal codes; default content fits 390px without horizontal
+  scroll; numeric audit columns remain sortable and downloadable.
+
+##### [ ] UX-08 — Make Global a triage surface, not a chart gallery
+
+- **Finding:** the actionable watchlist sits below a map and two charts. Its
+  population is risk > 6 plus GDP above the median, but the GDP rule is hidden.
+  GDP-growth outliers outside -10% to 15% are silently excluded. The current
+  "Main Driver" is not feature attribution.
+- **Evidence:** `src/dashboard/global_view.py:144-294` and the live Global tab.
+- **Required change:** place a precise, actionable watchlist immediately below
+  the KPI strip; disclose filters/exclusions; provide "Open country"; rename the
+  current comparison to "Weaker pillar" until actual attribution is available.
+- **Acceptance:** the watchlist states its exact universe and thresholds, opens
+  Country with the selected country, counts excluded observations, and never
+  calls a strength percentile a risk driver.
+
+##### [ ] UX-09 — Establish one analytically valid Explorer chart standard
+
+- **Finding:** mobile chart titles and selected labels truncate, the legend
+  exposes technical `country_name`, y-axis units are absent, dates are always
+  full ISO strings, and estimates/projections are visually continuous with
+  actuals. The default raw CPI-level comparison is not cross-country comparable
+  when national base years differ. At 320px the Global map is about half-width
+  beside a large vertical legend and is not practically readable.
+- **Evidence:** `app.py:1198-1303,1640-1813`,
+  `src/dashboard/components.py:475-586`, and live 320/390px chart checks.
+- **Required change:** use a shared responsive chart builder with visible unit,
+  source, native periodicity, latest actual, status boundary, wrapped short
+  title/full caption, legend below the plot, focus-country emphasis, and compact
+  modebar. Rebase incompatible index-level series or block them with an
+  explanation. Use a mobile ranked-list alternative for the world map.
+- **Acceptance:** no clipped title/legend at 320, 390, 768, or 1440px; annual,
+  quarterly, and monthly labels retain their periodicity; projections are
+  visually distinct; every chart has a unit or "unit not supplied"; incompatible
+  raw index comparisons cannot silently render.
+
+##### [ ] UX-10 — Add calculation recipes, validity gates, and an Apply boundary
+
+- **Finding:** five technical modes share one dropdown; Raw mode automatically
+  runs the first three alphabetical indicators; Custom formula starts from an
+  arbitrary multi-operand expression; Cross-sectional share accepts non-additive
+  ratios; selections are silently sliced; every control change reruns outputs.
+- **Evidence:** `app.py:1817-1965,2034-2337` and the live Calculate tab.
+- **Required change:** use task-oriented recipes with examples, blank or simple
+  defaults, `max_selections`, unit/additivity checks, alignment diagnostics, and
+  an explicit Apply action. Keep arbitrary formula and formula audit under
+  Advanced.
+- **Acceptance:** no calculation runs from arbitrary defaults; no selection is
+  silently dropped; shares require additive compatible series; ratios/formulas
+  report lost dates/frequencies; expensive work runs once per Apply.
+
+##### [ ] UX-11 — Clarify dataset taxonomy, lineage, and load behavior
+
+- **Finding:** official WEO/FSI/MFS/WGI datasets and BankEnv-derived liquidity
+  packages appear in one flat "Source" list. Derived live packages are still
+  called "staged." Compare/Calculate load immediately, while Source Inspector
+  uses a long persistent checkbox as an action.
+- **Evidence:** `app.py:1354-1508,1390-1425` and Source Inspector.
+- **Required change:** label the control "Dataset / feature family" and group
+  official upstream datasets separately from BankEnv-derived features. Show
+  upstream source/version/formula/period/status/score role for derived fields.
+  Reuse one source/indicator/range component and an explicit Load/Retry button.
+- **Acceptance:** no derived package is mistaken for an IMF/WB dataflow or called
+  staged; the three Explorer tools share the same taxonomy, labels, and
+  predictable loading behavior.
+
+##### [ ] UX-12 — Rebuild Methodology for comprehension and trust
+
+- **Finding:** Methodology starts with repeated metrics and long technical
+  paragraphs, then repeats snapshot/training/source metadata inside Model and
+  Data cards. Candidate score movement, feature promotion, stale comparison
+  notices, and crisis validation are mixed into the public explanation. On
+  mobile the four summary metrics and prose create a very long page.
+- **Evidence:** `app.py:2958-3376` and live Methodology checks.
+- **Required change:** organize three concise sections/tabs: "How the score
+  works," "Data and coverage," and "Validation and release." Begin with what
+  BankEnv measures/does not measure and a small score-flow diagram; show metadata
+  once; move release/candidate detail to a collapsed appendix.
+- **Acceptance:** the top section is understandable without technical tables;
+  each concept and metadata field appears once; "Verified" is qualified as
+  integrity only; limitations are concise and candidate/release evidence is
+  progressively disclosed.
+
+##### [ ] UX-13 — Replace contradictory Data Card gap lists
+
+- **Finding:** "Priority Missing Data Families" contains rows described as
+  production-scored, while liquidity roles/coverage repeat across Model
+  Monitoring and the Data Card. Five manifest sources do not visibly reconcile
+  with seven Explorer choices because derived packages are not separated.
+- **Evidence:** `app.py:3198-3315` and the active manifest.
+- **Required change:** use one filterable inventory with `Active`,
+  `Partial/proxy`, `Insight only`, and `Unavailable`; separate upstream source
+  families from derived packages; remove completed items from the gap list.
+- **Acceptance:** nothing is simultaneously "missing" and active; counts
+  reconcile across Data Card, artifact, and Explorer; domain/source/role/coverage
+  filters are available.
+
+##### [ ] UX-14 — Connect Global, Country, peers, and Explorer state
+
+- **Finding:** map/watchlist rows cannot open a country, Country peers and
+  Explorer peers are separate, and clearing the Country peer multiselect can
+  render fallback peers while the control remains empty. State cannot be shared
+  or restored from a URL.
+- **Evidence:** `src/dashboard/global_view.py:152-176,282-292` and
+  `app.py:3607-3613,3857-3886,4012-4023`.
+- **Required change:** implement `Global triage -> Country diagnosis -> Explorer
+  analysis`; add explicit recommended/custom/no-peer modes and "Analyze this
+  peer set"; encode safe tab/country/source/indicator/peer state in a copyable
+  link.
+- **Acceptance:** a global selection opens/preselects Country; peer context can
+  be carried deliberately; empty controls never produce unexplained peers;
+  copied links restore valid state and reject stale parameters safely.
+
+##### [ ] UX-15 — Render only the selected page and expensive panel
+
+- **Finding:** `st.tabs` eagerly executes all four primary pages, all Explorer
+  tools, and both Methodology cards. Even collapsed Score Drivers computes
+  attribution. This increases first load, memory use, and rerun latency under
+  Streamlit hosting constraints.
+- **Evidence:** `app.py:3378-3382,3593-4078`; the browser DOM contained hidden
+  headings/widgets from non-selected pages during the audit.
+- **Required change:** use conditional navigation/state so only the selected
+  page/tool executes; load attribution and large source histories explicitly;
+  isolate compound calculations with forms/fragments and show a branded progress
+  state before heavy work.
+- **Acceptance:** initial Global load calls no Country attribution or Explorer
+  loader; changing a calculation does not rerun unrelated pages; measured cold
+  load and rerun targets are recorded and enforced.
+
+##### [ ] UX-16 — Create deliberate mobile KPI, map, chart, and table layouts
+
+- **Finding:** Global's four KPIs and Methodology metrics stack into long pages;
+  wide Score Driver/peer/data-card tables are cropped; fixed 350-500px Plotly
+  layouts leave large blank areas; multi-country controls consume most of the
+  first viewport.
+- **Evidence:** `src/dashboard/global_view.py:102-176`,
+  `app.py:3663-3977`, and rendered 320/390px checks.
+- **Required change:** use compact 2x2 mobile summaries, decision-useful table
+  columns with details on demand, responsive chart heights/legends, compact peer
+  selection summaries, and shorter Explorer setup panels.
+- **Acceptance:** at 390px the served score, top driver, and first analytical
+  output are reachable within one normal swipe; no core task requires horizontal
+  scrolling; 320px remains usable; full audit columns remain downloadable.
+
+##### [ ] UX-17 — Meet keyboard, contrast, touch, and non-visual access needs
+
+- **Finding:** selected-label previews are hover-only, nowrap, and ellipsized;
+  color contrast fails for some small text/imputation/chart colors; the red-
+  yellow-green map relies on color; pages lack H1s and explicit focus-visible
+  styling. Injected CSS appears as a focusable section whose accessible text is
+  the stylesheet, and dataframe canvases expose concatenated rather than
+  structured table text. Streamlit theme selection can disagree with OS
+  `prefers-color-scheme`, leaving the dark logo tile on a dark app background.
+- **Evidence:** `app.py:80-96,532`, `src/dashboard/components.py:19-35`,
+  `src/dashboard/styles.py:29,76-83,173,276`, and live keyboard/dark-mode checks.
+- **Required change:** use theme variables rather than OS-only media detection;
+  visible wrapping or focusable details for full labels; WCAG-compliant tokens;
+  color-vision-safe risk scale plus text; one H1 per page; navigation landmark;
+  visible focus; non-focusable style injection; textual/chart-data alternatives.
+- **Acceptance:** WCAG 2.2 AA automated checks plus keyboard journeys pass;
+  normal text is at least 4.5:1 and meaningful graphics 3:1 in both themes; full
+  labels work by touch/keyboard; every chart value is available without hover;
+  no stylesheet content enters the focus order.
+
+##### [ ] UX-18 — Standardize loading, empty, and recovery states
+
+- **Finding:** initial heavy work precedes the visible shell, source operations
+  use inconsistent spinners/checkboxes, and empty results often say only "No
+  data" or "No aligned observations" without explaining the next step.
+- **Evidence:** `app.py:1146-1160,1390-1425,1898,2090-2097`.
+- **Required change:** use one state pattern: what happened, likely reason,
+  affected source/stage, and a safe next action. Distinguish loading, empty,
+  unavailable, degraded, and failed; provide explicit Load/Retry.
+- **Acceptance:** each state has a tested recovery route; the shell appears
+  before slow work; users never need to infer whether to change a filter, retry,
+  or wait.
+
+#### 21.6.4 P2 — consistency, reproducibility, and maintainability
+
+##### [ ] UX-19 — Improve peer evidence and table behavior
+
+- Preserve numeric types instead of preformatting strings; show delta versus the
+  focus country, risk tier, direct coverage, top risk-raising driver, distance,
+  and a readable "why this peer" basis. Add explicit reset to recommended peers.
+- **Acceptance:** numeric sort works; recommended/custom/no-peer roles agree with
+  the control; peer rationale is visible without reading methodology.
+
+##### [ ] UX-20 — Consolidate display registries and page modules
+
+- `_render_hover_full_label` and source-context registries are duplicated, and
+  `app.py` remains a roughly 4,000-line page/controller/data module.
+- Create one feature/source display registry, shared Explorer controls and chart
+  builders, and separate Global/Country/Explorer/Methodology modules.
+- **Acceptance:** one canonical label/unit/provenance/role definition per field;
+  `app.py` is primarily bootstrap, data load, and navigation; unused legacy
+  renderers cannot reintroduce stale UX.
+
+##### [ ] UX-21 — Add rendered UX, accessibility, and performance gates
+
+- Current coverage checks CSS strings but not actual layouts, themes, keyboard
+  behavior, empty states, risk semantics, or eager-loader calls.
+- Add AppTest contracts plus browser baselines at 320, 390, 768, and 1440px in
+  light/dark themes, axe checks, keyboard journeys, loader-call assertions, and
+  representative error fixtures.
+- **Acceptance:** CI blocks clipping, overlap, wrong risk colors/directions,
+  inaccessible labels, raw errors, runtime exceptions, and accidental eager
+  loading regressions.
+
+##### [ ] UX-22 — Add low-noise freshness and compatible score history
+
+- Keep detailed System Health admin-only, but show source period/freshness in the
+  Data Card and warn globally only when degraded. Show movement from the last
+  comparable reviewed snapshot with tier and evidence change; suppress movement
+  when model versions are incompatible.
+- **Acceptance:** public users can tell how current each source is without an
+  operations dashboard; no invalid cross-model comparison is displayed.
+
+##### [ ] UX-23 — Make every analysis reproducible and exportable
+
+- Add "View data" and CSV with full history for each chart, plus formula,
+  selections, units, source/version, status, and alignment metadata for computed
+  outputs. Provide a copyable state link under UX-14.
+- **Acceptance:** an analyst can reproduce a chart/calculation without relying
+  on hover, screenshots, or session memory.
+
+#### 21.6.5 P3 — copy and visual polish
+
+##### [ ] UX-24 — Apply one editorial and visual dictionary
+
+- Standardize Banking System versus legacy Industry, page/inner headings,
+  Stability vs Growth versus Risk vs GDP Growth, source names, feature names,
+  abbreviations, empty-state language, and status labels. Expand or define
+  `Sov Liab/Reserves`, `Bank Liab/NFA`, and `CXR`; remove decorative checkmarks
+  and raw implementation phrases.
+- Use a bundled/system font stack instead of a remote Google-font import where
+  possible, and remove obsolete renderers/imports that preserve stale copy.
+- **Acceptance:** one term per concept, no unexplained abbreviations or decorative
+  emoji/glyphs, no duplicate nested heading, and no visible raw timestamp,
+  snake-case code, or "local cached sources" implementation phrase.
+
+#### 21.6.6 Recommended execution order
+
+1. **Trust and assurance foundation:** UX-01 through UX-05, the lazy-rendering
+   foundation in UX-15, core theme/focus semantics from UX-17, and the initial
+   UX-21 regression harness. Do not redesign around values that are labelled
+   incorrectly or wait until the final sprint to add the tests that protect them.
+2. **Country and Global sprint:** UX-06 through UX-08, UX-14, UX-16, and UX-19.
+3. **Explorer sprint:** UX-09 through UX-11, UX-18, and UX-23.
+4. **Methodology and assurance completion:** UX-12, UX-13, remaining UX-17,
+   UX-20, extension of UX-21 across every page, UX-22, and UX-24.
+
+#### 21.6.7 Explicitly excluded from this UX backlog
+
+| Excluded item | Why it is not a UX issue | Re-entry gate |
+|---|---|---|
+| Retuning or replacing the crisis classifier | This is model research; the failed forward holdout cannot be repaired by presentation. | New predeclared model experiment and independent forward evidence. |
+| Changing country rankings or PCA policy | Score policy/model validity is separate from making current outputs interpretable. | Approved methodology proposal with movement and validation gates. |
+| Procuring new GFN, amortization, spreads, or other source series | This is data research and may involve coverage/licensing constraints. | Named source, provenance, coverage, and incremental validation. |
+| Fully cascading arbitrary scenario toggles | The UI cannot invent scenario tiers, rankings, drivers, or evidence that are not present in a reviewed artifact. | Complete saved scenario artifact and approval; otherwise keep previews separate. |
+| Conversational assistant layer | It would add cost/privacy/reliability surface without fixing the core analyst workflow. | Separate product brief and evidence-grounded retrieval design. |
+| Formal WCAG certification | Certification is a separate assurance engagement; known accessibility defects in UX-17 still must be fixed and tested. | Owner-approved external/internal certification scope after remediation. |
+
+
+### 21.7 Historical GitHub Checkpoints
 
 - [x] Checkpoint 1: priority stabilization, data correctness foundation,
   grouped validation, source-adapter framework, candidate workflow, serving
@@ -2833,6 +3258,28 @@ checklist.
     workflow. The owner-observed production screenshot on 2026-07-14 confirms
     the BankEnv mark, name, and navigation are fully visible below Streamlit's
     fixed toolbar on an Android mobile browser.
-  - Disposition: closure-register item 29 is closed. No production-remediation
-    item remains open; future accessibility work requires a separately scoped
-    assurance engagement or a newly evidenced defect.
+  - Disposition at Checkpoint 49: closure-register item 29 and the then-current
+    remediation scope were closed. Checkpoint 50 subsequently added the newly
+    evidenced UX backlog in section 21.6 without reopening the fixed header.
+- [x] Checkpoint 50: Complete the comprehensive rendered UX audit.
+  - Publication: branch `agent/comprehensive-ux-audit`, audit commit `f2ae9da`,
+    draft PR [#19](https://github.com/MMJGGR/banking-stability-copilot/pull/19).
+  - Scope: documentation and evidence only; no app, model, data, score, or
+    serving artifact changed.
+  - Evidence: production browser review sampled every primary page and Explorer
+    tool across 1280x720, 390x844, and 320x800 views in light and dark themes;
+    static review covered the remaining page/viewport/theme combinations plus
+    information architecture, trust/explainability, accessibility,
+    responsiveness, and performance.
+  - Result: section 21.6 records 24 prioritized, testable improvements. P0 items
+    cover mixed score direction, incorrect risk-color semantics, the floor/
+    penalty flag, active-input inventory accuracy, lifecycle wording, and
+    failure-state truthfulness.
+  - Reconciliation: earlier rows 22, 28, and 29 were narrowed or superseded
+    where the prior closure wording was broader than the evidence. The fixed
+    mobile header remains closed; newly evidenced responsive/accessibility work
+    is tracked independently.
+  - Exclusions: model retuning, ranking-policy changes, new-source procurement,
+    arbitrary scenario cascades, a conversational layer, and formal WCAG
+    certification are not disguised as UX fixes; each has an explicit re-entry
+    gate.
