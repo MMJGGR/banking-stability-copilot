@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "artifacts/model_policy_audit.json": {
-      "bytes": 1500,
-      "sha256": "b09aeb586cf80ad035c2a4d168fdf25e2f822972a73773ec73f1946f5471c934"
+      "bytes": 1458,
+      "sha256": "abbb842a0a272dd1eb9fccd3cb19073046ea0b7a48fa978e98d6fed2aa4e8d54"
     },
     "cache/FSIBSIS_cache.parquet": {
       "bytes": 9842035,

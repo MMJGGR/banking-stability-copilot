@@ -2800,6 +2800,8 @@ checklist.
     deliberately rejected; compact serving caches remain intact.
   - No risk-model, classifier, or inference-pipeline binary was rebuilt. Active
     scores remain USA 7.0, Kenya 8.0, and Mozambique 8.6.
+  - CI portability follow-up: checksummed JSON artifacts are pinned to LF so
+    manifest byte counts and hashes are identical on Windows and Linux.
   - Verification: 183 tests passed and one was skipped; serving-artifact smoke
     tests passed all checks; focused live-probe, workflow-contract, manifest-
     checksum, AppTest, compile, and diff checks passed.
