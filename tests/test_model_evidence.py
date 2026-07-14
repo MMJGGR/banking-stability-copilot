@@ -172,10 +172,14 @@ def test_policy_audit_uses_exact_wp_26_94_episode_counts():
 def test_mobile_layout_clears_fixed_streamlit_toolbar():
     styles = Path("src/dashboard/styles.py").read_text(encoding="utf-8")
 
-    assert "@media (max-width: 640px)" in styles
-    assert "padding-top: max(" in styles
-    assert "4.5rem" in styles
-    assert "env(safe-area-inset-top)" in styles
+    mobile_styles = styles.split("@media (max-width: 640px)", maxsplit=1)[1]
+    fallback = "padding-top: 4.5rem !important;"
+    safe_area = "padding-top: max("
+
+    assert fallback in mobile_styles
+    assert safe_area in mobile_styles
+    assert mobile_styles.index(fallback) < mobile_styles.index(safe_area)
+    assert "env(safe-area-inset-top)" in mobile_styles
 
 
 def test_methodology_confusion_matrix_uses_checksum_linked_resolver():

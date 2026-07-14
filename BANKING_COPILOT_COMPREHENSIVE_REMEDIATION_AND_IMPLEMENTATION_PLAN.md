@@ -1535,7 +1535,7 @@ a stand-alone crisis prediction, a rating, or an automatic decision rule.
 | 25-26 deploy verification | Closed as a release control. Automation checks transport reachability only; promotion review still requires a browser check of rendered content and the expected snapshot/revision. Duplicate rank 26 was removed. | live baseline and exact-branch local browser checks on 2026-07-14; operations runbook |
 | 27 public snapshot selector | Retired from the public UI. Snapshot selection is an operator diagnostic because only reviewed artifacts may be served; exposing arbitrary local snapshots would undermine the publication gate. | `SHOW_ADMIN_DIAGNOSTICS` |
 | 28 stale Methodology | Closed. Model/data cards and source/model roles are rendered from current artifacts with concise limitations. | `app.py`; model/data cards |
-| 29 responsive/accessibility QA | Closed for the supported baseline. Desktop and 390x844 mobile smoke checks passed on all primary tabs; the discovered clipped mobile brand row was fixed. Full WCAG certification was removed because it is a separate assurance engagement, not a release blocker for this research app. | browser check; CSS regression guard |
+| 29 responsive/accessibility QA | Reopened at the final live gate. All primary tabs are exception-free, but Streamlit Cloud still clipped the brand row at 390x844 because the hosted WebView ignored the advanced safe-area padding declaration. A plain CSS fallback and regression guard are being applied; closure requires a post-deployment mobile check. Full WCAG certification remains outside this release because it is a separate assurance engagement. | live browser check; CSS regression guard |
 | 30-32 governance/ownership/rollback | Closed. Thresholds are approved; CODEOWNERS, release checklist, and rollback runbook are present. | `docs/GOVERNANCE.md`; `.github/CODEOWNERS`; `docs/RELEASE_CHECKLIST.md` |
 | 35 observation-status preservation | Closed. Manifest/caches preserve reported, estimate, projection, carried-forward, and imputed status where supplied. | manifest builder and tests |
 | 36 pickle portability/security | Closed under the approved policy: hashes, controlled repository provenance, and pinned training dependencies are required. Format migration remains optional technical debt, not an active incident. | governance; model-store checks |
@@ -1547,8 +1547,10 @@ Live baseline verification on 2026-07-14 found
 201 countries. The exact PR branch was then rendered locally at desktop and
 390x844 mobile dimensions. No Streamlit exception appeared in any primary tab.
 A Country warning and a Methodology monitoring notice were expected domain
-warnings, not runtime exceptions. Post-merge live content is checked again
-before final handoff; the scheduled workflow alone is not semantic validation.
+warnings, not runtime exceptions. The post-merge semantic check confirmed the
+new revision and exception-free tabs, but reopened item 29 because Streamlit
+Cloud still overlaid the brand row on mobile. The scheduled workflow alone is
+not semantic deployment validation.
 
 #### 21.5.3 Automation and repository hygiene — closed
 
@@ -2796,9 +2798,11 @@ checklist.
     promotion now rebuild, checksum, package, and install the compact government-
     liquidity Explorer references from the same WEO snapshot; the live endpoint
     has a bounded scheduled reachability check.
-  - Fixed the mobile brand clipping found during the final 390x844 browser pass.
-    Global, Country, Explorer, and Methodology rendered without a Streamlit
-    exception; the 201-country snapshot remained `2026-06-30 | verified`.
+  - The branch-level mobile brand fix passed locally, but the post-merge live
+    gate found that Streamlit Cloud still clipped the brand row at 390x844.
+    Item 29 was therefore reopened rather than falsely closed. Global, Country,
+    Explorer, and Methodology remained exception-free and the 201-country
+    snapshot remained `2026-06-30 | verified`.
   - Removed approximately 442 MB of unreferenced root raw exports from current
     `HEAD` and ignored their download naming pattern. Historical rewriting was
     deliberately rejected; compact serving caches remain intact.
