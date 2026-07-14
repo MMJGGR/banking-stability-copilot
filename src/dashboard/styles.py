@@ -245,7 +245,13 @@ STYLES = """
         .block-container {
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            /* Clear Streamlit's fixed mobile toolbar and any device safe area. */
+            /*
+             * Clear Streamlit's fixed mobile toolbar. Keep a plain fallback
+             * before the safe-area expression: some hosted WebViews reject
+             * the whole max()/env() declaration even though the media query
+             * itself matches.
+             */
+            padding-top: 4.5rem !important;
             padding-top: max(
                 4.5rem,
                 calc(3.5rem + env(safe-area-inset-top))
