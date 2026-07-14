@@ -3051,3 +3051,24 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
   - Verification: focused crisis-model/source suite passed (26 tests after the
     derived-source metadata correction); repository-wide suite passed (120
     tests, 1 skipped). GitHub CI status is recorded with the checkpoint push.
+- [~] Checkpoint 47: Retain the safe early-warning foundation without deploying
+  the failed hierarchical challenger.
+  - Decision: preserve draft PR #13 as the complete audit record, but split the
+    mergeable infrastructure onto `agent/hazard-foundation` from clean
+    `master`. Do not cherry-pick the mixed implementation commit.
+  - Included: corrected regularization scaling for future retraining;
+    horizon-embargoed expanding CV with event purge and forward-only
+    calibration; opt-in BIS credit, gap, debt-service and property adapters;
+    full-taxonomy descriptive mechanism coverage; and a defensive optional
+    artifact parser.
+  - Excluded: generated hazard/validation JSON, the snapshot builder,
+    provisional alert thresholds, dashboard components, and all Streamlit
+    wiring. Current production artifacts, scores, rankings, tabs, and live
+    behavior remain unchanged.
+  - [~] Verification/publish: focused and full suites, serving smoke checks,
+    GitHub CI, foundation PR merge, and closure of PR #13 will be recorded here
+    before the checkpoint is complete. Local extraction evidence: 47 focused
+    tests and 161 repository-wide tests passed, one repository test was skipped,
+    every serving-artifact smoke check passed for the unchanged 201-country
+    snapshot, and an explicit diff guard confirmed no app, dashboard, serving
+    artifact, generated hazard artifact, or snapshot-builder change.
