@@ -2782,7 +2782,8 @@ checklist.
     the rejected-model evidence and research record; no failed probabilities or
     alert surfaces reached production.
 - [x] Checkpoint 48: Reconcile and close the comprehensive remediation plan.
-  - Implementation commit: `8cde277` (`agent/close-remediation-plan`).
+  - Implementation commits: `8cde277`, `3e90dfe`, and `a612a45`
+    (`agent/close-remediation-plan`).
   - Re-audited every former open/partial marker against code, artifacts, tests,
     workflows, GitHub state, and the live application. Section 21.5 now records
     one current disposition for every issue; stale duplicate backlog tables and
@@ -2805,6 +2806,11 @@ checklist.
     scores remain USA 7.0, Kenya 8.0, and Mozambique 8.6.
   - CI portability follow-up: checksummed JSON artifacts are pinned to LF so
     manifest byte counts and hashes are identical on Windows and Linux.
-  - Verification: 183 tests passed and one was skipped; serving-artifact smoke
+  - Final independent review closed five release-contract gaps: all required
+    promoted source caches are manifest-hashed; government reports are LF-
+    pinned; coverage is reconciled to the trained scoring universe; reachability
+    is not described as semantic deployment proof; and any future confusion-
+    matrix image must be schema-versioned and checksum-linked to clean evidence.
+  - Verification: 192 tests passed and one was skipped; serving-artifact smoke
     tests passed all checks; focused live-probe, workflow-contract, manifest-
     checksum, AppTest, compile, and diff checks passed.
