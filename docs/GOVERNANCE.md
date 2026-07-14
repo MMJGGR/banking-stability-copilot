@@ -34,13 +34,12 @@ silent replacement of the last validated snapshot.
 | Coverage bias: correlation of data coverage with the pre-policy model score | abs(corr) < 0.4 flags for review (does not block candidate upload) | `validate_model` in `train_model.py` |
 | Row/country/indicator counts vs previous snapshot | decline > 10% blocks publication | manual review via candidate report (automation pending) |
 
-Note on the coverage-bias gate: under the directionally constrained pillar
-model this correlation is ~0.5 because sparse-data countries also have
-observably weaker governance and macro fundamentals. The gate is measured on
-the pre-policy score (before the critical-field penalty and crisis uplift,
-which correlate with coverage by design). Owner decision required: keep 0.4
-and treat as a standing review flag, or re-baseline to a partial correlation
-controlling for development level.
+Approved treatment of the coverage-bias gate: retain 0.4 as a standing review
+flag, not an automatic publication block. Measure it on the pre-policy score
+(before the critical-field penalty and crisis uplift, which correlate with
+coverage by design) and report both the raw correlation and the development-
+level-controlled diagnostic when available. Changing the threshold or making
+it blocking requires a reviewed policy update.
 
 ## 3. Score-change review thresholds (promotion)
 
@@ -56,11 +55,12 @@ requires explicit owner review of the comparison report before promotion:
 | Risk-tier changes (5-tier scale) | > 15 countries |
 
 The comparison report format is `artifacts/challenger_comparison.json`
-(production vs challenger scores, largest movements, acceptance cases, open
-concerns). The 2026-07-10 directional-constraint challenger exceeds all of
-these bounds and is therefore archived as
-`artifacts/snapshots/2026-06-30-challenger-directional` awaiting review, not
-promoted.
+(production vs challenger scores, largest movements, acceptance cases, and
+open concerns). Archived 2026-07-10 directional/liquidity challenger reports
+are historical experiments and do not define the role of fields in the newer
+served artifact. Current feature roles must be read from the serving
+artifact's persisted loading maps; a new candidate requires a comparison
+against that exact serving baseline.
 
 ## 4. Snapshot lifecycle and naming (backlog item 31)
 
@@ -88,6 +88,12 @@ Rules:
 - A merged PR replacing the active artifacts must reference the snapshot ID,
   its validation results, and (for model changes) the comparison report.
 
+Current-state disclosure: the serving 2026-06-30 manifest is `verified`, but
+the repository contains no recorded transition of that artifact to
+`approved`. It is a controlled legacy serving exception, not evidence that
+owner approval or external validation occurred. The next artifact-changing
+promotion must close that lifecycle gap rather than carrying it forward.
+
 ## 5. Artifact portability policy (backlog item 36)
 
 - Serving and training artifacts are pickles pinned to Python 3.11 and the
@@ -109,14 +115,22 @@ Rules:
 | Data refresh, same pipeline | New source vintage scored with fixed transforms | Verified snapshot + update report |
 | Policy parameter change | Penalty size, floor levels, SLA values | This document updated + policy audit rerun |
 | Scoring redesign | Direction constraints, overlay formula, feature add/drop | Full challenger comparison + owner approval + model card update |
-| Classifier retrain | New epochs or labels | Grouped + out-of-time validation report + owner approval |
+| Classifier retrain | New epochs or labels | Exact WP/26/94 reconciliation + leakage-safe grouped/forward validation + owner approval |
 
 ## 7. Early-warning research foundation
 
-The repository contains dormant development utilities for annual
-discrete-time crisis hazards, descriptive mechanism evidence, optional BIS
-history, and expanding temporal cross-validation. They do not alter serving
-scores or app behavior. Any future model built from them remains a research
+The repository contains the exact IMF WP/26/94 Appendix I, Table A1 artifact
+(161 systemic episodes and three explicitly borderline episodes), dormant
+development utilities for annual discrete-time crisis hazards, descriptive
+mechanism evidence, optional BIS history, and expanding temporal cross-
+validation. They do not alter serving scores. The served classifier predates
+the exact label artifact, and its legacy validation summary is marked
+`invalid_superseded` because the earlier label implementation was incomplete
+and operating-threshold selection contaminated the reported holdout metrics.
+
+Replacement research challengers failed the pre-declared 2014-2018 forward
+holdout and were not promoted. Their grouped performance cannot override that
+failure. Any future model built from this foundation remains a research
 challenger until all of the following are satisfied:
 
 - Candidate models and hyperparameters are preregistered and compared with
@@ -142,3 +156,9 @@ challenger until all of the following are satisfied:
 - No generated probability artifact, alert policy, or research dashboard is
   merged into serving code until the statistical gate passes and the owner
   approves the model change.
+- The Methodology tab must fail closed: classifier metrics and a confusion
+  matrix may be displayed as current validation evidence only when the report
+  explicitly carries `validation_status: validated_clean`,
+  `clean_validation: true`, and `display_metrics: true`. Invalid, superseded,
+  research-only, or unlabelled reports remain available for audit but are not
+  presented as valid model performance.

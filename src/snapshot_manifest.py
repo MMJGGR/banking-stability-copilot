@@ -128,8 +128,13 @@ def build_snapshot_manifest(as_of_date, repository_root=None) -> dict:
     if wgi_path.exists():
         sources["WGI"] = summarize_wgi_cache(wgi_path, cutoff)
 
+    government_reference_dir = root / "data" / "reference"
     artifact_paths = [
         root / "artifacts" / "model_policy_audit.json",
+        root / "artifacts" / "government_liquidity_features_report.json",
+        government_reference_dir / "government_liquidity_features.parquet",
+        government_reference_dir / "government_liquidity_observations.parquet",
+        government_reference_dir / "government_liquidity_features_report.json",
         cache_dir / "risk_model.pkl",
         cache_dir / "inference_pipeline.pkl",
         cache_dir / "crisis_classifier.pkl",

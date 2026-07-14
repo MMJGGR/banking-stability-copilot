@@ -1,4 +1,8 @@
 {
+  "validation_status": "invalid_superseded",
+  "clean_validation": false,
+  "display_metrics": false,
+  "status_reason": "This legacy report used the pre-reconciliation crisis-label set and selected/reported its operating threshold on the same holdout. Its precision, recall, F1, alert count and confusion matrix are not clean external-test evidence. The replacement leakage-safe research candidates failed the pre-declared forward holdout and were not promoted.",
   "basis": "Grouped country validation with year-matched crisis features",
   "country_epochs": 2178,
   "countries": 197,

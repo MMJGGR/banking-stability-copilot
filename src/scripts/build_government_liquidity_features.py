@@ -23,10 +23,8 @@ from src.government_liquidity import (
     GOVT_FEATURE_OBSERVATIONS,
     GOVT_FEATURE_REPORT,
     GOVT_FEATURE_VALUES,
-    build_government_liquidity_features,
-    load_weo_fiscal_observations,
     model_country_codes,
-    write_government_liquidity_outputs,
+    refresh_government_liquidity_outputs,
 )
 
 
@@ -51,35 +49,18 @@ def main() -> None:
 
     countries = [c.upper() for c in args.countries] if args.countries else model_country_codes()
 
-    observations = load_weo_fiscal_observations(
-        as_of_date=args.as_of,
-        model_countries=countries,
-        include_projections=args.include_projections,
-    )
-    features, report = build_government_liquidity_features(observations)
-
     observations_path = Path(args.observations)
     features_path = Path(args.features)
     report_path = Path(args.report)
-    write_government_liquidity_outputs(
-        observations,
-        features,
-        report,
+    _, _, report = refresh_government_liquidity_outputs(
+        as_of_date=args.as_of,
+        model_countries=countries,
+        include_projections=args.include_projections,
         observations_path=observations_path,
         features_path=features_path,
         report_path=report_path,
+        reference_dir=Path(args.reference_dir) if args.reference_dir else None,
     )
-
-    if args.reference_dir:
-        reference_dir = Path(args.reference_dir)
-        write_government_liquidity_outputs(
-            observations,
-            features,
-            report,
-            observations_path=reference_dir / "government_liquidity_observations.parquet",
-            features_path=reference_dir / "government_liquidity_features.parquet",
-            report_path=reference_dir / "government_liquidity_features_report.json",
-        )
 
     print(f"Observations written to: {observations_path}")
     print(f"Features written to: {features_path}")

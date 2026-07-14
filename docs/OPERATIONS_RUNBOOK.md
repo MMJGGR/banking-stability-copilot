@@ -65,11 +65,14 @@ python -m src.scripts.refresh_data --as-of 2026-06-30
 ```
 
 This command fetches official IMF SDMX and World Bank source data, normalizes
-the app caches, scores through the model pipeline to the cutoff, runs model
-validation, saves artifacts, and creates the serving manifest. It reuses the
-existing validated crisis-classifier artifact by default; pass
-`--retrain-classifier` only when a full supervised classifier refresh is
-intended.
+the app caches, rebuilds the government-liquidity training and compact
+Explorer references from that same newly fetched WEO frame, scores through the
+model pipeline to the cutoff, runs model validation, saves artifacts, and
+creates the serving manifest. It reuses the existing served legacy crisis-
+classifier artifact by default; that reuse does not make its superseded
+validation metrics current. Pass `--retrain-classifier` only for a governed
+candidate build using exact labels and leakage-safe validation, never as an
+automatic promotion step.
 
 If a download succeeds but a downstream normalization/model step needs to be
 rerun, reuse the retained raw files:
@@ -88,10 +91,11 @@ python -m src.scripts.build_local_snapshot --as-of 2025-12-31
 python -m src.scripts.build_local_snapshot --as-of 2026-06-30
 ```
 
-By default this reuses the existing validated crisis-classifier artifact and
-rebuilds cutoff-aware feature, pillar, manifest, and serving artifacts. Pass
-`--retrain-classifier` only when a full classifier refresh is intended and the
-longer runtime is acceptable.
+By default this reuses the existing served legacy crisis-classifier artifact
+and rebuilds cutoff-aware feature, pillar, manifest, and serving artifacts.
+Pass `--retrain-classifier` only for a governed candidate build; a retrained
+classifier remains inactive unless the clean validation and approval gates in
+`docs/GOVERNANCE.md` are satisfied.
 
 ## Candidate Review
 
@@ -116,8 +120,10 @@ Promotion is workflow-assisted; the final merge stays with a human reviewer.
    build's run ID and snapshot date. The workflow downloads the bundle,
    re-runs `python -m src.scripts.smoke_test_artifacts` against it (country
    names present, scores in range, raw/imputed sidecar coherence, verified
-   manifest), commits the artifacts via Git LFS to `promote/<date>`, and
-   opens a pull request.
+   manifest), installs the explicitly enumerated serving files plus compact
+   government-liquidity Explorer references, commits them to
+   `promote/<date>`, and opens a pull request. Missing or empty required files
+   stop promotion; broad cache globs are not used.
 2. Review the model-policy audit, feature-heuristic flags, and large score
    or tier changes on the pull request.
 3. Merge the pull request; Streamlit Cloud redeploys from master.
@@ -127,6 +133,27 @@ Promotion is workflow-assisted; the final merge stays with a human reviewer.
 Manual fallback: download the bundle, run the smoke test locally, and
 replace the serving artifacts through a reviewed pull request (requires
 git-lfs).
+
+## Automated Live Reachability Check
+
+`Verify live Streamlit reachability` runs after every push to `master`, every
+six hours, and on manual dispatch. It uses the repository variable
+`STREAMLIT_APP_URL` when defined and otherwise checks
+`https://bankenv.streamlit.app`.
+
+The check deliberately distinguishes these outcomes:
+
+- `public_http_reachable` or `public_health_reachable`: an unauthenticated
+  public endpoint responded successfully.
+- `login_gated_reachable`: Streamlit responded with an authentication or
+  access-control surface. This is a successful reachability result for a
+  private app, but it does not validate app content.
+- `unavailable`: neither the app endpoint nor Streamlit health endpoint became
+  reachable within the bounded retry window; the workflow fails.
+
+Each run uploads `live_app_check.json`. This is an availability check, not
+proof that a particular Git commit is deployed; visible snapshot/revision
+verification remains part of promotion review.
 
 ## Rollback
 

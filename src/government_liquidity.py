@@ -401,3 +401,55 @@ def write_government_liquidity_outputs(
     observations.to_parquet(observations_path, index=False)
     features.to_parquet(features_path, index=False)
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def refresh_government_liquidity_outputs(
+    *,
+    weo_df: pd.DataFrame | None = None,
+    as_of_date=None,
+    model_countries: list[str] | None = None,
+    model_features: pd.DataFrame | None = None,
+    include_projections: bool = False,
+    observations_path: Path = GOVT_FEATURE_OBSERVATIONS,
+    features_path: Path = GOVT_FEATURE_VALUES,
+    report_path: Path = GOVT_FEATURE_REPORT,
+    reference_dir: Path | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Rebuild fiscal-liquidity outputs from one explicit WEO snapshot.
+
+    Candidate refreshes pass the newly normalized in-memory WEO frame here so
+    the compact Explorer references and the model's government-liquidity input
+    cannot silently come from different source vintages.  The optional
+    ``reference_dir`` receives the three compact files consumed by Streamlit.
+    """
+    observations = load_weo_fiscal_observations(
+        weo_df=weo_df,
+        as_of_date=as_of_date,
+        model_countries=model_countries,
+        include_projections=include_projections,
+    )
+    features, report = build_government_liquidity_features(
+        observations,
+        model_features=model_features,
+    )
+    write_government_liquidity_outputs(
+        observations,
+        features,
+        report,
+        observations_path=Path(observations_path),
+        features_path=Path(features_path),
+        report_path=Path(report_path),
+    )
+
+    if reference_dir is not None:
+        reference_dir = Path(reference_dir)
+        write_government_liquidity_outputs(
+            observations,
+            features,
+            report,
+            observations_path=reference_dir / "government_liquidity_observations.parquet",
+            features_path=reference_dir / "government_liquidity_features.parquet",
+            report_path=reference_dir / "government_liquidity_features_report.json",
+        )
+
+    return observations, features, report

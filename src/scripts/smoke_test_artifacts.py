@@ -13,14 +13,16 @@ Exits non-zero when any check fails.
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 
 import numpy as np
 import pandas as pd
 
-from src.config import CACHE_DIR
+from src.config import BASE_DIR, CACHE_DIR
 from src.country_names import fill_missing_country_names
 from src.model_store import load_data_manifest, load_model_artifact
+from src.snapshot_manifest import sha256_file
 
 MINIMUM_COUNTRIES = 150
 MINIMUM_RAW_NAME_SHARE = 0.90
@@ -31,6 +33,25 @@ def _check(condition: bool, message: str, failures: list) -> None:
     print(f"  [{status}] {message}")
     if not condition:
         failures.append(message)
+
+
+def manifest_artifact_failures(manifest: dict, repository_root=BASE_DIR) -> list[str]:
+    """Return missing, unsafe, or checksum-invalid manifest entries."""
+    root = Path(repository_root).resolve()
+    failures = []
+    for relative_path, metadata in manifest.get("artifacts", {}).items():
+        candidate = (root / relative_path).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            failures.append(f"unsafe path: {relative_path}")
+            continue
+        expected = metadata.get("sha256")
+        if not candidate.is_file():
+            failures.append(f"missing: {relative_path}")
+        elif not expected or sha256_file(candidate) != expected:
+            failures.append(f"checksum: {relative_path}")
+    return failures
 
 
 def run_smoke_tests() -> int:
@@ -46,6 +67,13 @@ def run_smoke_tests() -> int:
             manifest.get("snapshot_status") == "verified",
             f"manifest snapshot_status is 'verified' "
             f"(got {manifest.get('snapshot_status')!r})",
+            failures,
+        )
+        checksum_failures = manifest_artifact_failures(manifest)
+        _check(
+            not checksum_failures,
+            "all manifest artifacts are present, safely rooted, and checksum-valid"
+            + (f" ({checksum_failures[:3]})" if checksum_failures else ""),
             failures,
         )
 

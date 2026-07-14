@@ -6,6 +6,7 @@ from src.government_liquidity import (
     latest_fiscal_trend_features,
     latest_fiscal_matrix,
     load_weo_fiscal_observations,
+    refresh_government_liquidity_outputs,
 )
 
 
@@ -162,3 +163,47 @@ def test_latest_fiscal_trend_features_compute_three_year_changes():
     )
     assert ken["govt_primary_deficit_gdp_change_3y"] == pytest.approx(3.0 - 1.5)
     assert ken["govt_revenue_gdp_change_3y"] == pytest.approx(24.0 - 21.0)
+
+
+def test_refresh_outputs_use_passed_weo_snapshot_and_package_references(tmp_path):
+    weo = pd.DataFrame(
+        [
+            _weo_row("KEN", "GGXWDG_NGDP", 2024, 60.0),
+            _weo_row("KEN", "GGXWDG_NGDP", 2025, 70.0),
+            _weo_row("KEN", "GGXCNL_NGDP", 2025, -6.0),
+            _weo_row("KEN", "GGXONLB_NGDP", 2025, -1.0),
+            _weo_row("KEN", "GGR_NGDP", 2025, 20.0),
+        ]
+    )
+    model_features = pd.DataFrame({"country_code": ["KEN"]})
+    cache_dir = tmp_path / "cache" / "government"
+    artifact_dir = tmp_path / "artifacts"
+    reference_dir = tmp_path / "data" / "reference"
+
+    observations, features, report = refresh_government_liquidity_outputs(
+        weo_df=weo,
+        as_of_date="2025-12-31",
+        model_countries=["KEN"],
+        model_features=model_features,
+        observations_path=cache_dir / "government_liquidity_observations.parquet",
+        features_path=cache_dir / "government_liquidity_features.parquet",
+        report_path=artifact_dir / "government_liquidity_features_report.json",
+        reference_dir=reference_dir,
+    )
+
+    assert observations["period"].max() == pd.Timestamp("2025-12-31")
+    assert features.set_index("country_code").loc["KEN", "govt_debt_to_revenue"] == pytest.approx(350.0)
+    assert report["observation_countries"] == 1
+    assert (cache_dir / "government_liquidity_observations.parquet").stat().st_size > 0
+    assert (cache_dir / "government_liquidity_features.parquet").stat().st_size > 0
+    assert (artifact_dir / "government_liquidity_features_report.json").stat().st_size > 0
+    assert (reference_dir / "government_liquidity_observations.parquet").stat().st_size > 0
+    assert (reference_dir / "government_liquidity_features.parquet").stat().st_size > 0
+    assert (reference_dir / "government_liquidity_features_report.json").stat().st_size > 0
+
+    packaged = pd.read_parquet(reference_dir / "government_liquidity_features.parquet")
+    assert packaged.columns.tolist() == features.columns.tolist()
+    assert packaged["country_code"].tolist() == features["country_code"].tolist()
+    assert packaged.set_index("country_code").loc[
+        "KEN", "govt_debt_to_revenue"
+    ] == pytest.approx(features.set_index("country_code").loc["KEN", "govt_debt_to_revenue"])

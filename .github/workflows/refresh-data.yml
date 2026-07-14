@@ -55,6 +55,22 @@ jobs:
           python -m src.scripts.refresh_data
           --as-of "$SNAPSHOT_DATE"
 
+      - name: Verify government-liquidity reference bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            artifacts/government_liquidity_features_report.json \
+            data/reference/government_liquidity_features.parquet \
+            data/reference/government_liquidity_observations.parquet \
+            data/reference/government_liquidity_features_report.json
+          do
+            test -s "$path" || {
+              echo "Required government-liquidity output is missing or empty: $path" >&2
+              exit 1
+            }
+          done
+
       - name: Smoke-test candidate serving artifacts
         run: python -m src.scripts.smoke_test_artifacts
 
@@ -69,7 +85,15 @@ jobs:
             artifacts/data_manifest.json
             artifacts/model_policy_audit.json
             artifacts/feature_heuristics.json
-            cache/*_cache.parquet
+            artifacts/government_liquidity_features_report.json
+            data/reference/government_liquidity_features.parquet
+            data/reference/government_liquidity_observations.parquet
+            data/reference/government_liquidity_features_report.json
+            cache/FSIBSIS_cache.parquet
+            cache/FSIC_cache.parquet
+            cache/MFS_cache.parquet
+            cache/WEO_cache.parquet
+            cache/WGI_cache.parquet
             cache/crisis_features.parquet
             cache/imputed_features.parquet
             cache/risk_model.pkl

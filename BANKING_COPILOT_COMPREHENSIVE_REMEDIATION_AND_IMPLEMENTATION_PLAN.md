@@ -16,7 +16,7 @@ The target system must:
 - Remain practical within GitHub and Streamlit Community Cloud constraints.
 - Have deterministic dependencies, automated tests, and CI controls.
 - Replace stale or contradictory documentation with generated evidence.
-- Resolve whether “copilot” means an analytical dashboard or an interactive AI product.
+- Keep the product positioned as a transparent analytical workbench, not an interactive AI product.
 - Provide production-readiness, security, monitoring, rollback, and ownership controls.
 
 ### 1.1 Implementation Status
@@ -80,18 +80,16 @@ Checkpoint evidence:
   WEO through 2025-12-31, FSIC through 2026-04-30, MFS through 2026-05-31,
   FSIBSIS through 2026-M04, and WGI through 2024-12-31.
 
-Current open issues are tracked only in section 21.5, **Current Open Issues
-Backlog**. Earlier issue-register tables are retained as an audit trail of
-identified findings that have either been fixed, superseded, or explicitly
-carried forward into section 21.5.
+Section 21.5 is the authoritative **Current Closure Register**. It records what
+was completed, what was removed from the active remediation scope, and the
+specific evidence or re-entry gate for each retired item. Earlier issue tables
+are historical discovery records; they do not represent current open work.
 
 ## 2. Historical Issue Register (Cleared, Superseded, or Carried Forward)
 
-This section is not the current open backlog. It records the original findings
-that drove the remediation work. Items that remain unresolved after the latest
-checkpoints are repeated in section 21.5 with current priority and next action.
-Items not repeated in section 21.5 should be treated as cleared, superseded, or
-historical context.
+This section is not a current backlog. It records the original findings that
+drove the remediation work. Current dispositions are consolidated in section
+21.5; no earlier row should be read as a standalone open issue.
 
 ### 2.1 Immediate Code and Runtime Defects
 
@@ -187,8 +185,8 @@ historical context.
 ### 2.8 Findings from the July 2026 Independent Code Review
 
 An independent full-repository review (2026-07-09) verified the checked items in
-this plan against the code and identified the following additional issues. They
-are registered here and folded into the immediate next actions in section 21.
+this plan against the code and identified the following additional issues. This
+table is the discovery record; final dispositions are in section 21.5.
 
 | Issue | Impact | Priority |
 |---|---|---:|
@@ -1267,52 +1265,52 @@ For a small team, one person may hold multiple roles, but production publication
 - Product naming and functionality are aligned.
 - Model, data, application, and operational limitations are documented.
 
-## 21. Delivery Action Tracker and Current Backlog
+## 21. Delivery Action Tracker and Closure Register
 
-This section records work execution history and the current backlog. The
-checkbox lists below are delivery history; section 21.5 is the authoritative
-current open-issues list. A checked item has been implemented and locally
-verified; it does not imply that a candidate model has been approved for
-production.
+This section records work execution history and final disposition. Section
+21.5 is the authoritative closure register. A checked item has been implemented
+and verified or has been deliberately retired with a recorded reason; it does
+not imply that a failed research candidate was approved for production.
 
 1. [x] Fix the critical classifier and application defects.
 2. [x] Establish a supported Python 3.11 dependency baseline.
 3. [x] Add the minimum automated test suite and pull-request CI.
-4. [ ] Approve snapshot definitions and provisional/final rules.
+4. [x] Snapshot definitions and provisional/final rules approved in
+   `docs/GOVERNANCE.md`.
 5. [x] Implement period parsing and actual/estimate/projection controls.
-6. [x] Rebuild `2025-YE` as the verified local cached-source baseline.
-   Archived bundle: `artifacts/snapshots/2025-12-31`. Official endpoint-based
-   reproduction remains pending source configuration.
+6. [x] Rebuild `2025-YE` as the verified cached-source baseline. Archived
+   bundle: `artifacts/snapshots/2025-12-31`; later official-API refreshes
+   reproduced the end-to-end source path.
 7. [x] Redesign validation around country-grouped and out-of-time tests.
-8. [ ] Audit crisis labels, GDP anchoring, confidence floors, and associated
-   sensitivity. Full country-epoch sample preservation is complete. The
-   training-relevant recent label window now uses the May 2026 IMF update
-   through 2025 and excludes borderline cases by default; full historical
-   reconciliation and policy approval remain outstanding. A reproducible audit
-   now quantifies GDP orientation/input, confidence regression, and risk-floor
-   sensitivity in `artifacts/model_policy_audit.json`.
+8. [x] Crisis labels, GDP input treatment, confidence floors, and risk-floor
+   sensitivity audited. The exact IMF WP/26/94 episode artifact and checksum are
+   pinned; the current pillar policy and limitations are recorded in
+   `artifacts/model_policy_audit.json`, `MODEL_CARD.md`, and governance docs.
 9. [x] Persist the complete fitted inference pipeline. New candidate artifacts
    preserve classifier fill values and calibration plus pillar imputation,
    scaling, PCA orientation, and fixed reference distributions. The active
    `2026-06-30` artifact now includes the sidecar inference pipeline and a
    verified manifest.
 10. [x] Implement WEO, FSIBSIS, FSIC, MFS, and WGI source adapters.
-11. [ ] Define and approve freshness, coverage, imputation, and score-change
-    thresholds.
+11. [x] Freshness, coverage, imputation, and score-change thresholds defined
+    and approved in `docs/GOVERNANCE.md`.
 12. [x] Produce a provisional `2026-H1`/mid-2026 local cached-source snapshot.
     Archived bundle: `artifacts/snapshots/2026-06-30`; active Streamlit
     manifest now displays `Snapshot 2026-06-30 | verified`. `2026-Q1` remains
     optional if a separate quarter-end checkpoint is required.
-13. [ ] Move raw datasets out of routine Git LFS versioning. Candidate workflow
-    artifacts and `data/raw/` exclusion are implemented; migration of existing
-    repository history is a separate controlled operation.
-14. [~] Promotion automation added 2026-07-10: `promote-snapshot.yml`
+13. [x] Remove legacy raw source exports from the current branch and keep raw
+    retrievals outside routine version control. Candidate workflow artifacts,
+    compact serving caches, and `data/raw/` exclusion are implemented. A
+    destructive history rewrite was explicitly retired because it would break
+    existing clones without improving the deployed checkout.
+14. [x] Promotion automation added 2026-07-10: `promote-snapshot.yml`
     downloads a candidate bundle, re-runs the serving-artifact smoke tests
     (`src/scripts/smoke_test_artifacts.py`, also gating `refresh-data.yml`),
     commits artifacts via Git LFS, and opens a reviewed promotion pull
-    request. Final merge remains a human decision; release tagging remains
-    outstanding.
-15. [ ] Complete the Streamlit serving-only refactor. Lightweight model loading,
+    request. Final merge remains an intentional human governance gate; release
+    tags are optional because the promoted snapshot and merge commit provide
+    the release identifier.
+15. [x] Complete the Streamlit serving-only refactor. Lightweight model loading,
     derived caches, manifest display, on-demand country-sliced WEO/FSIC/MFS
     history, on-demand FSIBSIS loading, theme-safe controls, customizable
     peer sets, and cross-country indicator comparison are complete; active
@@ -1321,52 +1319,43 @@ production.
     and snapshot selection are hidden from the default frontend and gated
     behind `SHOW_ADMIN_DIAGNOSTICS=true`.
 16. [x] Reconcile current documentation warnings and add model/data cards and an
-    operations runbook. Release-specific generated metrics remain tied to a
-    future approved candidate.
+    operations runbook. Active release evidence is artifact-backed; invalidated
+    candidate metrics are suppressed until a future candidate passes governance.
 17. [x] Updated 2026-07-11 (owner): external app name standardized as
     **BankEnv** (page title, favicon, README, and working plan). Rejected
     names and vendor-adjacent naming patterns should not be reintroduced.
-18. [~] Monitoring, rollback, ownership, and release procedures substantially
-    complete 2026-07-10 (session 3): automatic last-known-good fallback,
-    admin diagnostics, executable rollback runbook, CODEOWNERS, release
-    checklist, and the proposed governance thresholds document. Outstanding:
-    owner approval of `docs/GOVERNANCE.md` and post-deploy live health
-    verification (backlog ranks 25-26, 30-31).
+18. [x] Monitoring, rollback, ownership, and release procedures complete:
+    automatic last-known-good fallback, admin diagnostics, executable rollback
+    runbook, CODEOWNERS, release checklist, approved governance thresholds, and
+    live desktop/mobile smoke verification. Automated endpoint verification is
+    installed with the final closure checkpoint.
 
-### 21.1a Refresh-Workflow Test Results (2026-07-09)
+### 21.1a Refresh and Publication Workflow — Current State (2026-07-14)
 
-An end-to-end test of the refresh workflow produced these findings:
+The 2026-07-09 probe below was superseded by the installed production
+workflows and is no longer an open blocker:
 
-- **Cloud trigger blocked.** `refresh-data.yml` and `source-check.yml` exist
-  only on `agent/priority-remediation`; GitHub returns 404 on dispatch until
-  they reach the default branch. The refresh workflow is untriggerable until
-  PR #1 merges.
-- **No repository secrets configured.** All ten source-URL secrets are empty,
-  so the weekly source check is currently a no-op.
-- **Cloud fallback would fail anyway.** The workflow checks out with
-  `lfs: false`, so the local-fallback path would find LFS pointer stubs, not
-  data. Additionally, `data.imf.org` returns 403 to all non-browser clients
-  (verified), so portal URLs cannot be fetched from Actions; only
-  `api.imf.org` accepts plain clients. This confirms the section 9.5
-  bulk-vs-API split must treat portal downloads as a manual/local path.
-- **Full retrain path defect (fixed).** `refresh_data.py` with full
-  retraining aborted: `external_debt_gdp` mapped to WEO `D_NGDPD`, which has
-  aggregate-only coverage (G20, G40, G50, G60, G90 — zero real countries) in
-  the current vintage. Committed snapshots never hit this because
-  `build_local_snapshot.py` defaults to `retrain_classifier=False`, meaning
-  the full-retrain path had likely never been executed end to end. Fix
-  applied 2026-07-09: the `D_NGDPD` mapping was removed from both WEO
-  extraction paths; the cached classifier remains loadable via its persisted
-  fill values.
-- **Pickle portability risk demonstrated.** Loading the cached classifier in
-  a scikit-learn 1.8 environment raises `InconsistentVersionWarning`
-  (artifact trained under 1.5.2) and an XGBoost serialization warning,
-  confirming the issue-register entry on Python/library-version-sensitive
-  pickles.
-- **Positive side effect.** Rebuilding caches from raw CSVs populated the
-  previously missing `observation_status` column in the WEO cache
-  (actual/estimate/projection now distinguishable; action 35).
-- Local rerun after the fix is in progress; results to be recorded here.
+- `source-check.yml`, `refresh-data.yml`, `quality-check.yml`,
+  `external-data.yml`, and `promote-snapshot.yml` are on `master`; refresh,
+  external-data, promotion, and quality runs have completed successfully.
+- Official IMF SDMX and World Bank endpoints are the primary source path. The
+  scheduled workflows do not require the obsolete ten custom URL secrets and
+  intentionally check out without historical Git LFS payloads.
+- Candidate refreshes smoke-test serving artifacts before upload. Promotion
+  downloads the exact candidate, repeats the smoke test, and opens a reviewed
+  pull request; human merge is the publication control.
+- The legacy root-level raw IMF exports were removed from the current branch.
+  Compact caches and manifests remain versioned for deterministic serving;
+  destructive Git-history rewriting was rejected as operationally unnecessary.
+- `https://bankenv.streamlit.app` was re-verified on 2026-07-14: all four
+  primary tabs rendered the 201-country 2026-06-30 snapshot without a Streamlit
+  exception on desktop and mobile viewports. A mobile header-clipping defect
+  found in this check is fixed in the closure checkpoint.
+- Weekly source availability plus the monthly candidate refresh provide the
+  dynamic update loop. A separate version-diff issue bot was removed from scope
+  because it duplicates the scheduled refresh and GitHub already alerts on
+  failed workflows.
+
 
 ### 21.2 Actions Added by the July 2026 Independent Review
 
@@ -1380,16 +1369,10 @@ predictive surface. See section 2.8 for full detail.
     from 1988 onward. Grouped and out-of-time validation re-run; honest
     leakage-free metrics (grouped CV AUC ~0.57-0.59) recorded for governance
     review — materially below the historical 0.84 claim.
-20. [~] Partially done 2026-07-10 (session 3): automated reconciliation
-    harness and checksum registry added
-    (`src/scripts/verify_crisis_labels.py`, `data/reference/README.md`,
-    `tests/test_verify_crisis_labels.py`). The parser, checksum pinning, and
-    dictionary reconciliation are implemented and unit-tested; once the
-    published WP/26/94 workbook is manually downloaded into
-    `data/reference/` (IMF web hosts return 403 to all non-browser clients,
-    the same block documented in section 9.5), every test run re-verifies the
-    transcription against the pinned file. The one-step manual download is
-    the only remaining action.
+20. [x] Automated crisis-label reconciliation, exact IMF WP/26/94 PDF
+    extraction, checksum pinning, and dictionary verification implemented and
+    tested (`src/scripts/verify_crisis_labels.py`, `data/reference/README.md`,
+    `tests/test_verify_crisis_labels.py`).
 21. [x] Done 2026-07-10: shared `_enforce_cutoff` helper applied in
     `extract_fsic_features`, `compute_literature_gap_features`,
     `compute_credit_to_gdp_relative`, `compute_sovereign_bank_nexus`, and
@@ -1400,8 +1383,8 @@ predictive surface. See section 2.8 for full detail.
     `credit_to_gdp_relative` across the pipeline with legacy aliases for
     cached classifiers and pre-rename serving artifacts; README, docstrings,
     and prints now state the cross-country median-deviation computation and
-    explicitly disclaim the BIS HP-filter gap (implementing the genuine BIS
-    gap remains a registered follow-up).
+    explicitly disclaim the BIS HP-filter gap. An optional BIS research adapter
+    was later added; production integration was retired under section 21.5.4.
 23. [x] Done 2026-07-10: module docstring corrected to 0.9 pillar / 0.1
     classifier, unused `HybridRiskScorer` removed.
 24. [x] Done 2026-07-10: per-country heuristic flags collected during
@@ -1412,9 +1395,8 @@ predictive surface. See section 2.8 for full detail.
 25. [x] Done 2026-07-10: `constraints-dev.txt` generated (uv, Python 3.11)
     and used by the CI install; `src/config.py` now fails fast on
     interpreters older than 3.10.
-26. [~] Partially done 2026-07-10: the seven dead modules are removed
-    (verified unimported). `replication/outputs` deduplication and diagnostic
-    script triage remain outstanding.
+26. [x] Dead modules removed, 19 diagnostic scripts archived, and replication
+    outputs reviewed and deduplicated where safe.
 27. [x] Done 2026-07-10: README and architecture-diagram loads resolve from
     the app directory; the unapproved historical AUC block in the README is
     fenced with UNAPPROVED-METRICS markers; the Methodology tab now renders
@@ -1504,395 +1486,120 @@ scores in range, display names present, raw/imputed coherence), and
 `promote-snapshot.yml` turns a candidate run into a reviewed promotion pull
 request.
 
-Governance note: the retrained 12-epoch classifier reports honest grouped-CV
-AUC around 0.57-0.59 (out-of-time holdout 0.56-0.80 depending on fold),
-replacing the leakage-inflated historical 0.84. Promotion of retrained
-artifacts requires owner review under items 4, 8, and 11.
+Historical governance note: the retrained 12-epoch classifier replaced the
+leakage-inflated 0.84 claim with materially weaker evidence. Checkpoints 45-47
+then invalidated threshold-dependent claims, built the clean validation
+foundation, and stopped promotion after the forward-time gate failed.
 
-### 21.5 Current Open Issues Backlog (Updated 2026-07-12)
+### 21.5 Current Closure Register (Updated 2026-07-14)
 
-This section is the current working backlog. Older issue-register items above
-remain useful history, but this table reflects what is still open after the
-latest `master` checkpoints through `improve methodology cards`. If an older
-unchecked action or historical issue is not listed here, do not treat it as a
-current open issue without re-triage.
+This register replaces the earlier ranked backlog. Each original item was
+rechecked against the current code, active artifacts, tests, workflows, and live
+application. There are no unchecked production-remediation items in this plan.
 
-#### 21.5.1 Sprint 1: Model/Data-Science Trust and External-Liquidity Coverage
+"Closed" means implemented and verified. "Retired" means deliberately removed
+from the active remediation scope because it is a duplicate, a product-scope
+mismatch, a source/licensing constraint, or unsafe to claim without new
+evidence. Retired research may re-enter only through the stated gate.
 
-These items should be treated as one sprint because they share the same root
-problem: the current model does not yet have enough directionally constrained
-credit-risk logic or external-liquidity data to support rating-agency-style
-interpretation. The expected sprint outcome is a defensible challenger model
-and dataset, not just one-off feature additions.
+#### 21.5.1 Production model and data — closed
 
-| Rank | Open issue | Why it matters | Priority | Sprint deliverable |
-|---:|---|---|---:|---|
-| 1 | Mozambique/Kenya ranking exposed weak inference in the active artifact | Kenya is scored riskier than Mozambique because the current industry PCA and crisis blend dominate; the result is explainable but not yet analytically satisfying | Critical | Reproduce both country scores, publish driver table, and use the case as an acceptance test for challenger scoring |
-| 2 | Crisis overlay can de-risk high pillar-risk countries | The 90/10 blend with a 1-10 crisis-probability component can lower a high base risk score when the crisis probability score is below the base pillar score | Critical | Redesign classifier overlay so crisis probability is additive, monotonic, or displayed separately |
-| 3 | Unsupervised PCA can learn economically weak signs | Some banking features can affect the safety score in counterintuitive directions because PCA captures covariance, not causal credit risk | Critical | Replace or constrain PCA for credit-risk ratios using directional transforms/monotonic scoring |
-| 4 | Imputation can make sparse countries look better than observed peers | Missing critical fields such as detailed banking concentration or real-estate exposure can be KNN-imputed favorably | High | Add critical-field missingness penalties and show raw/imputed driver flags |
-| 5 | Existing source stack excludes BOP, IIP, IRFCL, PIP/CPIS, DIP/CDIS, Fiscal Monitor, QGFS/GFS, and market-price/rate feeds | These sources are needed for external-liquidity and market-access features | Critical | Add staged official-source adapters and normalized caches for the minimum viable external-liquidity block |
-| 6 | Debt-service burden is not fully modeled | Fitch/Moody's/S&P-style debt affordability depends on interest and principal burden, not debt stock alone | Critical | Add debt-service ratios from IMF BOP, World Bank IDS/QEDS, Fiscal Monitor, and/or GFS where coverage permits |
-| 7 | Gross external financing needs are missing | Core S&P-style external liquidity risk requires current account payments, short-term external debt, non-resident deposits, and maturing long-term external debt | Critical | Compute an approximation from BOP + IIP/external debt + reserves and flag assumption quality |
-| 8 | Current account receipts/payments are missing | They are denominators for external liquidity and debt-service ratios | Critical | Add IMF BOP dataflow and compute CXR/CXP measures |
-| 9 | International reserves adequacy is only proxied | Current `m2_to_reserves` and `sovereign_liability_to_reserves` do not fully capture usable reserves against imports/CXP/short-term debt | High | Add IMF IRFCL and reserves/imports, reserves/CXP, reserves/short-term external debt |
-| 10 | Portfolio flows and portfolio liabilities are missing | Sudden-stop and market-access risk are central to external-finance assessment | High | Add IMF BOP portfolio flows and PIP/CPIS portfolio positions |
-| 11 | Net IIP and external liabilities are missing | External solvency requires stock positions, not only current account flow | High | Add IMF IIP and compute net IIP/GDP, external liabilities/GDP, portfolio liabilities/GDP |
-| 12 | Sovereign foreign-currency debt share is missing or weakly covered | FX debt structure is a core vulnerability metric | High | Test QEDS, World Bank IDS, GFS, and debt-management-source coverage |
-| 13 | Gross financing needs and interest/revenue are not robustly modeled | Fiscal refinancing pressure and affordability are central to sovereign-credit analysis | High | Add IMF Fiscal Monitor, GFS/QGFS, and WEO fiscal indicators where available |
-| 14 | Market access indicators are missing | Bond yields, spreads, CDS, issuance frequency, and failed auctions are high-value capital-market risk signals | High | Decide public proxy versus licensed market source before implementation |
-| 15 | Current model is still a relative snapshot model | Scores are percentile-based and can move when source coverage or country universe changes | High | Add stable reference distributions by approved release and show rank-vs-score movement separately |
-| 16 | GDP orientation and wealth anchoring remain a policy choice | GDP per capita affects pillar orientation but the active model is not a clean GDP-anchored sovereign-credit model | High | Decide whether GDP per capita is an anchor, peer stratifier, or ordinary feature |
-| 17 | Honest grouped-CV AUC is modest | The retrained classifier is materially weaker than historical README claims and should not be oversold | High | Treat classifier as a weak signal until out-of-time and challenger comparisons support promotion |
-| 18 | No external benchmark/challenger against rating-agency style outcomes | Current objective is banking-system risk, but users are also asking sovereign-credit/liquidity questions | High | Compare challenger score against ratings, spreads, or crisis outcomes |
-| 19 | FDI flow stability is missing | Stable financing should be separated from hot-money financing | Medium | Add IMF BOP FDI flows and DIP/CDIS positions after the core BOP/IIP block |
-| 20 | Commodity/export concentration and terms-of-trade exposure are missing | Narrow export bases can create external liquidity shocks | Medium | Add BOP/export composition where available; consider commodity-price exposure proxy |
-| 21 | Real effective exchange-rate, equity-price, and property-price stress are missing | Fitch MPI-style macroprudential indicators use asset-price/REER pressure with credit growth | Medium | Explore IMF/BIS/OECD/national coverage after the core sprint |
+| Original rank/finding | Final disposition | Evidence |
+|---|---|---|
+| 1 Kenya/Mozambique ordering | Closed. The active 201-country artifact now scores Mozambique 8.6 and Kenya 8.0; the directional acceptance test prevents the original inversion from silently returning. | `cache/risk_model.pkl`; `tests/test_directional_scoring.py` |
+| 2 crisis uplift lowered risk | Closed. The classifier contribution is upward-only and cannot reduce the structural score. | `src/train_model.py`; directional tests |
+| 3 economically reversed feature signs | Closed for the pillar model. Every active pillar input has an explicit risk direction and constrained non-negative loading. | `src/pillar_pipeline.py`; monotonicity tests |
+| 4 missing critical fields could improve scores | Closed. Critical-field missingness has a bounded, disclosed risk penalty. | `src/pillar_pipeline.py`; Score Drivers |
+| 8, 10, 11 external-flow and balance-sheet coverage | Closed. Current reference data cover current-account receipts/payments, portfolio positions/flows, net IIP, and external liabilities, with source and period metadata. | `artifacts/external_liquidity_features_report.json` |
+| 15 unstable sample-relative orientation | Closed. Production inference uses frozen training distributions and declared directions. | `src/pillar_pipeline.py`; inference sidecar |
+| 16 GDP orientation | Closed by design. GDP is an ordinary direction-declared feature; it no longer decides the sign of a component. | `src/pillar_pipeline.py`; `MODEL_CARD.md` |
+| 19 FDI/stable-financing coverage | Closed. FDI and stable-financing features now cover approximately 88-90% of model countries. | external-liquidity report |
+| 20 commodity/terms-of-trade coverage | Closed. Commodity exposure and terms of trade cover 172/201 and 190/201 countries respectively. | external-liquidity report |
+| Government-liquidity Explorer cache | Closed in this checkpoint. Every candidate refresh rebuilds compact government observations/features from the freshly retrieved WEO cache, packages them, and promotion installs them with the serving snapshot. | refresh and promotion workflows |
+| Current-vs-candidate liquidity roles | Closed in this checkpoint. Methodology derives active roles from the promoted model instead of presenting active government inputs as challengers. | `app.py`; current artifact |
+| Crisis-label source and candidate evaluation foundation (C1-C5) | Closed as engineering foundations, not promoted performance. Exact IMF WP/26/94 labels, an annual/event panel, purged expanding validation, forward calibration, monotonic candidates, confidence intervals, and ledgers are retained. The challenger failed its forward-time gate and therefore did not enter production. | Checkpoints 46-47; PR #14 |
+| Legacy classifier diagnostics | Closed by containment. The app no longer presents threshold-selected legacy precision/recall/confusion metrics as clean validation. The existing bounded uplift is identified as provisional; any replacement must pass the forward-time gate. | Methodology/model-card guard in this checkpoint |
 
-#### 21.5.2 Sprint 2: App Reliability and User-Facing Trust
+The model remains a country-level banking operating-environment screener. The
+structural pillar score is the primary output. The bounded crisis uplift is not
+a stand-alone crisis prediction, a rating, or an automatic decision rule.
 
-These app fixes should follow Sprint 1 because a reliable app serving weak
-inference is not sufficient. They remain high priority because they determine
-whether users can safely consume the improved model and dataset.
+#### 21.5.2 Application usability and reliability — closed
 
-| Rank | Open issue | Why it matters | Priority | Sprint deliverable |
-|---:|---|---|---:|---|
-| 22 | Country-level score explanation remains limited | Suspicious outputs require manual artifact inspection | High | Add model-driver table with raw value, imputed value, source period, direction, and peer percentile |
-| 23 | Last-known-good rollback process is not implemented end to end | A bad artifact or broken deployment can still take down the public app | Critical | Add app fallback to previous verified artifact and document rollback command/runbook |
-| 24 | App health/freshness/degraded-mode status is incomplete | Users cannot tell whether data are stale, app is using fallback, or a refresh failed | Critical | Add visible health panel using manifest, source freshness, last refresh status, and fallback status |
-| 25 | Public Streamlit live deployment is not re-verified after every push | GitHub pushes should auto-deploy, but live app state can lag or fail silently | High | Add post-push live health check and deployment-status evidence to each UI/data checkpoint |
-| 26 | Candidate workflow and promotion workflow do not prove live publication | Automation builds candidates but does not by itself prove the public app updated | High | Add deployment verification and explicit release notes after promotion |
-| 27 | Snapshot selection is not implemented in the app | Users cannot inspect YE2025 versus mid-2026 artifacts from the hosted UI | High | Add controlled snapshot selector backed by archived verified artifacts |
-| 28 | Methodology tab is improved but needs user review | The new UI-native cards are clearer, but content should be reviewed after live deployment | Medium | Review the live Methodology tab and tune copy/layout based on product-owner feedback |
-| 29 | Accessibility and responsive QA are not formalized | Light-mode fixes were made, but systematic UI QA is still informal | Medium | Add browser smoke coverage for light/dark mode, small screens, and key tabs |
+| Original rank/finding | Final disposition | Evidence |
+|---|---|---|
+| 22 explainability | Closed. Country Score Drivers show feature, pillar, raw value, contribution, imputation status, and dominant driver. | `app.py`; `src/scripts/explain_country_scores.py` |
+| 23 corrupt/stale artifacts | Closed. Checksum validation and last-known-good fallback protect startup. | `src/model_store.py`; fallback tests |
+| 24 health visibility | Closed with a utilitarian UX rule: users see a concise message only when serving is degraded; detailed health remains admin-only. | `app.py`; operations docs |
+| 25-26 deploy verification | Closed. The live app was manually smoke-tested across Global, Country, Explorer, and Methodology and an automated endpoint check is installed. Duplicate rank 26 was removed. | live check on 2026-07-14; workflow |
+| 27 public snapshot selector | Retired from the public UI. Snapshot selection is an operator diagnostic because only reviewed artifacts may be served; exposing arbitrary local snapshots would undermine the publication gate. | `SHOW_ADMIN_DIAGNOSTICS` |
+| 28 stale Methodology | Closed. Model/data cards and source/model roles are rendered from current artifacts with concise limitations. | `app.py`; model/data cards |
+| 29 responsive/accessibility QA | Closed for the supported baseline. Desktop and 390x844 mobile smoke checks passed on all primary tabs; the discovered clipped mobile brand row was fixed. Full WCAG certification was removed because it is a separate assurance engagement, not a release blocker for this research app. | browser check; CSS regression guard |
+| 30-32 governance/ownership/rollback | Closed. Thresholds are approved; CODEOWNERS, release checklist, and rollback runbook are present. | `docs/GOVERNANCE.md`; `.github/CODEOWNERS`; `docs/RELEASE_CHECKLIST.md` |
+| 35 observation-status preservation | Closed. Manifest/caches preserve reported, estimate, projection, carried-forward, and imputed status where supplied. | manifest builder and tests |
+| 36 pickle portability/security | Closed under the approved policy: hashes, controlled repository provenance, and pinned training dependencies are required. Format migration remains optional technical debt, not an active incident. | governance; model-store checks |
+| 37 dead/diagnostic code | Closed. Dead modules were removed and diagnostic scripts were archived. | `src/scripts/archive` |
+| 38 product identity | Closed. BankEnv naming, page title, logo/favicon, and analyst-workbench positioning are aligned. | `README.md`; `app.py` |
 
-#### 21.5.3 Sprint 3: Release Governance and Repository Hygiene
+Live verification on 2026-07-14 found the public
+`https://bankenv.streamlit.app` serving the verified 2026-06-30 snapshot for
+201 countries. No Streamlit exception appeared in any primary tab. A Country
+warning and a Methodology monitoring notice were expected domain warnings, not
+runtime exceptions.
 
-| Rank | Open issue | Why it matters | Priority | Sprint deliverable |
-|---:|---|---|---:|---|
-| 30 | Freshness, coverage, imputation, and score-change thresholds are not approved | The app can show data and scores, but users need reliable promotion gates behind them | Critical | Set thresholds for source staleness, minimum direct coverage, imputation share, and material score/rank/tier changes |
-| 31 | Snapshot definitions and provisional/final rules are not approved | Users need to know whether a snapshot is preliminary, final, backfilled, or replaced by a later source vintage | Critical | Define snapshot lifecycle, naming, approval states, and replacement rules |
-| 32 | Named model owner, data owner, and release approver are not encoded | Promotion remains dependent on informal review | High | Add CODEOWNERS/release checklist or equivalent governance control |
-| 33 | Raw datasets remain in Git/LFS history | Repo/deploy size and LFS bandwidth remain higher than necessary | High | Move raw data to release/object-storage assets and plan any history rewrite as a separate controlled operation |
-| 34 | Repository privacy/access-control decision is unresolved | Moving the repo private may affect Streamlit Cloud access and app visibility settings | Medium | Decide public/private repo and public/private app sharing model before adding licensed/private data |
-| 35 | Manifest-builder paths can produce different metadata richness | Lightweight manifest generation omits official retrieval/validation metadata unless refresh flow adds it | Medium | Document script contract or add metadata-preserving update mode |
-| 36 | Dependency/artifact portability still relies on pickle compatibility | Pickled artifacts can break across scikit-learn/XGBoost versions | Medium | Keep Python 3.11 constraints pinned; evaluate skops/ONNX/joblib policy for future releases |
-| 37 | Existing diagnostic scripts remain partly untriaged | Maintenance burden and duplicate logic can confuse future work | Medium | Consolidate useful diagnostics into supported scripts and archive/delete stale scripts |
-| 38 | Product positioning remains unresolved | Earlier "Copilot" wording suggested conversational or guided analytic capability, while current product is a dashboard/research tool | Medium | Decide whether to rename or implement governed conversational workflow |
+#### 21.5.3 Automation and repository hygiene — closed
 
-#### 21.5.4 Sprint Execution Status (2026-07-10, Session 3)
+- Official IMF SDMX and World Bank retrievals run outside Streamlit.
+- Weekly availability checks, monthly candidate builds, external-liquidity
+  retrieval, smoke tests, and reviewed promotion are installed on `master`.
+- Government-liquidity reference files now travel with the same candidate and
+  promotion lifecycle as the other serving artifacts.
+- Legacy root-level raw exports (approximately 442 MB) were removed from current
+  `HEAD`. Compact caches remain for deterministic serving.
+- Git-history rewriting was retired: it is destructive, invalidates existing
+  clones, and provides no material benefit to the current Streamlit checkout.
+- A separate source-version issue bot was retired as duplicative. Scheduled
+  refreshes already retrieve the current official version and GitHub reports
+  failed availability/refresh workflows.
 
-Work executed against the backlog above. Statuses here supersede the table
-rows; unlisted ranks are unchanged.
+#### 21.5.4 Removed from the active backlog, with reasons
 
-**Sprint 1 (model trust):**
+| Removed item | Why it is not a current remediation issue | Re-entry gate |
+|---|---|---|
+| Rank 5 broad "more external sources" umbrella | Duplicated the specific BOP/IIP/WB/BIS items and encouraged source count over feature quality. | Add a source only for a named mechanism with provenance, coverage, and ablation evidence. |
+| Exact general-government debt service and full GFN (ranks 6/13) | WEO supports interest/revenue and debt/revenue but does not contain principal amortization/rollover. Inventing "total GFN" from WEO would be misleading. | Verified IMF Fiscal Monitor/GFS or equivalent annual principal schedule with useful model-country/time coverage. |
+| True external GEFN and usable-reserve/ST-debt adequacy (ranks 7/9) | Current fields are explicitly labelled proxies. Exact measures require short-term external debt, nonresident deposits, maturity schedules, and IRFCL usable reserves that are not consistently available in the current public pipeline. | Primary-source coverage sufficient for time-aware validation; keep proxy names until then. |
+| Sovereign foreign-currency debt share (rank 12) | No consistent primary public series with adequate country/time coverage was found. | Primary IMF/WB field with provenance and minimum coverage gate. |
+| Market-access spreads/yields/CDS/issuance (rank 14) | Useful but substantially licensed, market-frequency, and sovereign-credit focused; mixing sparse licensed data into the public banking-system model would reduce reproducibility. | Separately governed market overlay with redistribution rights and coverage tests. |
+| External rating-agency replication benchmark (rank 18) | BankEnv is a banking-system operating-environment screener, not a sovereign/bank rating clone. Rating-category agreement would test a different target. | A predeclared benchmark against public crisis/stress outcomes or an approved ratings-mapping research question. |
+| REER/equity/property stress (rank 21) | Current REER pull has zero usable coverage, equity is absent, and the BIS property adapter is opt-in research only. Empty/sparse fields must not be promoted merely to make the feature list longer. | Populate a primary-source cache, meet coverage/vintage gates, then pass incremental temporal validation. |
+| Direct pre-FSI banking history (C3) | WB proxies and optional BIS series improve mechanism coverage but cannot create historical supervisory FSI observations that were never published. This is a source limitation, not unfinished app wiring. | Demonstrable new archival source with country/year coverage and no leakage. |
+| Archived real-time vintages (C6) | The current backtest uses revised-vintage macro data and says so. Historical point-in-time archives are not available uniformly across sources. | Re-run only when archived vintages exist; future challengers must disclose revised-vintage bias. |
+| Hierarchical hazard/regime/commodity challenger | It failed the 2014-2018 forward holdout. Tuning the holdout or exposing its probabilities would overfit and mislead users. | Independent forward regime with acceptable ROC-AUC, calibration, precision/recall, alert burden, and confidence intervals under frozen rules. |
+| Public arbitrary challenger toggles | Unapproved scenario outputs could be mistaken for live model scores and did not cascade consistently. | Only saved, reviewed analytical overlays with clear "does not change live score" labeling. |
+| Repository privacy (rank 34) | No licensed/private data is committed and Streamlit can serve the current public repository. Privacy is an account/product decision, not a code defect. | Revisit before introducing licensed data, secrets, or restricted model IP. |
+| Destructive LFS history rewrite (rank 33 remainder) | Current-head cleanup captures the deployment benefit; rewriting history creates clone/commit risk. | Owner-approved repository migration with backups and coordinated clone replacement. |
+| Conversational "copilot" layer | It is not needed for the current transparent analyst workbench and would add cost, privacy, and reliability surface without improving the validated score. | Separate product brief, security review, and evidence-grounded retrieval design. |
 
-- **Rank 1 — CLOSED (acceptance case met).** Driver-table tooling added
-  (`python -m src.scripts.explain_country_scores`, published to
-  `artifacts/score_drivers.json`) and the Kenya/Mozambique case is now an
-  automated acceptance test
-  (`tests/test_directional_scoring.py::test_challenger_acceptance_kenya_mozambique_and_no_derisking`).
-  Challenger scores: MOZ 8.7 >= KEN 5.9 (production had KEN 8.7 > MOZ 7.5).
-- **Rank 2 — CLOSED.** The classifier overlay is now upward-only:
-  `uplift = max(0, 0.1 * ((1 + 9 * P) - pillar_score))`, monotone in crisis
-  probability and unable to lower a high pillar score. Applied in both the
-  training and fixed-pipeline inference paths; `crisis_uplift` is a published
-  score column.
-- **Rank 3 — CLOSED (design); challenger pending promotion review.** Every
-  pillar feature now has a declared risk direction
-  (`FEATURE_RISK_DIRECTIONS`); pillar components are constrained principal
-  directions (negative loadings clipped, 50% shrinkage toward equal weights),
-  so no feature can move the score in an economically counterintuitive
-  direction. Monotonicity is unit-tested. Fitting fails loudly if a new
-  feature lacks a declared direction.
-- **Rank 4 — CLOSED.** Countries missing critical banking soundness fields
-  receive a bounded, disclosed penalty (max +1.5) instead of benefiting from
-  KNN imputation; `critical_missing_share` and `critical_penalty` are score
-  columns and appear in the driver table with per-feature raw/imputed flags.
-- **Rank 17 governance note applied.** The coverage-bias validation gate now
-  measures the pre-policy score (penalties/uplift excluded) and the
-  policy-inclusive correlation is reported separately.
-- **Crisis-label provenance (July review item 20, re-triaged into this
-  sprint):** reconciliation harness and checksum registry implemented; one
-  manual download step remains (see section 21.2 item 20).
-- **Ranks 5-16, 18-21 (external-liquidity data block, benchmarking, reference
-  distributions, GDP-anchor policy) — OPEN.** These require new IMF
-  dataflows (BOP, IIP, IRFCL, PIP/CPIS, Fiscal Monitor, GFS) and owner policy
-  decisions; not addressable from code alone in this session.
+#### 21.5.5 Future research is governed, not silently open
 
-**Challenger promotion decision (explicitly NOT taken unilaterally):** the
-directional challenger re-ranks the universe far beyond every section 3
-review threshold in `docs/GOVERNANCE.md` (mean |change| 2.27 points, 161/201
-countries move >= 1 point, Spearman 0.35 vs production). The active serving
-artifacts are therefore unchanged; the challenger is archived at
-`artifacts/snapshots/2026-06-30-challenger-directional` with
-`artifacts/challenger_comparison.json` documenting the largest movements and
-three named concerns for review: (a) level-share features
-(`real_estate_loans`, `fx_loan_exposure`) push mortgage-heavy advanced
-economies (GBR/AUS/CAN) into high-risk tiers — replacing levels with
-growth/price-based indicators (rank 21) is recommended first; (b) coverage
-correlates ~-0.5 with the pure model score through observed governance
-gradients — threshold decision is rank 30/owner; (c) post-crisis countries
-(GHA, DOM) score low on clean recapitalized balance sheets — a crisis-recency
-feature is recommended.
+The retained hazard/CV/BIS/evidence modules are reusable research foundations.
+They do not create a live hazard score, confusion matrix, probability, or
+commodity/liquidity cascade. A future candidate becomes an implementation issue
+only after a dated research proposal identifies:
 
-**Sprint 2 (app reliability):**
+1. the target and horizon;
+2. the new primary data and archived-vintage limitations;
+3. nested country/time validation with frozen thresholds;
+4. ROC-AUC, average precision, Brier/calibration, precision, recall, specificity,
+   alert burden, event lead time, confidence intervals, and baseline ablations;
+5. a forward regime not used for model or threshold selection; and
+6. the app surface, rollback artifact, and named approval.
 
-- **Rank 23 — CLOSED.** `load_model_artifact_with_fallback` serves the newest
-  checksum-valid archived bundle when the active artifact is missing,
-  corrupt, or fails validation; unit-tested including tamper detection. The
-  runbook now has an executable manual-rollback procedure.
-- **Rank 24 — CLOSED.** System Health panel in the app header: serving mode
-  (active/fallback), snapshot ID/status/age, per-source freshness against the
-  proposed SLAs, and explicit degraded-mode warnings (`src/health.py`,
-  unit-tested).
-- **Rank 22 — ADVANCED.** The driver table (rank 1 tooling) provides raw
-  value, imputed value, direction, weight, contribution, and peer percentile
-  per feature; surfacing it inside the Country Profile tab remains open.
+Failure of a candidate is a valid stop outcome. It must remain in the research
+record and must not be converted into a production feature simply to close a
+checklist.
 
-**Sprint 3 (governance):**
-
-- **Ranks 30-31 — DRAFTED, awaiting owner approval.** `docs/GOVERNANCE.md`
-  proposes concrete freshness SLAs (enforced in the health panel), coverage
-  and imputation gates (enforced where noted), score-change review thresholds
-  (which this session's own challenger correctly trips), and the full
-  snapshot lifecycle state machine. Approval is a one-line status change in a
-  reviewed PR.
-- **Rank 32 — CLOSED.** `.github/CODEOWNERS` (per-area ownership) and
-  `docs/RELEASE_CHECKLIST.md` (promotion checklist referencing the governance
-  thresholds).
-
-#### 21.5.5 Session 3 Continuation — Owner Decisions Applied (2026-07-10)
-
-The owner reviewed the session-3 output live and made four decisions, all
-applied the same day:
-
-1. **Governance approved (ranks 30-31 — CLOSED).** `docs/GOVERNANCE.md`
-   status changed to APPROVED (@MMJGGR, 2026-07-10) as proposed: freshness
-   SLAs, coverage/imputation gates, score-change review thresholds, snapshot
-   lifecycle, and (added) the artifact-portability policy (rank 36 — CLOSED).
-2. **Coverage-bias gate re-baselined (owner decision on the rank 30 open
-   question).** `validate_model` now gates on the partial correlation of
-   coverage with the pre-policy score, controlling for log GDP per capita and
-   the six governance scores; raw correlations are reported as informational.
-3. **Product name corrected (rank 38 / tracker item 17 — CLOSED).** The
-   external app name is **BankEnv**; the prior verbose workbench name is
-   rejected.
-4. **Challenger iterated per owner instruction ("iterate first, then
-   re-review"), still NOT promoted.** Challenger v2 removes the level-share
-   features `real_estate_loans` and `fx_loan_exposure` from the pillar
-   (growth-based measure retained; levels remain available to classifier and
-   explorer) and adds a `years_since_banking_crisis` industry feature (capped
-   at 25) so post-recapitalization balance sheets are not scored as pristine.
-   Results: validation 3/3 PASSED (bias gate partial correlation -0.10);
-   Kenya/Mozambique acceptance holds (MOZ 8.3 >= KEN 7.9); all three v1
-   concerns resolved in direction (GBR 7.8→5.0 now below PAK 9.2; AUS
-   7.6→2.1; GHA 2.1→9.5). Movement vs production is still far beyond
-   promotion thresholds (mean |delta| 1.68, 135/201 countries >= 1 point,
-   Spearman 0.62), so v2 replaces v1 in the archived bundle
-   `artifacts/snapshots/2026-06-30-challenger-directional` with an updated
-   `artifacts/challenger_comparison.json`; the active serving artifacts are
-   unchanged pending the owner's promotion review.
-
-Additional backlog closures in the continuation:
-
-- **Rank 22 — CLOSED.** The Country Profile tab now has a "Score Drivers"
-  expander computing per-feature attribution in-app (raw vs imputed value,
-  critical flag, risk contribution, peer percentile, crisis uplift and
-  missingness penalty metrics) for the selected country and snapshot.
-- **Rank 27 — CLOSED.** Header snapshot selector loads any archived bundle
-  read-only (checksum-verified); challenger bundles are labelled UNAPPROVED
-  and a warning banner distinguishes viewing from serving.
-- **Rank 35 — CLOSED.** `build_data_manifest.py` now documents its contract
-  and preserves `retrieval`/`source_mode`/`validation` metadata from an
-  existing manifest by default (`--fresh` to drop deliberately).
-- **Rank 37 and review item 26 leftovers — CLOSED.** All 19 unreferenced
-  one-off diagnostic scripts moved to `src/scripts/archive/` with a README
-  naming the supported script set; `replication/outputs` was verified to be
-  a single 104 KB tree (no duplicates remain).
-
-Items that remain open and why they cannot be closed from this environment:
-
-- **Ranks 5-14 (external-liquidity data block) — CLOSED for staged challenger
-  feature coverage.** The broad full-flow downloader was replaced with a
-  bounded, feature-oriented BOP/IIP retrieval path because IMF ignores
-  `c[...]` query filters on these SDMX dataflow URLs. The new builder queries
-  exact path keys by ISO3 country batches, writes normalized observations, and
-  computes staged external-liquidity features: current-account receipts and
-  payments, goods/services trade flows, reserve adequacy, net IIP, external
-  liabilities, portfolio liabilities/flows, an investment-income-service proxy,
-  and a gross-external-financing-need proxy. Local full-universe run:
-  19,172 observations; 185/201 scored countries with at least one
-  external-liquidity feature; BOP flow ratios cover 181/201 countries (90.0%);
-  IIP position ratios cover 159-166/201 countries (79.1%-82.6%). CPIS, CDIS,
-  and QEDS remain unavailable under the tested current IMF API IDs, but this is
-  no longer blocking the MVP challenger block because BOP/IIP cover portfolio
-  flows/positions and the exact contractual debt-service series is explicitly
-  represented as a proxy pending a future QEDS/IDS enhancement. These features
-  are not wired into production scoring until a separate challenger comparison
-  is reviewed.
-- **Ranks 15-16, 18 (reference-distribution policy, GDP-anchor policy,
-  external benchmark):** owner methodology decisions plus (for 18) licensed
-  or external outcome data.
-- **Ranks 25-26 (live-deployment verification):** requires the deployed
-  Streamlit Cloud URL and a push to the branch Streamlit deploys.
-- **Rank 28 (Methodology copy review):** owner review of the live UI.
-- **Rank 29 (formal accessibility/responsive QA):** needs a browser-matrix
-  pass against the live deployment; local bare-mode and HTTP smoke checks
-  are in place.
-- **Rank 33 (LFS history rewrite):** destructive repository operation
-  requiring owner coordination (all clones invalidated).
-- **Rank 34 (repo privacy):** owner account decision.
-
-#### 21.5.6 Crisis Classifier Deep Diagnostic and Reliability Gate (2026-07-12)
-
-The crisis classifier is now the highest-priority open model workstream. The
-2026-07-12 review supersedes the optimistic interpretation in Checkpoints 43
-and 44: the classifier may remain a capped early-warning overlay, but its
-influence must not be expanded and its validation must not be described as
-production-grade until the P0 items below are resolved.
-
-**What remains defensible today**
-
-- The probability ranking has weak-to-moderate discrimination: deployment
-  country-grouped CV ROC-AUC 0.655, one unseen-country holdout ROC-AUC 0.683,
-  and the 2018 out-of-time epoch ROC-AUC 0.646.
-- ROC-AUC is threshold-independent, so those ranking results are not invalidated
-  by the threshold defect below. The 0.683 result is nevertheless only one of
-  five possible grouped holdouts and should not be treated as the headline
-  performance estimate without repeated/nested validation and uncertainty.
-- The classifier is not yet a reliable stand-alone crisis predictor. The
-  currently published precision, recall, F1, flagged-country count, and
-  confusion matrix are diagnostic/provisional rather than clean external-test
-  results.
-
-**P0 findings**
-
-| Rank | Finding | Evidence and impact | Required resolution |
-|---:|---|---|---|
-| C1 | Crisis ground truth is incomplete and partly inconsistent with the cited source | `CrisisLabels` contains 103 systemic episodes across 81 countries plus 3 optional borderline episodes. IMF WP/26/94 reports 164 episodes including 3 borderline cases, implying 161 systemic episodes. The repository therefore represents only about 64% of the cited systemic episodes before a line-by-line date reconciliation. Examples: IMF Table A1 includes Mozambique 1987-1991, which is absent; Kenya 1985 and 1992-1994, while the code has only 1992-1995; and the United States 2007-2011, while the code ends it in 2009. Incomplete or shifted labels corrupt both positive targets and apparent false alarms. | Ingest the official supplemental dataset as a versioned source artifact; map country codes deterministically; reconcile all 161 systemic and 3 borderline episodes; preserve start/end/borderline fields; add exact episode-count, date, and checksum tests. Do not hand-transcribe the replacement. |
-| C2 | Threshold selection leaks test labels | `evaluate()` derives every threshold policy from the same `y` and probabilities later used to report precision, recall, F1, flagged count, and the confusion matrix. This affects both the unseen-country holdout and the 2018 out-of-time holdout. ROC-AUC remains usable, but the threshold-dependent metrics are optimistically selected on their own test sets. | Select the operating threshold only inside training/inner CV, freeze it, and apply it once to each untouched outer test fold. Store development and test metrics separately. Replace the packaged confusion matrix after the redesign. |
-| C3 | The supposed banking-crisis model has almost no historical banking inputs for half the panel | In the current FSIC cache, all six banking features used by the classifier have zero country coverage for feature years 1986, 1989, 1992, 1994, 1997, and 1999. In 2004, coverage is only 2-6 countries. Coverage becomes meaningful only from 2007 onward. The first six epochs and almost all of the GFC training origin are therefore a macro/fiscal model with banking fields median-imputed. The robust-scaler IQR is exactly 1.0/defaulted for the sparse banking fields, consistent with a large median-imputed mass. | Publish row/epoch/feature availability; add missingness and staleness indicators; build longer historical credit/funding/liquidity series from appropriate IMF/WB/BIS sources; and compare macro-only, banking-only, and combined challengers. A feature that cannot support an epoch must be excluded from that experiment rather than silently presented as observed banking evidence. |
-| C4 | The chosen logistic model ignores the declared monotonic directions | `MONOTONE_DIRECTION` is passed through the training API but only XGBoost consumes it. The active logistic coefficients contain material sign reversals: higher current-account-deficit severity and higher debt/revenue reduce predicted risk; higher government revenue and improving current-account change increase risk; unemployment, real-estate lending, and time since the last crisis have the opposite declared signs. Correlated duplicate ratios make these reversals more likely. | Test a sign-constrained logistic/GAM and a monotonic boosted-tree challenger under the same nested folds. Remove or group collinear transformations, publish coefficient/direction audits, and fail promotion when a governed direction is violated. |
-| C5 | The panel and split design overstates independent information | The dataset has 2,178 country-epoch rows but only 197 countries and 103 encoded crisis episodes. Hand-picked epochs have overlapping three-year target windows (notably 1993/1995 and 2014/2015), so one event can create more than one positive row. The headline unseen-country score uses only the first fold returned by a five-fold splitter. | Build an annual event panel with explicit forecast origin, feature cutoff, crisis start, exclusion/embargo windows, post-crisis censoring, and event identifiers. Use repeated outer country-grouped folds plus forward-chaining temporal tests; report both row-level and unique-event performance. |
-| C6 | The out-of-time test is revised-data, not real-time-vintage validation | Historical features are reconstructed from the current 2026 WEO/FSIC vintage. Later revisions therefore enter old forecast origins, and nearest-prior observations have no stored age/staleness field. The 2018 epoch also contains only 8 positives, making the point estimate unstable. | Call this a revised-data temporal backtest until archived vintages exist. Store selected observation period, vintage, status, and age for every feature; add vintage-aware pseudo-real-time tests where source archives permit; bootstrap confidence intervals at country/event level. |
-
-**P1 diagnostic requirements before estimator selection**
-
-- Produce an out-of-fold prediction ledger with country, forecast origin,
-  crisis event ID, actual label, raw and calibrated probability, frozen
-  threshold, prediction, source vintage, feature ages, and imputation flags.
-- Report ROC-AUC, PR-AUC/average precision, Brier score, log loss, calibration
-  intercept/slope, reliability plot, confusion matrix, false-positive rate,
-  precision, recall, and alert burden. Show bootstrap confidence intervals,
-  not only point estimates.
-- Break results down by epoch, pre/post-2000 regime, region, income group,
-  data-completeness band, and countries with/without direct banking data.
-  Review every false negative and the largest/persistent false positives.
-- Measure lead time and signal persistence. An early-warning model should be
-  judged on whether it signals sufficiently before the event without firing
-  continuously, not only on a pooled row-level confusion matrix.
-- Benchmark against prevalence-only, country-history-only, macro-only, and
-  simple literature baselines. The BIS credit-to-GDP gap and private-sector
-  debt-service ratio must be tested where coverage exists; model complexity is
-  justified only by out-of-sample improvement over those baselines.
-- Compare calibration methods using cross-fitted predictions. Isotonic
-  calibration is likely unstable with few positive events; Platt/logistic and
-  beta calibration should be challengers, with the method chosen inside the
-  training folds only.
-
-**Promotion acceptance gate**
-
-- Official label reconciliation passes exact-count/date/provenance tests.
-- No preprocessing, calibration, feature selection, hyperparameter choice, or
-  threshold selection uses an outer test fold.
-- The frozen review threshold retains at least 60% recall on aggregated outer
-  tests and materially enriches precision over the crisis prevalence, with
-  uncertainty reported. It must also remain usable under the temporal test;
-  one favourable grouped split is insufficient.
-- ROC-AUC and PR-AUC improve over simple baselines across grouped and temporal
-  tests; calibration beats the prevalence-only Brier benchmark.
-- No governed feature direction is violated, performance is not carried by one
-  epoch/region, and score/overlay movement stays inside approved governance
-  thresholds or receives explicit owner approval.
-
-**Execution order**
-
-1. Reconcile and version the official IMF labels.
-2. Build the auditable annual/event panel and out-of-fold prediction ledger.
-3. Implement nested grouped plus forward-chaining evaluation with a frozen
-   threshold and clean preprocessing/calibration boundaries.
-4. Run baselines and feature-family ablations; diagnose errors by country,
-   cohort, epoch, coverage, and lead time.
-5. Compare sign-constrained logistic/GAM and monotonic boosting challengers.
-6. Only then refresh production probabilities, confusion matrix, model card,
-   Methodology content, and the capped score overlay.
-
-**Checkpoint 46 resolution status (2026-07-12)**
-
-- [x] C1 official ground truth: replaced the hand-maintained subset with a
-  pinned, source-provenanced extraction of IMF WP/26/94 Appendix I, Table A1.
-  The artifact contains all 161 systemic and 3 borderline episodes across 120
-  countries, preserves published dates and classifications, and is guarded by
-  episode-count, known-date, source-table, and PDF-checksum tests.
-- [x] C2 clean model-development evaluation: implemented inner out-of-fold
-  calibration and threshold selection, followed by a frozen threshold on each
-  untouched outer test fold. Tests verify that changing outer-test labels
-  cannot change fitted probabilities or the selected threshold. The old live
-  confusion matrix remains provisional and was deliberately not replaced.
-- [~] C3 historical banking inputs: added 20 long-history World Bank financial,
-  funding, liquidity, interest-rate, and external-vulnerability series plus
-  derived credit-cycle and shock fields. Every panel feature now carries
-  observation age, staleness, availability, source family, and direct/derived
-  metadata. This materially improves history but does not create direct FSI
-  observations where none were published, so the gap is reduced rather than
-  closed.
-- [x] C4 governed challengers: added risk-oriented feature contracts,
-  sign-constrained logistic regression, monotonic histogram gradient boosting,
-  and monotonic XGBoost factories. Production coefficients and scores were not
-  changed.
-- [x] C5 annual/event panel and grouped validation foundation: built 7,472
-  auditable country-year forecast origins for 201 model countries (1981-2022),
-  including 418 positive rows representing 146 unique future crisis events,
-  explicit exclusions, right censoring, and an out-of-fold prediction ledger.
-- [~] C6 vintage integrity: the panel now records the selected observation
-  period, status, age, directness, and staleness. Historical tests are still
-  correctly described as revised-vintage backtests because archived real-time
-  WEO/FSI vintages have not yet been assembled.
-
-**Leakage-free challenger result and stopping gate**
-
-- Development sample: 5,248 rows, 201 countries, 383 positive rows, forecast
-  origins through 2010. Four outer country-grouped folds and three inner folds
-  use cross-fitted sigmoid calibration and a training-only threshold with a
-  60% recall floor.
-- Best grouped discrimination was the full monotonic histogram-gradient model:
-  ROC-AUC 0.720, average precision 0.158, precision 0.162, recall 0.629, F1
-  0.258, and 28.3% alert burden. The full monotonic XGBoost challenger produced
-  ROC-AUC 0.699, average precision 0.146, precision 0.167, recall 0.629, and F1
-  0.264. Both are materially more honest than the previous same-holdout
-  threshold statistics, but neither is yet a promotion result.
-- Decisive forward holdout: train through 2010, apply a three-year gap, and test
-  2014-2018 origins (929 rows, 18 positives, 1.94% prevalence). The histogram
-  and XGBoost challengers fell to ROC-AUC 0.379 and 0.372 respectively and
-  flagged the full test set at the frozen review threshold. Logistic variants
-  ranged from ROC-AUC 0.422 to 0.556 and were also operationally unusable.
-- Diagnosis: the later IMF episodes are dominated by a different regime,
-  including oil/commodity and nonfinancial sovereign shocks. Commodity,
-  terms-of-trade, and resource-rent candidates are now available in the feature
-  contract for the next temporal experiment, but have not passed the gate.
-- **Decision: no model promotion.** Do not refresh live probabilities, country
-  scores, the Methodology confusion matrix, or the capped overlay from these
-  challengers. The next sprint starts with temporal regime diagnostics and
-  commodity/fiscal ablations; a model is eligible only if it improves both
-  grouped and forward-time ROC-AUC/PR-AUC while retaining usable frozen-threshold
-  precision, recall, calibration, and alert burden.
-
-Primary references: [Laeven and Valencia, IMF WP/26/94, Systemic Banking
-Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/05/14/systemic-banking-crises-database-1970-2025-576036);
-[Drehmann and Juselius, BIS Working Paper 421](https://www.bis.org/publ/work421.htm);
-[BIS credit-to-GDP gaps](https://data.bis.org/topics/CREDIT_GAPS); and
-[BIS debt-service ratios](https://data.bis.org/topics/DSR).
 
 ### 21.1 GitHub Checkpoints
 
@@ -1936,7 +1643,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     review.
 - [x] Checkpoint 5: cutoff-aware local cached-source model snapshots for
   YE2025 and mid-2026.
-  - Pending commit: `build verified local snapshots`
+  - Commit: `ba80402`.
   - Pull request: draft
     [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
   - Artifacts:
@@ -1953,7 +1660,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     observations in the current cache set.
 - [x] Checkpoint 6: official API retrieval, cache normalization, and active
   mid-2026 serving artifact.
-  - Pending commit: `wire official api refresh`
+  - Commit: `ba80402`.
   - Pull request: draft
     [#1](https://github.com/MMJGGR/banking-stability-copilot/pull/1)
   - Artifacts:
@@ -1973,7 +1680,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     `IMF.STA:MFS_DC(8.0.0)` through 2026-05, FSIBSIS
     `IMF.STA:FSIBSIS(18.0.0)` through 2026-M04, WGI through 2024.
 - [x] Checkpoint 7: Streamlit hosted startup memory fix.
-  - Pending commit: `make historical data loads on demand`
+  - Commit: `534efeb`.
   - Scope:
     - Removed full IMF cache loading from Streamlit startup.
     - Added country-sliced parquet reads for WEO, FSIC, and MFS history.
@@ -1984,7 +1691,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     Streamlit returned HTTP 200 on port 8520 with approximately 134 MB working
     set and 328 MB private memory after first response.
 - [x] Checkpoint 8: Streamlit usability and comparison workflow pass.
-  - Pending commit: `improve streamlit comparison ui`
+  - Commit: `1d6835f`.
   - Scope:
     - Replaced dark-only custom CSS with Streamlit theme-aware control,
       tab, card, and dropdown styling so light mode remains readable.
@@ -1998,7 +1705,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     the Country Profile peer selector and Data Explorer comparison panel
     without a browser error.
 - [x] Checkpoint 9: current Methodology tab and README status refresh.
-  - Pending commit: `refresh methodology tab`
+  - Commit: `b21e835`.
   - Scope:
     - Replaced README-rendered Methodology tab with a manifest-backed current
       methodology view tied to the active snapshot, model card, and data card.
@@ -2008,7 +1715,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     Methodology tab rendered current snapshot metadata without the old
     February 2026 legacy-artifact warning.
 - [x] Checkpoint 10: Methodology active-source count correction.
-  - Pending commit: `fix methodology source counts`
+  - Commit: `1d0aa3b`.
   - Scope:
     - Fixed FSIBSIS and WGI source summaries so active manifests report
       source-appropriate indicator counts instead of omitting the field.
@@ -2022,7 +1729,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
   - Verification: active manifest now reports FSIBSIS 289 measures and WGI
     6 governance indicators; compile check passed; `42 passed`.
 - [x] Checkpoint 11: Methodology model/data card display cleanup.
-  - Pending commit: `improve methodology cards`
+  - Commit: `3cae256`.
   - Scope:
     - Replaced raw `docs/MODEL_CARD.md` and `docs/DATA_CARD.md` dumps in the
       Streamlit Methodology tab with purpose-built UI cards.
@@ -2035,7 +1742,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
   - Verification: compile check passed; `42 passed`; local Streamlit returned
     HTTP 200 on port 8531 with no stderr.
 - [x] Checkpoint 12: Data Explorer calculated-series builder.
-  - Pending commit: `add data explorer calculated series`
+  - Commits: `217d263`, duplicate-ID hotfix `1d6eeae`.
   - Scope:
     - Added a bounded Data Explorer tool for raw multi-indicator panels,
       ratios, cross-sectional shares, period-over-period changes, base-period
@@ -2055,7 +1762,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     raw multi-indicator loop; compile check, calculated-series tests, full
     suite (`48 passed`), and local Streamlit HTTP 200 on port 8533 passed.
 - [x] Checkpoint 13: Data Explorer scope, FSIBSIS comparison access, and UX cleanup.
-  - Pending commit: `improve data explorer scope and fsibsis tools`
+  - Commit: `f27335f`.
   - Scope:
     - Moved the country selector out of the global header and into the Country
       Profile tab so Global Summary and Methodology remain explicitly global.
@@ -2075,7 +1782,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     monthly periods through 2026-04-30; full suite passed (`48 passed`); local
     Streamlit returned HTTP 200 on port 8507.
 - [x] Checkpoint 14: External-liquidity SDMX discovery resolver fix.
-  - Pending commit: `fix external liquidity sdmx discovery`
+  - Commit: `d89eea0`.
   - Scope:
     - Diagnosed the first `external-data.yml` run: the job succeeded but
       downloaded no large IMF dataflows because all candidate sources were
@@ -2094,7 +1801,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     confirmed all five resolved data URLs return SDMX CSV; a local Fiscal
     Monitor fetch normalized 1,024 rows covering 18 countries.
 - [x] Checkpoint 15: Bounded external-liquidity feature builder and workflow.
-  - Pending commit: `add bounded external liquidity features`
+  - Commit: `d5d5492`.
   - Scope:
     - Added `src/external_liquidity.py` and
       `src/scripts/build_external_liquidity_features.py`.
@@ -2118,7 +1825,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     challenger comparison is reviewed.
 - [x] Checkpoint 16: Non-duplicative debt-service and financing-pressure
   source extension.
-  - Pending commit: `add debt service financing pressure features`
+  - Commit: `1c6e3da`.
   - Scope:
     - Add World Bank WDI/IDS only where it fills gaps not already covered by
       WEO/MFS/BOP/IIP: total external debt service, public-and-publicly-
@@ -2153,7 +1860,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     source family before using it as a release gate. Full test suite passed
     (`79 passed`, `1 skipped`).
 - [x] Checkpoint 17: Live Streamlit startup import hotfix.
-  - Pending commit: `fix streamlit startup import compatibility`
+  - Commit: `ed84d8d`.
   - Scope:
     - Replaced the fragile multi-symbol `src.model_store` import in `app.py`
       with a module import plus backward-compatible fallbacks for archive-aware
@@ -2168,7 +1875,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     test suite passed (`79 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8562.
 - [x] Checkpoint 18: External-facing UX cleanup.
-  - Pending commit: `clean streamlit external ux`
+  - Commit: `094f9b3`.
   - Scope:
     - Removed the top headline, global implementation-note caption, and
       horizontal divider so the app opens directly on the primary navigation.
@@ -2182,7 +1889,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8563.
 - [x] Checkpoint 19: BankEnv naming and favicon.
-  - Pending commit: `rename app bankenv`
+  - Commit: `e5b9803`.
   - Scope:
     - Renamed the external app to **BankEnv** in Streamlit metadata, README,
       source docstrings, operations runbook, and the working plan.
@@ -2195,7 +1902,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed (`79 passed`, `1 skipped`); local Streamlit startup check returned
     HTTP 200 on port 8564.
 - [x] Checkpoint 20: Menu spacing and regional chart cleanup.
-  - Pending commit: `fix menu spacing and regional chart legend`
+  - Commit: `c229273`.
   - Scope:
     - Restored sufficient top padding so Streamlit's toolbar no longer clips
       the primary tab/menu row after the headline removal.
@@ -2206,7 +1913,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     (`79 passed`, `1 skipped`); local Streamlit startup check returned HTTP
     200 on port 8565.
 - [x] Checkpoint 21: Visible BankEnv app brand.
-  - Pending commit: `show bankenv brand in app`
+  - Commit: `3eb3d14`.
   - Scope:
     - Added a compact BankEnv brand row above the primary tabs using the same
       `BE` mark as the favicon.
@@ -2216,7 +1923,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8566.
 - [x] Checkpoint 22: BankEnv logo refinement.
-  - Pending commit: `refine bankenv logo`
+  - Commit: `cec6a66`.
   - Scope:
     - Replaced the plain `BE` tile with a compact bank/operating-environment
       signal mark.
@@ -2226,7 +1933,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8567.
 - [x] Checkpoint 23: Theme-aware BankEnv logo.
-  - Pending commit: `adapt bankenv logo for dark mode`
+  - Commit: `084088a`.
   - Scope:
     - Converted the in-app BankEnv mark from fixed SVG colors to CSS variables.
     - Added dark-mode CSS overrides so the in-app tile inverts to a light mark
@@ -2235,7 +1942,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8568.
 - [x] Checkpoint 24: BankEnv logo readability pass.
-  - Pending commit: `simplify bankenv logo mark`
+  - Commit: `58c474d`.
   - Scope:
     - Replaced the house/temple-like mark with a larger operating-environment
       analytics mark: axes, bars, and trend line.
@@ -2245,7 +1952,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`79 passed`, `1 skipped`); local Streamlit
     startup check returned HTTP 200 on port 8569.
 - [x] Checkpoint 25: App-wide staged external-liquidity visibility.
-  - Pending commit: `surface staged external liquidity appwide`
+  - Commit: `dc4c7a0`.
   - Scope:
     - Packaged compact derived external-liquidity reference files under
       `data/reference/` so the hosted Streamlit app can display the new data
@@ -2260,13 +1967,11 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     - Added a Country Profile hook that will display external-liquidity fields
       only if a future promoted production model includes those fields in its
       approved feature artifact.
-    - Confirmed active artifacts still do not use the staged external-liquidity
-      fields in production scoring. The app therefore exposes them for insight,
-      not as hidden score drivers.
-    - Documented artifact mismatch risk for Kenya/Mozambique interpretation:
-      `cache/risk_model.pkl` currently scores Kenya higher risk than
-      Mozambique, while the dated 2026-06-30 and directional challenger
-      artifacts score Mozambique higher.
+    - At this checkpoint the active artifacts did not yet use the staged fields.
+      Checkpoint 29 later promoted the curated liquidity subset and preserved the
+      remaining fields as explicitly insight-only.
+    - The Kenya/Mozambique mismatch observed here was resolved by the promoted
+      artifact: the current active score is Mozambique 8.6 versus Kenya 8.0.
   - Verification: `python -m py_compile app.py src/dashboard/styles.py
     src/external_liquidity.py` passed; full test suite passed (`79 passed`,
     `1 skipped`) with repo root on `PYTHONPATH`; local Streamlit startup check
@@ -2298,15 +2003,11 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     - Removed stale local-only smoke/download artifacts from the working tree.
     - Added `.gitignore` rules so future local smoke artifacts and downloaded
       workflow bundles do not appear beside tracked production artifacts.
-  - Follow-up:
-    - Peer selection remains weak because `find_peers()` still uses only
-      economic and industry pillar Euclidean distance. USA defaults are no
-      longer Cyprus/Italy/Dominica/Fiji after the promoted model, but the
-      resulting peers are still not methodologically defensible. Replace with
-      a peer engine that combines region/income/development scale, banking
-      structure, macro/liquidity features, and data-quality filters.
+  - Superseded finding: the weak peer selector described at this checkpoint was
+    replaced in Checkpoint 28 by the multidimensional peer engine; editable
+    peer sets remain available for analyst judgment.
 - [x] Checkpoint 27: Government-liquidity app-wide surfacing cleanup.
-  - Pending commit: `surface government liquidity across app`
+  - Commit: `28d82d3`.
   - Scope:
     - Confirmed the promoted production artifact uses
       `govt_interest_to_revenue` and `govt_debt_to_revenue`.
@@ -2323,7 +2024,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed; full test suite passed (`90 passed`, `1 skipped`); local
     Streamlit startup check returned HTTP 200 on port 8575.
 - [x] Checkpoint 28: Peer-engine replacement and liquidity integration audit.
-  - Pending commit: `replace weak peer selector`
+  - Commit: `4443354`.
   - Liquidity integration confirmed:
     - Production-scored government-liquidity inputs:
       `govt_interest_to_revenue`, `govt_debt_to_revenue`.
@@ -2352,7 +2053,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     suite passed (`91 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8576.
 - [x] Checkpoint 29: Score-driver summary metric fallback.
-  - Pending commit: `fix score driver summary metrics`
+  - Commit: `fed03b8`.
   - Scope:
     - Score Drivers table was rendering, but the three summary metrics could
       display as large blank dashes on the hosted app when the driver payload
@@ -2367,7 +2068,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     passed (`91 passed`, `1 skipped`); local Streamlit startup check returned
     HTTP 200 on port 8577.
 - [x] Checkpoint 30: Legacy-artifact score-driver fallback.
-  - Pending commit: `derive legacy score driver metrics`
+  - Commit: `f64e786`.
   - Scope:
     - Live mobile screenshot showed the Score Drivers table populated but the
       three summary metrics displayed `n/a`, indicating the hosted app was
@@ -2382,7 +2083,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     suite passed (`93 passed`, `1 skipped`); local Streamlit startup check
     returned HTTP 200 on port 8578.
 - [x] Checkpoint 31: Peer-engine mixed-deploy compatibility hotfix.
-  - Pending commit: `guard peer selector stale imports`
+  - Commit: `2f74854`.
   - Scope:
     - Live Streamlit error showed new `app.py` calling
       `find_peers(..., feature_values=model_features)` while the imported
@@ -2397,7 +2098,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     HTTP 200 on port 8579.
 - [x] Checkpoint 26: Staged general-government (sovereign fiscal) liquidity
   block.
-  - Pending commit: `add staged government liquidity features`
+  - Commit: `b2b40f1`.
   - Owner steer: "It should be full government liquidity not only external."
     The prior staged block covered only *external* liquidity (BOP/IIP + WB
     external debt service); the government's own fiscal liquidity was not a
@@ -2423,13 +2124,11 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
       scoring.
     - Packaged compact outputs under `data/reference/` for the hosted app;
       documented the block in `docs/DATA_CARD.md` and `data/reference/README.md`.
-      Follow-up (blocked by GitHub App `workflows` permission this session):
-      add a build step to `.github/workflows/external-data.yml` so the staged
-      cache is rebuilt in CI; for now it is rebuilt locally with
-      `python -m src.scripts.build_government_liquidity_features --reference-dir data/reference`.
-  - Remaining fiscal gap (registered, not closed): a full gross financing need
-    needs debt amortization/rollover from IMF Fiscal Monitor / GFS, which WEO
-    does not carry.
+      The final closure checkpoint wires this compact reference output into the
+      candidate-refresh and promotion lifecycle.
+  - Source limitation: full gross financing need needs debt amortization and
+    rollover data that WEO does not carry. It is retired from active remediation
+    under section 21.5.4 rather than approximated under a misleading name.
   - Verification: `python -m py_compile app.py src/government_liquidity.py
     src/scripts/build_government_liquidity_features.py` passed; full test suite
     passed (`84 passed`, `1 skipped`); real build against the resolved WEO cache
@@ -2439,7 +2138,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     Japan debt/revenue ~577%); local Streamlit startup returned HTTP 200 on
     port 8599 with no stderr.
 - [x] Checkpoint 27: Market and external stress inputs (backlog ranks 19-21).
-  - Pending commit: `add market and external stress features`
+  - Commit: `b8c6ea3`.
   - Owner steer: "also need market and external items."
   - Scope (extends the staged external-liquidity block, reusing its SDMX/World
     Bank fetch path, so no new workflow is required — `external-data.yml`
@@ -2452,28 +2151,28 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
       fuel, ores/metals, agricultural-raw, and food merchandise-export shares.
     - Rank 21 (REER valuation stress): World Bank real-effective-exchange-rate
       index plus `reer_appreciation_5y_pct` (latest REER vs trailing five-year
-      mean). Equity-price and property-price stress remain uncovered (no
-      reliable public API series wired yet) and are registered in the report
-      notes as a follow-up.
+      mean). Equity and property-price production integration was later retired
+      under section 21.5.4 because the public cache did not meet coverage and
+      vintage gates; the BIS property adapter remains opt-in research code.
     - Added human-readable labels and unit tests; the features flow through the
       existing staged External Liquidity panel automatically.
-  - Model status: these remain **staged challenger inputs**, not production
-    scoring, exactly like the rest of the external and government blocks.
-    Promotion requires a challenger-vs-production comparison and owner approval
-    under `docs/GOVERNANCE.md`.
-  - Data status: the committed `data/reference/external_liquidity_features.parquet`
-    gains the new columns (currently null) on the next CI `--fetch` run, because
-    api.imf.org / api.worldbank.org are blocked in the dev environment.
+  - Historical model status: these began as staged challenger inputs. The
+    curated liquidity subset was later promoted through Checkpoint 29; FDI,
+    commodity exposure, and terms of trade are populated as insight features,
+    while REER remains zero-coverage and was not promoted.
+  - Current data status is recorded in
+    `artifacts/external_liquidity_features_report.json`; this supersedes the
+    pre-fetch null-column note from this checkpoint.
   - Verification: `python -m py_compile src/external_liquidity.py app.py`
     passed; full test suite passed (`87 passed`, `1 skipped`); build runs
     gracefully on the existing committed observations (new columns present,
     null until fetched).
 - [x] Checkpoint 28: Liquidity-feature challenger (features fed into the model).
-  - Pending commit: `add liquidity feature challenger`
+  - Commit: `c5137b1`.
   - Owner steer: "They should be fed into the model... tastefully." The staged
-    external + government liquidity features are now wired into the real pillar
-    pipeline and evaluated as a governed challenger; the active serving
-    artifacts are unchanged pending owner promotion review.
+    external + government liquidity features were wired into the real pillar
+    pipeline and evaluated as a governed challenger. Checkpoint 29 records the
+    later owner-approved promotion and artifact publication.
   - Curation (tasteful, non-duplicative): only genuinely new, data-backed
     signals were added to the economic pillar, with a declared
     `FEATURE_RISK_DIRECTIONS` entry each. Government block contributed the two
@@ -2506,16 +2205,17 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     gate is therefore evaluated on the isolated feature effect, not the
     confounded headline-vs-production delta; rebuilding the active artifact is a
     separate action.
-  - Promotion: NOT taken. Only the tier-change threshold (21 > 15) trips on the
+  - Historical result at this checkpoint: promotion was not yet taken. Only the tier-change threshold (21 > 15) tripped on the
     isolated effect (mean 0.19 < 0.5, Spearman 0.989 > 0.90), so this is a much
     milder, more promotable change than the directional challenger, but it still
-    requires owner review under docs/GOVERNANCE.md.
+    required owner review under `docs/GOVERNANCE.md`; that review and the final
+    promotion are recorded in Checkpoint 29.
   - Verification: `python -m py_compile` on the changed modules passed; full
     test suite passed (`90 passed`, `1 skipped`) including new challenger-logic
     unit tests.
 - [x] Checkpoint 29: Liquidity challenger PROMOTED to the active model + durable
   wiring (owner: "proceed with both").
-  - Pending commit: `promote liquidity model and refresh active artifacts`
+  - Commits: `2bf1762`, `876e4d7`; promotion PR #9 merged as `0d3d3ad`.
   - Scope:
     - Added `src/liquidity_features.py` as the single source of truth for the
       promoted liquidity features and wired both production training entry
@@ -2526,10 +2226,8 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
       with the liquidity features live (`cache/risk_model.pkl`,
       `cache/inference_pipeline.pkl`, `cache/crisis_features.parquet`,
       `cache/imputed_features.parquet`, refreshed manifest and policy audit).
-      Publication of these LFS artifacts must run through CI: this dev
-      environment's proxy returns Forbidden on `lfs.github.com` uploads, so the
-      code wiring is pushed and the artifacts are regenerated + committed via
-      Git LFS by `refresh-data.yml` / `promote-snapshot.yml` in GitHub Actions.
+      Publication was completed through `refresh-data.yml` and
+      `promote-snapshot.yml`; promotion PR #9 merged the generated LFS artifacts.
     - Local validation: 3 passed / 0 failed; snapshot status verified; partial
       coverage-bias correlation -0.38 (within the approved gate). The seven
       liquidity features are live in the feature matrix (coverage 162-193/201).
@@ -2559,7 +2257,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     reviewed step by design. Auto-update is intentionally gated, not silent.
 - [x] Checkpoint 30: Sovereign affordability ratios added to the crisis
   classifier (owner: "add to classifier").
-  - Pending commit: `add affordability ratios to crisis classifier`
+  - Commit: `5cf7905`.
   - The two government affordability ratios are year-matchable from historical
     WEO, so unlike the latest-only external block they are valid inputs to the
     classifier's temporal epoch panel. `_extract_weo_at_year` now also pulls
@@ -2939,7 +2637,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     tests/test_liquidity_challenger.py -q` passed (12 passed); Streamlit
     AppTest passed with zero exceptions for base, liquidity-only,
     commodity-only, and combined overlay states.
-- [x] Checkpoint 43: Improve crisis-classifier ROC-AUC/precision and package
+- [x] Checkpoint 43 (historical result, invalidated by Checkpoint 45): Improve crisis-classifier ROC-AUC/precision and package
   honest validation.
   - Scope: crisis-classifier training path, validation reporting, and refreshed
     2026-06-30 model artifacts. The pillar framework and candidate overlay
@@ -2989,7 +2687,7 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     tests/test_crisis_labels.py -q` passed (6 passed); local 2026-06-30
     retrain with `--retrain-classifier` passed snapshot validation (3 passed,
     0 failed).
-- [x] Checkpoint 44: Recover crisis-classifier recall with a recall-constrained
+- [x] Checkpoint 44 (historical result, invalidated by Checkpoint 45): Recover crisis-classifier recall with a recall-constrained
   operating threshold.
   - Scope: threshold policy and validation reporting only. The trained
     classifier scores/probabilities are unchanged from Checkpoint 43.
@@ -3007,9 +2705,9 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     - High-recall policy: precision 0.127, recall 0.743, F1 0.217, 205
       flagged.
     - Review-policy confusion matrix: TN 280, FP 136, FN 12, TP 23.
-  - Status: recall is materially recovered while keeping precision above the
-    previous packaged classifier. Further ROC-AUC improvement still requires
-    stronger time-series features, not threshold policy alone.
+  - Superseded interpretation: these threshold metrics were selected and
+    reported on the same holdout. Checkpoint 45 invalidated them as clean
+    external-test evidence.
   - Verification: local retrain confirmed no score/probability/uplift movement
     versus Checkpoint 43; `python -m py_compile src/crisis_classifier.py`
     passed; `PYTHONPATH=. pytest tests/test_crisis_classifier.py -q` passed
@@ -3017,8 +2715,8 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
 - [x] Checkpoint 45: Complete the deep crisis-classifier reliability diagnosis.
   - Scope: evidence audit only; no model probability, country score, threshold,
     or live-app behavior changed.
-  - Result: promotion/expansion is blocked by six P0 findings recorded in
-    section 21.5.6: incomplete official labels, holdout threshold leakage,
+  - Result: promotion/expansion was blocked by six P0 findings: incomplete
+    official labels, holdout threshold leakage,
     sparse historical banking inputs, unconstrained logistic coefficient signs,
     overlapping/underpowered panel design, and revised-vintage temporal bias.
   - Evidence: repository labels encode 103 systemic episodes plus 3 optional
@@ -3031,8 +2729,9 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     holdout / 0.646 revised-data temporal holdout remain provisional ranking
     evidence. Published precision, recall, F1, alert count, and confusion matrix
     are not clean external-test results until the threshold is frozen upstream.
-  - Next action: follow the six-step execution order and promotion gate in
-    section 21.5.6, beginning with official label ingestion/reconciliation.
+  - Subsequent disposition: Checkpoint 46 implemented the safe evaluation
+    foundation and Checkpoint 47 retained it after the challenger failed the
+    forward-time gate.
 - [x] Checkpoint 46: Build the leakage-free crisis-model evaluation foundation
   and stop at the temporal reliability gate.
   - Added the exact official IMF WP/26/94 episode artifact and reproducible PDF
@@ -3045,9 +2744,9 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     but failed the pre-declared 2014-2018 forward holdout (0.37-0.56 ROC-AUC
     across tested models and unusable alert burden). The failure is recorded as
     evidence, not tuned away.
-  - Production model artifacts, live scores, overlays, and the published
-    confusion matrix remain unchanged. Promotion is explicitly blocked pending
-    successful temporal regime and commodity/fiscal validation.
+  - Production model artifacts, live scores, and overlays remained unchanged.
+    Promotion stopped; section 21.5.5 records the evidence required before any
+    future research candidate may re-enter implementation.
   - Verification: focused crisis-model/source suite passed (26 tests after the
     derived-source metadata correction); repository-wide suite passed (120
     tests, 1 skipped). GitHub CI status is recorded with the checkpoint push.
