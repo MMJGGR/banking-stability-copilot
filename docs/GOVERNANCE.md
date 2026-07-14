@@ -110,3 +110,35 @@ Rules:
 | Policy parameter change | Penalty size, floor levels, SLA values | This document updated + policy audit rerun |
 | Scoring redesign | Direction constraints, overlay formula, feature add/drop | Full challenger comparison + owner approval + model card update |
 | Classifier retrain | New epochs or labels | Grouped + out-of-time validation report + owner approval |
+
+## 7. Early-warning research foundation
+
+The repository contains dormant development utilities for annual
+discrete-time crisis hazards, descriptive mechanism evidence, optional BIS
+history, and expanding temporal cross-validation. They do not alter serving
+scores or app behavior. Any future model built from them remains a research
+challenger until all of the following are satisfied:
+
+- Candidate models and hyperparameters are preregistered and compared with
+  expanding outcome-year folds. A horizon can enter training only when its
+  label becomes observable before the next validation block.
+- Event identifiers are purged across train/validation boundaries, and any
+  probability calibration applied to an out-of-fold prediction uses earlier
+  folds only.
+- A final confirmation period is untouched by feature selection, model
+  selection, calibration, and threshold setting. The already-inspected
+  2014-2022 results cannot be relabelled as a pristine future test.
+- ROC-AUC, average precision and lift over prevalence, Brier score,
+  calibration, precision, recall, specificity, false alerts per 100
+  country-years, unique-event recall, and alert burden are reported.
+- Alert thresholds and analyst-capacity limits are frozen before confirmation.
+  A tier that flags nearly every country is disabled even if recall is high.
+- Historical-core and modern-full experts are evaluated separately and either
+  cross-calibrated or replaced by a demonstrably better shared model before a
+  common operational threshold is used.
+- Mechanism evidence coverage uses the complete governed signal taxonomy as
+  its denominator. Observed-among-supported coverage can be diagnostic but
+  cannot be presented as overall evidence completeness.
+- No generated probability artifact, alert policy, or research dashboard is
+  merged into serving code until the statistical gate passes and the owner
+  approves the model change.

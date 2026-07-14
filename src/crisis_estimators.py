@@ -75,10 +75,11 @@ class SignConstrainedLogisticRegression(ClassifierMixin, BaseEstimator):
             data_loss = np.sum(
                 weights * (np.logaddexp(0.0, linear) - binary_y * linear)
             ) / weight_total
-            penalty = 0.5 * np.dot(coefficients, coefficients) / self.C
+            regularization_scale = self.C * weight_total
+            penalty = 0.5 * np.dot(coefficients, coefficients) / regularization_scale
             probabilities = expit(linear)
             residual = weights * (probabilities - binary_y) / weight_total
-            coefficient_gradient = X.T @ residual + coefficients / self.C
+            coefficient_gradient = X.T @ residual + coefficients / regularization_scale
             if self.fit_intercept:
                 gradient = np.concatenate(([residual.sum()], coefficient_gradient))
             else:

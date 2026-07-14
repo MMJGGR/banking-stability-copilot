@@ -47,6 +47,10 @@ cache/government/
 # Reproducible local crisis-model panel; rebuild from the pinned source caches.
 cache/crisis_annual_panel.parquet
 
+# Optional BIS research history; rebuilt by the offline fetch command.
+cache/BIS_FINANCIAL_cache.parquet
+cache/BIS_FINANCIAL_manifest.json
+
 # Local smoke-test/download artifacts. Candidate bundles promoted to production
 # are tracked explicitly via cache/ and selected artifacts/ paths, not these
 # ad hoc local files.
