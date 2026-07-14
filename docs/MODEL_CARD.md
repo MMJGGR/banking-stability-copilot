@@ -124,3 +124,11 @@ Validation metrics may appear in the Methodology tab only when the packaged
 summary explicitly carries `validation_status: validated_clean`,
 `clean_validation: true`, and `display_metrics: true`. Historical README or
 artifact metrics without that evidence gate are not approved results.
+
+A confusion-matrix image has an additional, independent gate. The clean report
+must use validation-report `schema_version: 1` and include
+`confusion_matrix_artifact` with `schema_version: 1`, a repository-relative
+`path`, and the image's exact `sha256`. The app resolves the path inside the
+repository and verifies the bytes before display. Clean metrics may be shown
+without an image; an absent, escaped, unsupported, or checksum-mismatched image
+is withheld rather than falling back to a static filename.

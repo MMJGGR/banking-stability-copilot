@@ -95,6 +95,7 @@ def assemble_liquidity_features(
     as_of_date=None,
     model_countries: list[str] | None = None,
     include_candidates: bool = False,
+    government_features: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return the merged government + external liquidity feature matrix.
 
@@ -103,11 +104,21 @@ def assemble_liquidity_features(
     """
     frames = []
     try:
-        gov = _government_features(
-            as_of_date,
-            model_countries,
-            include_candidates=include_candidates,
-        )
+        if government_features is None:
+            gov = _government_features(
+                as_of_date,
+                model_countries,
+                include_candidates=include_candidates,
+            )
+        else:
+            selected = list(GOVERNMENT_LIQUIDITY_FEATURES)
+            if include_candidates:
+                selected.extend(GOVERNMENT_CANDIDATE_MODEL_FEATURES)
+            columns = ["country_code"] + [
+                column for column in selected if column in government_features.columns
+            ]
+            gov = government_features[columns].copy()
+            gov["country_code"] = gov["country_code"].astype(str).str.upper()
         if not gov.empty:
             frames.append(gov)
     except Exception as exc:  # noqa: BLE001 - never break training on staged data

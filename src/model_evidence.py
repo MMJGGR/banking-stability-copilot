@@ -7,9 +7,14 @@ by the Methodology tab can be tested without importing the application.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import hashlib
+from pathlib import Path
+import re
 
 
 CLEAN_CRISIS_VALIDATION_STATUS = "validated_clean"
+CRISIS_VALIDATION_REPORT_SCHEMA_VERSION = 1
+CONFUSION_MATRIX_ARTIFACT_SCHEMA_VERSION = 1
 
 
 def active_model_feature_codes(pca_info: Mapping | None) -> set[str]:
@@ -88,3 +93,50 @@ def crisis_validation_display_state(summary: Mapping | None) -> dict[str, object
         "status": status,
         "reason": reason,
     }
+
+
+def validated_confusion_matrix_path(
+    summary: Mapping | None,
+    repository_root: str | Path,
+) -> Path | None:
+    """Resolve a checksum-linked confusion matrix for a clean report.
+
+    A metric report and an image are separate evidence artifacts.  The image
+    is therefore fail-closed unless the clean report uses the supported report
+    schema and explicitly identifies a relative, repository-contained image
+    with the supported artifact schema and its exact SHA-256.
+    """
+
+    if not crisis_validation_display_state(summary)["display_metrics"]:
+        return None
+    if not isinstance(summary, Mapping):
+        return None
+    if summary.get("schema_version") != CRISIS_VALIDATION_REPORT_SCHEMA_VERSION:
+        return None
+
+    artifact = summary.get("confusion_matrix_artifact")
+    if not isinstance(artifact, Mapping):
+        return None
+    if artifact.get("schema_version") != CONFUSION_MATRIX_ARTIFACT_SCHEMA_VERSION:
+        return None
+
+    raw_path = str(artifact.get("path") or "").strip()
+    expected_sha256 = str(artifact.get("sha256") or "").strip().lower()
+    if not raw_path or not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        return None
+
+    relative_path = Path(raw_path)
+    if relative_path.is_absolute():
+        return None
+
+    root = Path(repository_root).resolve()
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    if not candidate.is_file():
+        return None
+
+    actual_sha256 = hashlib.sha256(candidate.read_bytes()).hexdigest()
+    return candidate if actual_sha256 == expected_sha256 else None

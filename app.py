@@ -23,6 +23,7 @@ from src.model_evidence import (
     active_model_feature_codes,
     crisis_validation_display_state,
     liquidity_feature_role,
+    validated_confusion_matrix_path,
 )
 from src import model_store
 
@@ -371,7 +372,6 @@ MODEL_MONITORING_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "liquidity_challenger_comparison.json",
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
-CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
 CANDIDATE_RISK_OVERLAY_SCORE_PATHS = {
     "liquidity": (
         BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
@@ -3068,8 +3068,21 @@ def render_model_monitoring_summary(pca_info: dict | None = None):
                 "current model quality."
             )
 
-        if validation_state["display_metrics"] and CRISIS_CONFUSION_MATRIX_PATH.exists():
-            st.image(str(CRISIS_CONFUSION_MATRIX_PATH), caption="Crisis classifier confusion matrix")
+        if validation_state["display_metrics"]:
+            confusion_matrix_path = validated_confusion_matrix_path(
+                validation,
+                BASE_DIR,
+            )
+            if confusion_matrix_path is not None:
+                st.image(
+                    str(confusion_matrix_path),
+                    caption="Crisis classifier confusion matrix",
+                )
+            else:
+                st.caption(
+                    "No schema-versioned, checksum-linked confusion matrix is "
+                    "approved for this validation report."
+                )
 
 
 def render_model_card_summary(

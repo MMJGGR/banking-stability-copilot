@@ -1327,8 +1327,9 @@ not imply that a failed research candidate was approved for production.
 18. [x] Monitoring, rollback, ownership, and release procedures complete:
     automatic last-known-good fallback, admin diagnostics, executable rollback
     runbook, CODEOWNERS, release checklist, approved governance thresholds, and
-    live desktop/mobile smoke verification. Automated endpoint verification is
-    installed with the final closure checkpoint.
+    live desktop/mobile smoke verification. Automated transport reachability is
+    installed; rendered content and deployed revision remain an explicit
+    post-merge browser check in the release procedure.
 
 ### 21.1a Refresh and Publication Workflow — Current State (2026-07-14)
 
@@ -1531,7 +1532,7 @@ a stand-alone crisis prediction, a rating, or an automatic decision rule.
 | 22 explainability | Closed. Country Score Drivers show feature, pillar, raw value, contribution, imputation status, and dominant driver. | `app.py`; `src/scripts/explain_country_scores.py` |
 | 23 corrupt/stale artifacts | Closed. Checksum validation and last-known-good fallback protect startup. | `src/model_store.py`; fallback tests |
 | 24 health visibility | Closed with a utilitarian UX rule: users see a concise message only when serving is degraded; detailed health remains admin-only. | `app.py`; operations docs |
-| 25-26 deploy verification | Closed. The live app was manually smoke-tested across Global, Country, Explorer, and Methodology and an automated endpoint check is installed. Duplicate rank 26 was removed. | live check on 2026-07-14; workflow |
+| 25-26 deploy verification | Closed as a release control. Automation checks transport reachability only; promotion review still requires a browser check of rendered content and the expected snapshot/revision. Duplicate rank 26 was removed. | live baseline and exact-branch local browser checks on 2026-07-14; operations runbook |
 | 27 public snapshot selector | Retired from the public UI. Snapshot selection is an operator diagnostic because only reviewed artifacts may be served; exposing arbitrary local snapshots would undermine the publication gate. | `SHOW_ADMIN_DIAGNOSTICS` |
 | 28 stale Methodology | Closed. Model/data cards and source/model roles are rendered from current artifacts with concise limitations. | `app.py`; model/data cards |
 | 29 responsive/accessibility QA | Closed for the supported baseline. Desktop and 390x844 mobile smoke checks passed on all primary tabs; the discovered clipped mobile brand row was fixed. Full WCAG certification was removed because it is a separate assurance engagement, not a release blocker for this research app. | browser check; CSS regression guard |
@@ -1541,11 +1542,13 @@ a stand-alone crisis prediction, a rating, or an automatic decision rule.
 | 37 dead/diagnostic code | Closed. Dead modules were removed and diagnostic scripts were archived. | `src/scripts/archive` |
 | 38 product identity | Closed. BankEnv naming, page title, logo/favicon, and analyst-workbench positioning are aligned. | `README.md`; `app.py` |
 
-Live verification on 2026-07-14 found the public
+Live baseline verification on 2026-07-14 found
 `https://bankenv.streamlit.app` serving the verified 2026-06-30 snapshot for
-201 countries. No Streamlit exception appeared in any primary tab. A Country
-warning and a Methodology monitoring notice were expected domain warnings, not
-runtime exceptions.
+201 countries. The exact PR branch was then rendered locally at desktop and
+390x844 mobile dimensions. No Streamlit exception appeared in any primary tab.
+A Country warning and a Methodology monitoring notice were expected domain
+warnings, not runtime exceptions. Post-merge live content is checked again
+before final handoff; the scheduled workflow alone is not semantic validation.
 
 #### 21.5.3 Automation and repository hygiene — closed
 

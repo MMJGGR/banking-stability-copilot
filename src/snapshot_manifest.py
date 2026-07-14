@@ -13,6 +13,18 @@ from src.data_loader import is_time_period_column, parse_period_label
 from src.model_store import load_model_artifact
 
 
+PROMOTED_SOURCE_CACHE_FILES = (
+    "FSIBSIS_cache.parquet",
+    "FSIC_cache.parquet",
+    "MFS_cache.parquet",
+    "WEO_cache.parquet",
+    "WGI_cache.parquet",
+)
+PROMOTED_SOURCE_CACHE_PATHS = tuple(
+    f"cache/{filename}" for filename in PROMOTED_SOURCE_CACHE_FILES
+)
+
+
 def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -107,6 +119,39 @@ def summarize_wgi_cache(path: Path, cutoff: pd.Timestamp) -> dict:
     }
 
 
+def snapshot_artifact_paths(repository_root, cache_dir) -> list[Path]:
+    """Return every file whose bytes are governed by the snapshot manifest."""
+    root = Path(repository_root)
+    cache_dir = Path(cache_dir)
+    government_reference_dir = root / "data" / "reference"
+    return [
+        root / "artifacts" / "model_policy_audit.json",
+        root / "artifacts" / "government_liquidity_features_report.json",
+        government_reference_dir / "government_liquidity_features.parquet",
+        government_reference_dir / "government_liquidity_observations.parquet",
+        government_reference_dir / "government_liquidity_features_report.json",
+        cache_dir / "risk_model.pkl",
+        cache_dir / "inference_pipeline.pkl",
+        cache_dir / "crisis_classifier.pkl",
+        cache_dir / "crisis_features.parquet",
+        cache_dir / "imputed_features.parquet",
+        *(cache_dir / filename for filename in PROMOTED_SOURCE_CACHE_FILES),
+    ]
+
+
+def build_artifact_inventory(artifact_paths, repository_root) -> dict:
+    """Return size and checksum metadata for every existing governed file."""
+    root = Path(repository_root)
+    return {
+        str(Path(path).relative_to(root)).replace("\\", "/"): {
+            "bytes": Path(path).stat().st_size,
+            "sha256": sha256_file(Path(path)),
+        }
+        for path in artifact_paths
+        if Path(path).exists()
+    }
+
+
 def build_snapshot_manifest(as_of_date, repository_root=None) -> dict:
     root = Path(repository_root or BASE_DIR)
     cache_dir = Path(CACHE_DIR)
@@ -128,29 +173,8 @@ def build_snapshot_manifest(as_of_date, repository_root=None) -> dict:
     if wgi_path.exists():
         sources["WGI"] = summarize_wgi_cache(wgi_path, cutoff)
 
-    government_reference_dir = root / "data" / "reference"
-    artifact_paths = [
-        root / "artifacts" / "model_policy_audit.json",
-        root / "artifacts" / "government_liquidity_features_report.json",
-        government_reference_dir / "government_liquidity_features.parquet",
-        government_reference_dir / "government_liquidity_observations.parquet",
-        government_reference_dir / "government_liquidity_features_report.json",
-        cache_dir / "risk_model.pkl",
-        cache_dir / "inference_pipeline.pkl",
-        cache_dir / "crisis_classifier.pkl",
-        cache_dir / "crisis_features.parquet",
-        cache_dir / "imputed_features.parquet",
-        fsibsis_path,
-        wgi_path,
-    ]
-    artifacts = {
-        str(path.relative_to(root)).replace("\\", "/"): {
-            "bytes": path.stat().st_size,
-            "sha256": sha256_file(path),
-        }
-        for path in artifact_paths
-        if path.exists()
-    }
+    artifact_paths = snapshot_artifact_paths(root, cache_dir)
+    artifacts = build_artifact_inventory(artifact_paths, root)
 
     model_snapshot_date = model_metadata.get("snapshot_date")
     cutoff_verified = model_snapshot_date == cutoff.date().isoformat()

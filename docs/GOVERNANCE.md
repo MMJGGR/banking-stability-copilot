@@ -162,3 +162,9 @@ challenger until all of the following are satisfied:
   `clean_validation: true`, and `display_metrics: true`. Invalid, superseded,
   research-only, or unlabelled reports remain available for audit but are not
   presented as valid model performance.
+- Image evidence is independently bound to its report. A confusion matrix is
+  displayed only when a clean validation-report `schema_version: 1` includes a
+  `confusion_matrix_artifact` object with `schema_version: 1`, a repository-
+  relative `path`, and the exact `sha256`; the resolved path must remain inside
+  the repository and its bytes must match. Failure of this image gate does not
+  suppress otherwise clean metrics, but no static or stale image is used.

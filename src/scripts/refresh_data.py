@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 
 from src.config import BASE_DIR
 from src.data_loader import FSIBSISLoader, IMFDataLoader, WGILoader
-from src.government_liquidity import refresh_government_liquidity_outputs
+from src.government_liquidity import (
+    build_government_liquidity_features,
+    load_weo_fiscal_observations,
+    refresh_government_liquidity_outputs,
+)
 from src.snapshot_manifest import build_snapshot_manifest, write_snapshot_manifest
 from src.scripts.audit_model_policy import build_policy_audit
 from src.sources import build_source_adapters
@@ -176,9 +180,9 @@ def main():
     else:
         fetched, fsic_df, weo_df, mfs_df = _fetch_legacy_sources(download_dir)
 
-    # Rebuild both training cache and compact Explorer references from the WEO
-    # frame fetched for this exact candidate.  This must precede liquidity
-    # assembly so scoring inputs and user-visible evidence share one vintage.
+    # Build provisional model inputs from the WEO frame fetched for this exact
+    # candidate.  The final compact package is reconciled to the actual scoring
+    # universe after training, using these same normalized observations.
     government_model_features = weo_df[["country_code"]].copy()
     government_model_features["country_code"] = (
         government_model_features["country_code"]
@@ -189,16 +193,21 @@ def main():
     government_model_features = government_model_features[
         government_model_features["country_code"].str.fullmatch(r"[A-Z]{3}")
     ].drop_duplicates("country_code")
-    refresh_government_liquidity_outputs(
+    government_observations = load_weo_fiscal_observations(
         weo_df=weo_df,
         as_of_date=args.as_of,
         model_countries=government_model_features["country_code"].tolist(),
+    )
+    provisional_government_features, _ = build_government_liquidity_features(
+        government_observations,
         model_features=government_model_features,
-        reference_dir=Path(BASE_DIR) / "data" / "reference",
     )
 
     from src.liquidity_features import assemble_liquidity_features
-    extra_features = assemble_liquidity_features(as_of_date=args.as_of)
+    extra_features = assemble_liquidity_features(
+        as_of_date=args.as_of,
+        government_features=provisional_government_features,
+    )
 
     model = BankingRiskModel()
     results = model.train(
@@ -211,6 +220,23 @@ def main():
     )
     passed_checks, failed_checks = validate_model(
         results, features_df=model.feature_values
+    )
+
+    scored_country_codes = set(
+        model.country_scores["country_code"].dropna().astype(str).str.upper()
+    )
+    candidate_model_features = model.feature_values[["country_code"]].copy()
+    candidate_model_features["country_code"] = (
+        candidate_model_features["country_code"].astype(str).str.upper()
+    )
+    candidate_model_features = candidate_model_features[
+        candidate_model_features["country_code"].isin(scored_country_codes)
+    ].drop_duplicates("country_code")
+    refresh_government_liquidity_outputs(
+        fiscal_observations=government_observations,
+        model_countries=candidate_model_features["country_code"].tolist(),
+        model_features=candidate_model_features,
+        reference_dir=Path(BASE_DIR) / "data" / "reference",
     )
     model.save()
 

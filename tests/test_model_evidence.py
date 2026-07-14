@@ -3,9 +3,12 @@ import json
 from pathlib import Path
 
 from src.model_evidence import (
+    CONFUSION_MATRIX_ARTIFACT_SCHEMA_VERSION,
+    CRISIS_VALIDATION_REPORT_SCHEMA_VERSION,
     active_model_feature_codes,
     crisis_validation_display_state,
     liquidity_feature_role,
+    validated_confusion_matrix_path,
 )
 from src.model_store import load_model_artifact
 
@@ -80,6 +83,62 @@ def test_validation_display_gate_requires_all_clean_flags():
         assert crisis_validation_display_state(incomplete)["display_metrics"] is False
 
 
+def _clean_validation_summary() -> dict:
+    return {
+        "schema_version": CRISIS_VALIDATION_REPORT_SCHEMA_VERSION,
+        "validation_status": "validated_clean",
+        "clean_validation": True,
+        "display_metrics": True,
+    }
+
+
+def test_clean_metrics_do_not_implicitly_authorize_a_static_image(tmp_path):
+    image_path = tmp_path / "artifacts" / "matrix.png"
+    image_path.parent.mkdir()
+    image_path.write_bytes(b"old-image")
+
+    assert crisis_validation_display_state(_clean_validation_summary())[
+        "display_metrics"
+    ] is True
+    assert validated_confusion_matrix_path(
+        _clean_validation_summary(), tmp_path
+    ) is None
+
+
+def test_confusion_matrix_requires_safe_versioned_checksum_link(tmp_path):
+    image_path = tmp_path / "artifacts" / "matrix.png"
+    image_path.parent.mkdir()
+    image_path.write_bytes(b"current-matrix")
+    summary = _clean_validation_summary()
+    summary["confusion_matrix_artifact"] = {
+        "schema_version": CONFUSION_MATRIX_ARTIFACT_SCHEMA_VERSION,
+        "path": "artifacts/matrix.png",
+        "sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
+    }
+
+    assert validated_confusion_matrix_path(summary, tmp_path) == image_path.resolve()
+
+    summary["confusion_matrix_artifact"]["sha256"] = "0" * 64
+    assert validated_confusion_matrix_path(summary, tmp_path) is None
+
+
+def test_confusion_matrix_rejects_unsupported_schema_and_path_escape(tmp_path):
+    outside = tmp_path.parent / "outside-matrix.png"
+    outside.write_bytes(b"outside")
+    summary = _clean_validation_summary()
+    summary["confusion_matrix_artifact"] = {
+        "schema_version": CONFUSION_MATRIX_ARTIFACT_SCHEMA_VERSION,
+        "path": "../outside-matrix.png",
+        "sha256": hashlib.sha256(outside.read_bytes()).hexdigest(),
+    }
+
+    assert validated_confusion_matrix_path(summary, tmp_path) is None
+
+    summary["confusion_matrix_artifact"]["path"] = "artifacts/matrix.png"
+    summary["schema_version"] = CRISIS_VALIDATION_REPORT_SCHEMA_VERSION + 1
+    assert validated_confusion_matrix_path(summary, tmp_path) is None
+
+
 def test_packaged_legacy_summary_is_explicitly_withheld():
     summary = json.loads(
         Path("artifacts/crisis_validation_summary.json").read_text(encoding="utf-8")
@@ -119,10 +178,8 @@ def test_mobile_layout_clears_fixed_streamlit_toolbar():
     assert "env(safe-area-inset-top)" in styles
 
 
-def test_methodology_confusion_matrix_is_guarded_by_clean_display_state():
+def test_methodology_confusion_matrix_uses_checksum_linked_resolver():
     app_source = Path("app.py").read_text(encoding="utf-8")
 
-    assert (
-        'if validation_state["display_metrics"] and '
-        "CRISIS_CONFUSION_MATRIX_PATH.exists():"
-    ) in app_source
+    assert "validated_confusion_matrix_path(" in app_source
+    assert "CRISIS_CONFUSION_MATRIX_PATH" not in app_source

@@ -10,3 +10,5 @@ data/reference/systemic_banking_crises_1970_2025.csv !filter !diff !merge text
 artifacts/model_policy_audit.json text eol=lf
 artifacts/data_manifest.json text eol=lf
 artifacts/crisis_validation_summary.json text eol=lf
+artifacts/government_liquidity_features_report.json text eol=lf
+data/reference/government_liquidity_features_report.json text eol=lf

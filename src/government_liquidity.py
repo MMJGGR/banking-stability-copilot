@@ -272,14 +272,6 @@ def build_government_liquidity_features(
         model_country_set = set(
             model["country_scores"]["country_code"].dropna().astype(str).str.upper()
         )
-    else:
-        try:
-            model = load_model_artifact()
-            model_country_set = set(
-                model["country_scores"]["country_code"].dropna().astype(str).str.upper()
-            )
-        except Exception:  # noqa: BLE001 - coverage can still be computed from the passed frame
-            model_country_set = None
 
     base = model_features[["country_code"]].copy()
     base["country_code"] = base["country_code"].astype(str).str.upper()
@@ -400,12 +392,14 @@ def write_government_liquidity_outputs(
     report_path.parent.mkdir(parents=True, exist_ok=True)
     observations.to_parquet(observations_path, index=False)
     features.to_parquet(features_path, index=False)
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    with report_path.open("w", encoding="utf-8", newline="\n") as output:
+        output.write(json.dumps(report, indent=2, sort_keys=True))
 
 
 def refresh_government_liquidity_outputs(
     *,
     weo_df: pd.DataFrame | None = None,
+    fiscal_observations: pd.DataFrame | None = None,
     as_of_date=None,
     model_countries: list[str] | None = None,
     model_features: pd.DataFrame | None = None,
@@ -417,17 +411,33 @@ def refresh_government_liquidity_outputs(
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Rebuild fiscal-liquidity outputs from one explicit WEO snapshot.
 
-    Candidate refreshes pass the newly normalized in-memory WEO frame here so
-    the compact Explorer references and the model's government-liquidity input
-    cannot silently come from different source vintages.  The optional
-    ``reference_dir`` receives the three compact files consumed by Streamlit.
+    Candidate refreshes can pass either the newly normalized in-memory WEO
+    frame or already-normalized ``fiscal_observations`` from that frame.  The
+    latter lets the post-training package use the exact same observations while
+    reconciling its rows and coverage denominator to the final scoring
+    universe.  The optional ``reference_dir`` receives the three compact files
+    consumed by Streamlit.
     """
-    observations = load_weo_fiscal_observations(
-        weo_df=weo_df,
-        as_of_date=as_of_date,
-        model_countries=model_countries,
-        include_projections=include_projections,
-    )
+    if fiscal_observations is not None:
+        observations = fiscal_observations.copy()
+        if model_countries is not None and not observations.empty:
+            keep = {str(code).strip().upper() for code in model_countries}
+            observations["country_code"] = (
+                observations["country_code"].astype(str).str.strip().str.upper()
+            )
+            observations = observations[observations["country_code"].isin(keep)]
+    else:
+        observations = load_weo_fiscal_observations(
+            weo_df=weo_df,
+            as_of_date=as_of_date,
+            model_countries=model_countries,
+            include_projections=include_projections,
+        )
+
+    if model_features is None and model_countries is not None:
+        model_features = pd.DataFrame(
+            {"country_code": sorted({str(code).strip().upper() for code in model_countries})}
+        )
     features, report = build_government_liquidity_features(
         observations,
         model_features=model_features,
