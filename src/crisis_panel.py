@@ -61,7 +61,7 @@ class FeatureSpec:
             raise ValueError("FeatureSpec.name must be non-empty")
         if not self.family or not self.family.strip():
             raise ValueError(f"Feature {self.name!r} must have a family")
-        if self.source.upper() not in {"WEO", "FSIC", "WB"}:
+        if self.source.upper() not in {"WEO", "FSIC", "WB", "BIS"}:
             raise ValueError(
                 f"Feature {self.name!r} has unsupported source {self.source!r}"
             )
@@ -344,6 +344,64 @@ WORLD_BANK_FEATURE_SPECS: tuple[FeatureSpec, ...] = (
         indicator_code="commodity_shock_exposure",
         max_age_years=3,
         direct=False,
+    ),
+)
+
+
+# Optional BIS challenger inputs.  These are intentionally not part of
+# DEFAULT_FEATURE_SPECS: the BIS country universe is materially narrower than
+# the World Bank fallback universe, so a training workflow must opt in and
+# evaluate the historical/full-data expert explicitly.  The credit gap below
+# refers only to the reported BIS WS_CREDIT_GAP series (CG_DTYPE=C).
+BIS_FEATURE_SPECS: tuple[FeatureSpec, ...] = (
+    FeatureSpec(
+        "bis_private_credit_gdp",
+        "BIS",
+        "credit_cycle",
+        indicator_code="bis_private_credit_gdp",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_bank_credit_gdp",
+        "BIS",
+        "credit_cycle",
+        indicator_code="bis_bank_credit_gdp",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_private_credit_to_gdp_gap",
+        "BIS",
+        "credit_cycle",
+        indicator_code="bis_private_credit_to_gdp_gap",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_private_debt_service_ratio",
+        "BIS",
+        "debt_service_pressure",
+        indicator_code="bis_private_debt_service_ratio",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_household_debt_service_ratio",
+        "BIS",
+        "debt_service_pressure",
+        indicator_code="bis_household_debt_service_ratio",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_corporate_debt_service_ratio",
+        "BIS",
+        "debt_service_pressure",
+        indicator_code="bis_corporate_debt_service_ratio",
+        max_age_years=2,
+    ),
+    FeatureSpec(
+        "bis_real_house_price_growth_yoy",
+        "BIS",
+        "property_cycle",
+        indicator_code="bis_real_house_price_growth_yoy",
+        max_age_years=2,
     ),
 )
 
@@ -898,6 +956,7 @@ def build_crisis_panel(
 
 
 __all__ = [
+    "BIS_FEATURE_SPECS",
     "CrisisPanelConfig",
     "CrisisPanelResult",
     "DEFAULT_FEATURE_SPECS",
