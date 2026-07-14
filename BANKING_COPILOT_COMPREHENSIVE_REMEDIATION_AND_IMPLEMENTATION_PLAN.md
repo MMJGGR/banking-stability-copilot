@@ -3150,7 +3150,8 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
     smoke checks, local Streamlit startup and the GitHub checkpoint are recorded
     with the final branch push. Final local evidence: 175 tests passed and one
     was skipped; serving-artifact checks passed for all 201 countries; Streamlit
-    health and root endpoints both returned HTTP 200.
+    health and root endpoints both returned HTTP 200. Commit `0ca2dd0` was
+    pushed to draft PR #13 and its GitHub `Quality checks / test` job passed.
   - [ ] Model-selection follow-up: preregister a compact estimator, feature,
     class-weight and calibration grid; compare it using expanding outcome-year
     folds; preserve the OOF ledger; and reserve an independently governed final
