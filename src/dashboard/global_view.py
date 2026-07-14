@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import pycountry_convert as pc
@@ -74,13 +75,22 @@ def calculate_weighted_metrics(df: pd.DataFrame) -> Dict[str, float]:
     
     return metrics
 
-def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame, loader):
+def render_global_summary(
+    scores_df: pd.DataFrame,
+    model_features: pd.DataFrame,
+    loader,
+    risk_architecture: pd.DataFrame | None = None,
+    risk_validation: dict | None = None,
+):
     """
     Render the Global Summary tab with weighted metrics and maps.
     Accepts full model_features to access raw indicators (NPL, GDP) for weighting.
     """
     st.markdown("## Global Risk Landscape")
-    st.caption("Risk scores weighted by Nominal GDP (USD). Larger economies contribute more to the global aggregate.")
+    st.caption(
+        "The active composite score and research early-warning signals are shown "
+        "separately. The global active score is weighted by nominal GDP."
+    )
     
     if scores_df is None or len(scores_df) == 0:
         st.warning("No data available for summary.")
@@ -92,6 +102,24 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
          # Avoid duplicate columns in merge
          cols_to_use = [c for c in model_features.columns if c not in df.columns or c == 'country_code']
          df = df.merge(model_features[cols_to_use], on='country_code', how='left')
+
+    if (
+        risk_architecture is not None
+        and not risk_architecture.empty
+        and 'country_code' in risk_architecture.columns
+    ):
+        architecture = risk_architecture.copy()
+        architecture['country_code'] = architecture['country_code'].astype(str).str.upper()
+        architecture = architecture.drop_duplicates('country_code')
+        architecture_columns = [
+            column for column in architecture.columns
+            if column == 'country_code' or column not in df.columns
+        ]
+        df = df.merge(
+            architecture[architecture_columns],
+            on='country_code',
+            how='left',
+        )
 
     df['Region'] = df['country_code'].apply(get_continent_name)
     
@@ -110,36 +138,67 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
         high_risk_count = len(df[df['risk_score'] > 6.0])
         st.metric("Countries Analyzed", f"{countries_covered}", delta=f"{high_risk_count} High Risk", delta_color="inverse")
         
-    with kpi3:
-        # Find highest risk region (GDP-weighted to match the bar chart)
-        if 'Region' in df.columns:
-            region_risk = {}
-            for reg in df['Region'].unique():
-                reg_df = df[df['Region'] == reg]
-                if len(reg_df) == 0:
-                    continue
-                tot_gdp = reg_df['nominal_gdp'].sum()
-                if tot_gdp > 0:
-                    w_score = (reg_df['risk_score'] * reg_df['nominal_gdp']).sum() / tot_gdp
-                else:
-                    w_score = reg_df['risk_score'].mean()
-                region_risk[reg] = w_score
-            
-            if region_risk:
-                sorted_regions = sorted(region_risk.items(), key=lambda x: x[1], reverse=True)
-                highest_region, highest_score = sorted_regions[0]
-            else:
-                highest_region, highest_score = "N/A", 0
-            st.metric("Highest Risk Region", highest_region, delta=f"Avg: {highest_score:.1f}")
-        else:
-            st.metric("Highest Risk Region", "N/A")
+    alert_series = (
+        df['alert_status'].astype(str).str.lower()
+        if 'alert_status' in df.columns
+        else pd.Series('', index=df.index)
+    )
+    architecture_is_production = (
+        'effective_production' in df.columns
+        and not df['effective_production'].empty
+        and df['effective_production'].fillna(False).astype(bool).all()
+    )
+    architecture_is_research = not architecture_is_production
+    architecture_reportable = (
+        'outputs_reportable' in df.columns
+        and not df['outputs_reportable'].empty
+        and df['outputs_reportable'].fillna(False).astype(bool).all()
+    )
+    promotion_gate = (
+        (risk_validation or {}).get('promotion_gates', {}).get('passed')
+        if isinstance(risk_validation, dict)
+        else None
+    )
 
-        
+    with kpi3:
+        if 'alert_status' in df.columns:
+            if architecture_is_research:
+                st.metric("Early-warning Model", "Research")
+            else:
+                st.metric(
+                    "Red Alerts",
+                    f"{int(alert_series.eq('red').sum())}",
+                    help="High-conviction alerts requiring corroborating evidence.",
+                )
+        else:
+            high_risk_count = len(df[df['risk_score'] > 6.0])
+            st.metric("High Active Risk", f"{high_risk_count}")
+
     with kpi4:
-        low_risk_count = len(df[df['risk_score'] < 4.0])
-        countries_total = len(df)
-        pct = (low_risk_count / countries_total * 100) if countries_total > 0 else 0
-        st.metric("Low Risk Economies", f"{low_risk_count}", delta=f"{pct:.0f}% of total", delta_color="off")
+        if 'alert_status' in df.columns:
+            if architecture_is_research:
+                gate_text = (
+                    "Passed" if promotion_gate is True
+                    else "Failed" if promotion_gate is False
+                    else "Not recorded"
+                )
+                st.metric("Forward Validation Gate", gate_text)
+            else:
+                st.metric(
+                    "Amber Watches",
+                    f"{int(alert_series.eq('amber').sum())}",
+                    help="Recall-oriented surveillance signals for analyst review.",
+                )
+        else:
+            low_risk_count = len(df[df['risk_score'] < 4.0])
+            countries_total = len(df)
+            pct = (low_risk_count / countries_total * 100) if countries_total > 0 else 0
+            st.metric(
+                "Low Structural Risk",
+                f"{low_risk_count}",
+                delta=f"{pct:.0f}% of total",
+                delta_color="off",
+            )
 
     st.markdown("---")
     
@@ -251,45 +310,186 @@ def render_global_summary(scores_df: pd.DataFrame, model_features: pd.DataFrame,
         else:
             st.info("GDP Growth data needed for scatter plot.")
 
-    # 6. Top/Bottom Lists
-    st.markdown("### Systemic Risk Watchlist")
-    st.caption("Significant economies with elevated risk scores (> 6.0)")
-    
-    # Filter large economies (e.g. top 50 percentile of GDP) and High Risk
-    if 'nominal_gdp' in df.columns:
-        gdp_median = df['nominal_gdp'].median()
-        watchlist = df[ (df['nominal_gdp'] > gdp_median) & (df['risk_score'] > 6.0) ].copy()
-        watchlist = watchlist.sort_values('risk_score', ascending=False).head(10)
-        
-        if len(watchlist) > 0:
-            # Derive which pillar is the main risk contributor
-            def get_risk_driver(row):
-                econ = row.get('economic_pillar', 5)
-                ind = row.get('industry_pillar', 5)
-                if pd.isna(econ) and pd.isna(ind):
-                    return "—"
-                elif pd.isna(econ):
-                    return "Industry"
-                elif pd.isna(ind):
-                    return "Economic"
-                elif econ > ind:
-                    return "Economic"
-                else:
-                    return "Industry"
-            
-            watchlist['risk_driver'] = watchlist.apply(get_risk_driver, axis=1)
-            
-            # Build display dataframe with friendly names
-            display_df = pd.DataFrame({
-                'Country': watchlist['country_name'],
-                'Region': watchlist['Region'],
-                'Risk Score': watchlist['risk_score'].apply(lambda x: f"{x:.1f}"),
-                'Economic': watchlist['economic_pillar'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "—"),
-                'Industry': watchlist['industry_pillar'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "—"),
-                'Main Driver': watchlist['risk_driver'],
-            })
-            display_df = display_df.reset_index(drop=True)
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+    # 6. Keep structural vulnerability and early-warning decisions distinct.
+    st.markdown("### Watchlists")
+    watch_early, watch_structural = st.tabs(
+        ["Research diagnostics" if architecture_is_research else "Early warning", "Active risk"]
+    )
+
+    with watch_early:
+        if 'alert_status' not in df.columns:
+            st.caption(
+                "The hierarchical early-warning artifact is not available for "
+                "this snapshot."
+            )
+        elif not architecture_reportable:
+            if promotion_gate is False:
+                st.warning(
+                    "The early-warning challenger failed its untouched forward "
+                    "validation gate. Country probabilities, rankings, and review "
+                    "tiers are suppressed."
+                )
+            else:
+                st.warning(
+                    "The early-warning validation gate is unavailable or the "
+                    "artifact does not match the active snapshot. Country outputs "
+                    "are not reportable."
+                )
+            coverage_columns = [
+                column
+                for column in (
+                    'hazard_evidence_coverage',
+                    'mechanism_evidence_coverage',
+                )
+                if column in df.columns
+            ]
+            if coverage_columns:
+                gaps = df.copy()
+                gaps['_minimum_coverage'] = gaps[coverage_columns].apply(
+                    pd.to_numeric, errors='coerce'
+                ).min(axis=1)
+                gaps = gaps.sort_values('_minimum_coverage', na_position='first').head(20)
+                gap_display = pd.DataFrame({
+                    'Country': gaps['country_name'],
+                    'Hazard inputs': pd.to_numeric(
+                        gaps.get(
+                            'hazard_evidence_coverage',
+                            pd.Series(np.nan, index=gaps.index),
+                        ),
+                        errors='coerce',
+                    ),
+                    'Mechanism taxonomy': pd.to_numeric(
+                        gaps.get(
+                            'mechanism_evidence_coverage',
+                            pd.Series(np.nan, index=gaps.index),
+                        ),
+                        errors='coerce',
+                    ),
+                    'Selected expert': gaps.get(
+                        'hazard_expert', pd.Series('Not available', index=gaps.index)
+                    ).astype(str).str.replace('_', ' ').str.title(),
+                })
+                st.markdown("#### Largest evidence gaps")
+                st.dataframe(
+                    gap_display,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Hazard inputs': st.column_config.ProgressColumn(
+                            min_value=0.0, max_value=1.0
+                        ),
+                        'Mechanism taxonomy': st.column_config.ProgressColumn(
+                            min_value=0.0, max_value=1.0
+                        ),
+                    },
+                )
+            else:
+                st.caption("Evidence coverage is unavailable for this research snapshot.")
         else:
-            st.success("✓ No significant economies currently flagged as high risk (>6.0).")
+            alerts = df[alert_series.isin(['red', 'amber'])].copy()
+            alerts['_alert_rank'] = (
+                alerts['alert_status'].astype(str).str.lower().map(
+                    {'red': 0, 'amber': 1}
+                )
+            )
+            sort_columns = ['_alert_rank']
+            ascending = [True]
+            if 'systemic_hazard_1y' in alerts.columns:
+                sort_columns.append('systemic_hazard_1y')
+                ascending.append(False)
+            alerts = alerts.sort_values(
+                sort_columns, ascending=ascending
+            ).head(20)
+            if alerts.empty:
+                st.caption(
+                    "No countries meet the current Red or Amber research "
+                    "thresholds."
+                )
+            else:
+                display = pd.DataFrame({
+                    'Country': alerts['country_name'],
+                    'Status': alerts['alert_status'].astype(str).str.title(),
+                    '1-year onset probability': pd.to_numeric(
+                        alerts.get('systemic_hazard_1y'), errors='coerce'
+                    ),
+                    'Years 2-3 onset probability': pd.to_numeric(
+                        alerts.get('systemic_hazard_2_3y'), errors='coerce'
+                    ),
+                    'Dominant mechanism': alerts.get(
+                        'dominant_mechanism', 'Not available'
+                    ),
+                    'Evidence': pd.to_numeric(
+                        alerts.get('evidence_confidence'), errors='coerce'
+                    ),
+                })
+                st.dataframe(
+                    display,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        '1-year onset probability': st.column_config.NumberColumn(
+                            format='percent'
+                        ),
+                        'Years 2-3 onset probability': st.column_config.NumberColumn(
+                            format='percent'
+                        ),
+                        'Evidence': st.column_config.ProgressColumn(
+                            min_value=0.0, max_value=1.0
+                        ),
+                    },
+                )
+            if not architecture_is_production:
+                st.caption(
+                    "Research outputs are not used in the active risk score. "
+                    f"Current candidate count: {int(alert_series.eq('amber').sum())} "
+                    "Amber and no operational Red tier."
+                )
+
+    with watch_structural:
+        if 'nominal_gdp' not in df.columns:
+            st.caption(
+                "Nominal GDP is unavailable, so the significance filter "
+                "cannot be applied."
+            )
+        else:
+            gdp_median = df['nominal_gdp'].median()
+            watchlist = df[
+                (df['nominal_gdp'] > gdp_median)
+                & (df['risk_score'] > 6.0)
+            ].copy().sort_values('risk_score', ascending=False).head(15)
+            if watchlist.empty:
+                st.caption(
+                    "No significant economies currently exceed the "
+                    "structural-risk threshold."
+                )
+            else:
+                display_df = pd.DataFrame({
+                    'Country': watchlist['country_name'],
+                    'Region': watchlist['Region'],
+                    'Risk Score': pd.to_numeric(
+                        watchlist['risk_score'], errors='coerce'
+                    ),
+                    'Operating Environment': pd.to_numeric(
+                        watchlist['economic_pillar'], errors='coerce'
+                    ),
+                    'Banking System': pd.to_numeric(
+                        watchlist['industry_pillar'], errors='coerce'
+                    ),
+                })
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Risk Score': st.column_config.NumberColumn(
+                            format='%.1f'
+                        ),
+                        'Operating Environment': st.column_config.NumberColumn(
+                            format='%.1f'
+                        ),
+                        'Banking System': st.column_config.NumberColumn(
+                            format='%.1f'
+                        ),
+                    },
+                )
 

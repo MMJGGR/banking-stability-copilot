@@ -45,3 +45,16 @@ def test_sample_weights_change_the_fitted_probability():
         X, y, sample_weight=np.array([1.0, 10.0, 1.0, 10.0])
     )
     assert weighted.predict_proba([[0.5]])[0, 1] > equal.predict_proba([[0.5]])[0, 1]
+
+
+def test_regularization_scale_preserves_a_clear_signal():
+    rng = np.random.default_rng(19)
+    signal = rng.normal(size=500)
+    X = signal.reshape(-1, 1)
+    y = (signal > 1.0).astype(int)
+
+    model = SignConstrainedLogisticRegression(C=0.25, class_weight=None).fit(X, y)
+    probability = model.predict_proba(X)[:, 1]
+
+    assert model.coef_[0, 0] > 1.0
+    assert probability[y == 1].mean() > probability[y == 0].mean() + 0.5

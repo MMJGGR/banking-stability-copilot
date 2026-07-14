@@ -58,6 +58,57 @@ are excluded from primary training and reserved for sensitivity analysis.
 The current final score uses a 90% pillar component and a 10% crisis-probability
 component. Scores are bounded from 1 to 10.
 
+## Hierarchical Early-Warning Challenger
+
+The repository also contains a research architecture that does **not** replace
+the active score unless it passes forward-time validation and is explicitly
+approved. It separates outputs that the active blended score can otherwise
+conflate:
+
+- A one-year conditional systemic-crisis onset hazard.
+- Incremental onset risk in years two to three and cumulative three-year risk.
+- A historical-core expert for long, broad macro-financial histories and a
+  modern-full expert when direct banking-system evidence meets its coverage
+  contract.
+- Seven mechanism-evidence families: credit/property cycle; bank solvency and
+  asset quality; bank funding and liquidity; sovereign liquidity and market
+  access; external/FX stress; macro, commodity and global triggers; and
+  structural resilience.
+- Evidence coverage reported separately from risk. Missing data cannot be
+  interpreted as low risk or statistical certainty.
+- A proposed recall-oriented Amber review tier and a higher-conviction Red tier
+  that requires stronger hazard plus corroborating or persistent evidence. Both
+  tiers remain disabled until validation identifies usable operating points.
+
+Mechanism outputs are normalized evidence composites, not seven independent
+crisis probabilities. Conditional severity is deliberately not active: it
+requires a separately observed and governed loss/severity target rather than a
+proxy inferred from crisis onset.
+
+The Streamlit app reads only a compact, build-time JSON snapshot. It does not
+train models or retrieve BIS/IMF/World Bank data at runtime. Research status is
+shown explicitly in Country, Global, Explorer, and Methodology views.
+
+The corrected strict forward test uses horizon-specific label-availability
+embargoes: the training origins end in 2007, 2006 and 2005 for the one-, two-
+and three-year hazards; threshold validation begins in 2009; and the untouched
+forecast-origin test is 2014-2022. It did not pass promotion. One-year ROC-AUC
+is 0.367 and average precision is 0.0056; years-two-to-three ROC-AUC is 0.246
+and average precision is 0.0038; cumulative three-year ROC-AUC is 0.291 and
+average precision is 0.0076. The test contains 1,635 country-years, 196
+countries and nine unique one-year crisis events. Validation found no usable
+Amber or distinct Red operating point, so both tiers are disabled. Because the
+promotion gate failed, the app suppresses country hazard probabilities and
+issues no alerts. These results are retained as evidence rather than tuned
+away.
+
+This checkpoint evaluates a predeclared transparent estimator; it does not use
+cross-validation for model or hyperparameter selection. A bounded candidate
+set must be compared with expanding outcome-year folds and forward-only
+calibration before the locked confirmation period is used again. The existing
+2014-2022 results have already informed development and therefore are not a
+pristine final confirmation sample for a future selected model.
+
 ## Interpretation Limitations
 
 - Pillar scores are relative to the scored country universe.
@@ -79,7 +130,8 @@ reviewed before production promotion.
 Future approved releases must include:
 
 - Country-grouped validation.
-- Out-of-time or rolling-origin evaluation.
+- Embargoed expanding outcome-year cross-validation followed by an untouched
+  forward confirmation period.
 - ROC-AUC and PR-AUC.
 - Recall, precision, false-positive rate, and calibration.
 - Results by region, income group, crisis epoch, and data coverage.
@@ -96,6 +148,11 @@ standard.
 - Relative percentile scoring can change when the country universe changes.
 - Some banking-sector features have less than 50% direct coverage.
 - The model has not completed a formal external validation.
+- The hierarchical challenger must remain research-only if its untouched
+  forward test, calibration, specificity, precision, unique-event recall, or
+  alert burden fails the documented gate.
+- The historical-core and modern-full experts are not yet cross-calibrated;
+  expert routing must not be treated as model certainty.
 
 ## Release Requirements
 

@@ -14,6 +14,27 @@
 The generated `artifacts/data_manifest.json` is the authoritative machine-
 readable record of the current serving inputs and checksums.
 
+### Research-only BIS historical supplement
+
+The local build workflow can optionally add official BIS bulk histories for
+private/bank credit, the published credit-to-GDP gap, private-sector
+debt-service ratios, and selected residential property prices. These series are
+not part of the active serving snapshot and are never retrieved by Streamlit.
+They are intended for historical-core versus modern-full challenger tests.
+
+| BIS data set | Research role | Local adapter coverage check |
+|---|---|---|
+| `WS_TC` | Private- and bank-credit depth | 43 countries; history begins in 1947 for some series |
+| `WS_CREDIT_GAP` | Official private credit-to-GDP gap | 43 countries; history begins in 1957 |
+| `WS_DSR` | Total, household and corporate debt-service ratios | 32 countries; history begins in 1999 |
+| `WS_SPP` | Selected residential property-price growth | 57 countries; some nominal histories begin in 1927 |
+
+The combined local smoke test normalized 66,854 quarterly observations across
+59 countries and 10 candidate features. Coverage is materially narrower than
+the World Bank fallback, so BIS fields are opt-in challenger inputs rather than
+silent replacements. Every normalized observation preserves its source URL,
+series key, status, vintage and data-set version.
+
 Current active serving snapshot:
 
 - Snapshot cutoff: `2026-06-30`
@@ -63,6 +84,9 @@ Known weak features include:
 - `large_exposure_ratio`: approximately one-third coverage.
 - `sovereign_exposure_fsibsis`: approximately one-third coverage.
 - Several FSIBSIS-derived funding and income features: below 50% coverage.
+- BIS debt-service, credit-gap and property candidates have stronger concept
+  quality but materially narrower country coverage; expert routing and
+  forward-time validation are required before any scoring use.
 
 Country-level outputs must disclose coverage, freshness, carry-forward, and
 imputation.
@@ -71,9 +95,12 @@ imputation.
 
 These blocks are packaged as compact reference files under `data/reference/`
 and surfaced in the Country Profile, Data Explorer, and Methodology tabs. The
-active model artifact determines score role: fields present in the promoted
-feature matrix are production-scored; remaining packaged fields are insight
-only until a future promoted model includes them.
+active structural model artifact determines its own score inputs. The separate
+hierarchical hazard is trained on the annual historical panel: overlapping
+canonical fields can enter that panel, while most newly staged external- and
+government-liquidity fields currently enrich the latest mechanism evidence
+only. A packaged or visible field must not be described as predictive merely
+because it is present in the current cross-section.
 
 | Dataset | Source | What it adds | Coverage (model countries) |
 |---|---|---|---|
@@ -82,6 +109,11 @@ only until a future promoted model includes them.
 
 In the current promoted 2026-06-30 artifact, `govt_interest_to_revenue` and
 `govt_debt_to_revenue` are production-scored government-liquidity inputs.
+
+Mechanism signal strengths are current-cohort percentiles. They support
+cross-sectional diagnosis but are not yet directly comparable across vintages;
+a frozen reference distribution is required before interpreting a change as a
+country-level time-series movement.
 
 Government-liquidity build notes:
 

@@ -3051,3 +3051,112 @@ Crises Database: 1970-2025](https://www.imf.org/en/publications/wp/issues/2026/0
   - Verification: focused crisis-model/source suite passed (26 tests after the
     derived-source metadata correction); repository-wide suite passed (120
     tests, 1 skipped). GitHub CI status is recorded with the checkpoint push.
+- [x] Checkpoint 47: Implement the hierarchical BankEnv risk architecture and
+  surface it coherently across the application.
+  - Decision: retain the IMF systemic-banking-crisis onset as the terminal
+    outcome, but stop asking one pooled three-year classifier to represent every
+    crisis mechanism and every data regime.
+  - Target architecture:
+    - annual discrete-time systemic-onset hazards with separately reported
+      one-year, incremental years-two-to-three, and cumulative three-year
+      probabilities;
+    - event-balanced training so one crisis episode is not overweighted merely
+      because several forecast origins fall inside its warning window;
+    - separate mechanism evidence for credit/property cycles, bank solvency and
+      asset quality, funding/liquidity, sovereign liquidity and market access,
+      external/FX vulnerability, macro/commodity shocks, and structural
+      resilience;
+    - conditional severity outcomes kept separate from onset prediction; and
+    - active-crisis, recovery/cooldown, borderline, and insufficient-evidence
+      states preserved rather than collapsed into tranquil negatives.
+  - Data-regime architecture:
+    - a historical-core expert using broadly available macro, fiscal, credit,
+      deposits, reserves, rates, and external variables; and
+    - a modern-full expert that adds direct NPL, capital, profitability, and
+      bank-liquidity observations only when the required evidence is actually
+      available.
+  - Product architecture: keep the Operating Environment assessment, systemic
+    onset probability, mechanism evidence, conditional severity, and evidence
+    confidence as distinct outputs. Do not disguise them as one statistical
+    probability or let missingness silently become economic evidence.
+  - Operating policy: introduce an Amber surveillance tier focused on unique-
+    event recall and a Red high-conviction tier requiring a stronger hazard plus
+    corroborating or persistent mechanism evidence. Thresholds remain frozen
+    upstream of every untouched validation fold.
+  - Application surface:
+    - Country: compact structural assessment, near- and medium-term warnings,
+      dominant mechanism, evidence confidence, and drill-down mechanism table;
+    - Global: separate structural-risk and early-warning watchlists rather than
+      ranking only the blended score;
+    - Explorer: canonical inputs and calculations remain source-led, with a
+      separate research-only Risk Signals workspace for cross-country mechanism
+      diagnosis; and
+    - Methodology: concise model hierarchy, target definitions, horizon- and
+      tier-specific validation, calibration, alert burden, regime diagnostics,
+      and explicit production/challenger status.
+  - Promotion gate: the current serving artifacts remain the fallback until the
+    hierarchy passes rolling-forward, country-grouped, crisis-wave, calibration,
+    unique-event recall, precision, specificity, and alert-burden gates. A fold
+    that flags nearly every country blocks promotion.
+  - Implementation status: safe research checkpoint completed on branch
+    `codex/hierarchical-risk-architecture`. Implementation does not imply model
+    promotion: failed-gate probabilities and alert tiers remain suppressed.
+  - [x] Hazard foundation: leakage-safe conditional year-one/year-two/year-three
+    targets, censoring/at-risk flags, event-balanced weights, transparent
+    regularized logit/cloglog estimators, JSON serialization, and expert routing
+    implemented in `src/crisis_hazard.py`.
+  - [x] Mechanism foundation: seven non-duplicative evidence families, governed
+    risk directions, source aliases, separate coverage, dominant-mechanism
+    diagnosis, and provisional Amber/Red policy implemented in
+    `src/mechanism_evidence.py`.
+  - [x] Data upgrade: official BIS bulk adapters for credit, the published
+    credit-to-GDP gap, debt-service ratios, and residential property prices
+    implemented as optional challenger inputs. World Bank remains the broader
+    fallback and Streamlit performs no runtime retrieval.
+  - [x] Offline artifact build: `build_hierarchical_risk_snapshot.py` now merges
+    staged government/external fields without overwriting production values,
+    trains horizon-specific historical-core and modern-full experts, freezes
+    thresholds on a distinct validation block, and writes compact snapshot and
+    validation JSON for the app.
+  - [x] Corrected forward test: horizon-specific label-availability embargoes
+    end training origins in 2007/2006/2005 for the one-/two-/three-year targets,
+    threshold validation starts in 2009, and forecast-origin testing covers
+    2014-2022. The test contains 1,635 rows, 196 countries, and nine unique
+    one-year crisis events. One-year ROC-AUC/AP is 0.367/0.0056;
+    years-two-to-three is 0.246/0.0038; cumulative three-year is 0.291/0.0076.
+    All predictive gates fail. Amber and Red are disabled at threshold 1.0 and
+    the app suppresses country probabilities rather than publishing a false
+    alert tier.
+  - [x] Estimator correction: L2 regularization is scaled by total observation
+    weight in both transparent hazard estimators, preventing coefficients from
+    collapsing solely because the panel is large. Regression tests preserve the
+    fix.
+  - [x] Coverage correction: hazard-input coverage and full-taxonomy mechanism
+    evidence coverage are separate fields; unsupported signal families remain
+    in the governed denominator rather than inflating confidence.
+  - [x] Application wiring: the active Country assessment is primary; failed-
+    gate hazard outputs are in a collapsed research diagnostic; Global separates
+    active-risk watchlists from research diagnostics; Explorer has a dedicated
+    Risk Signals workspace; Methodology shows the target hierarchy, expert
+    design, promotion failure, metrics, and horizon/tier confusion matrices.
+  - [x] Documentation: model, data, and governance cards distinguish the active
+    score, research hazard, mechanism evidence, evidence coverage, BIS inputs,
+    and inactive conditional-severity layer.
+  - [x] Safe serving policy: optional or malformed research artifacts cannot
+    crash the active app; production status requires a passed gate, matching
+    cutoff and consistent row statuses; failed-gate hazards render as not
+    reportable and no review tier is issued.
+  - [x] Verification/publish: focused suites, repository-wide tests, artifact
+    smoke checks, local Streamlit startup and the GitHub checkpoint are recorded
+    with the final branch push. Final local evidence: 175 tests passed and one
+    was skipped; serving-artifact checks passed for all 201 countries; Streamlit
+    health and root endpoints both returned HTTP 200.
+  - [ ] Model-selection follow-up: preregister a compact estimator, feature,
+    class-weight and calibration grid; compare it using expanding outcome-year
+    folds; preserve the OOF ledger; and reserve an independently governed final
+    confirmation period. The 2014-2022 failure has already informed development
+    and must not be relabelled as a pristine test.
+  - [ ] Calibration follow-up: compare a shared hazard model with separately
+    calibrated historical-core/modern-full experts, and freeze mechanism
+    percentile reference distributions before claiming vintage-to-vintage
+    comparability.

@@ -110,3 +110,45 @@ Rules:
 | Policy parameter change | Penalty size, floor levels, SLA values | This document updated + policy audit rerun |
 | Scoring redesign | Direction constraints, overlay formula, feature add/drop | Full challenger comparison + owner approval + model card update |
 | Classifier retrain | New epochs or labels | Grouped + out-of-time validation report + owner approval |
+
+## 7. Hierarchical early-warning promotion gate
+
+The discrete-time hazard and mechanism architecture is a research challenger
+until all of the following are recorded on untouched forward periods:
+
+- Predeclared, expanding outcome-year cross-validation with horizon-specific
+  label-availability embargoes, followed by an untouched forward confirmation
+  period. No forecast origin may train a horizon whose label resolves inside a
+  later evaluation block.
+- Country-grouped diagnostics and separate crisis-wave, data-regime, expert and
+  evidence-coverage results.
+- ROC-AUC, PR-AUC, calibration/Brier score, precision, recall, specificity,
+  false alerts per 100 country-years, and unique-event recall.
+- Frozen thresholds selected before each test fold. Amber is recall-oriented;
+  Red must improve precision and require corroborating or persistent mechanism
+  evidence.
+- Alert-burden review. Amber needs at least 5% validation precision and may flag
+  no more than 25% of validation country-years; a tier that fails either
+  contract is disabled even when recall appears high. Red remains disabled
+  without a distinct validated precision operating point.
+- Historical-core and modern-full expert results reported separately; coverage
+  routing may not be described as statistical uncertainty. Cross-expert
+  calibration or a demonstrably better shared model is required before their
+  probabilities can drive one common alert threshold.
+- Evidence coverage uses the complete governed signal taxonomy as its
+  denominator. Observed-among-supported coverage may be reported separately but
+  cannot stand in for taxonomy completeness.
+- A compact JSON artifact whose `model_status` remains `research` unless owner
+  approval explicitly promotes it.
+
+Mechanism evidence can be displayed for diagnosis before promotion because it
+does not alter the active score. It must be labelled as normalized evidence,
+not an independent crisis probability. Conditional severity remains inactive
+until the project has a separately observed severity target and validation
+standard.
+
+The 2014-2022 results have already been inspected during development. They are
+retained as honest failure evidence, not reused as a pristine final test after
+candidate selection. A future selected model requires a preregistered search
+space, saved out-of-fold ledger and a later or otherwise independently governed
+confirmation sample.

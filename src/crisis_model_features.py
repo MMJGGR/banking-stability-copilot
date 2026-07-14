@@ -23,6 +23,13 @@ FEATURE_RISK_DIRECTIONS: dict[str, int] = {
     "crisis_recency_10y": 1,
     "bank_credit_gdp_change_3y": 1,
     "bank_credit_gdp_gap_10y": 1,
+    "bis_private_credit_gdp": 1,
+    "bis_bank_credit_gdp": 1,
+    "bis_private_credit_to_gdp_gap": 1,
+    "bis_private_debt_service_ratio": 1,
+    "bis_household_debt_service_ratio": 1,
+    "bis_corporate_debt_service_ratio": 1,
+    "bis_real_house_price_growth_yoy": 1,
     "bank_credit_to_deposits": 1,
     "broad_money_to_reserves": 1,
     "reserves_months_imports": -1,
@@ -85,6 +92,19 @@ BANKING_FEATURES = (
     "roe",
 )
 
+# Optional official BIS challenger fields. They are not added to the default
+# feature sets because their country coverage is materially narrower; the
+# dedicated variants make that choice explicit in validation.
+BIS_CHALLENGER_FEATURES = (
+    "bis_private_credit_gdp",
+    "bis_bank_credit_gdp",
+    "bis_private_credit_to_gdp_gap",
+    "bis_private_debt_service_ratio",
+    "bis_household_debt_service_ratio",
+    "bis_corporate_debt_service_ratio",
+    "bis_real_house_price_growth_yoy",
+)
+
 FEATURE_SETS: dict[str, tuple[str, ...]] = {
     "macro": MACRO_FEATURES,
     "macro_credit": (*MACRO_FEATURES, *CREDIT_LIQUIDITY_FEATURES),
@@ -99,6 +119,19 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
         *CREDIT_LIQUIDITY_FEATURES,
         *BANKING_FEATURES,
         *EXTERNAL_VULNERABILITY_FEATURES,
+    ),
+    "full_bis": (
+        *MACRO_FEATURES,
+        *CREDIT_LIQUIDITY_FEATURES,
+        *BANKING_FEATURES,
+        *BIS_CHALLENGER_FEATURES,
+    ),
+    "full_commodity_bis": (
+        *MACRO_FEATURES,
+        *CREDIT_LIQUIDITY_FEATURES,
+        *BANKING_FEATURES,
+        *EXTERNAL_VULNERABILITY_FEATURES,
+        *BIS_CHALLENGER_FEATURES,
     ),
     "full_with_missingness": (
         *MACRO_FEATURES,
@@ -207,6 +240,7 @@ def derive_crisis_model_features(panel: pd.DataFrame, labels) -> pd.DataFrame:
             "natural_resource_rents_gdp",
             "terms_of_trade_deterioration_3y",
             "commodity_shock_exposure",
+            *BIS_CHALLENGER_FEATURES,
         )
     }
     values = {feature: _as_available(frame, feature) for feature in raw_features}
@@ -239,6 +273,8 @@ def derive_crisis_model_features(panel: pd.DataFrame, labels) -> pd.DataFrame:
     for feature in CREDIT_LIQUIDITY_FEATURES:
         frame[feature] = values[feature]
     for feature in EXTERNAL_VULNERABILITY_FEATURES:
+        frame[feature] = values[feature]
+    for feature in BIS_CHALLENGER_FEATURES:
         frame[feature] = values[feature]
     frame["combined_npl_ratio"] = values["npl_ratio"].combine_first(
         values["wb_bank_npl_ratio"]
@@ -280,6 +316,7 @@ def model_matrix(
 
 
 __all__ = [
+    "BIS_CHALLENGER_FEATURES",
     "BANKING_FEATURES",
     "CREDIT_LIQUIDITY_FEATURES",
     "FEATURE_RISK_DIRECTIONS",

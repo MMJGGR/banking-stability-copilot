@@ -68,6 +68,20 @@ from src.dashboard.calculated_series import (
     validate_formula,
 )
 from src.dashboard.global_view import render_global_summary
+from src.hierarchical_artifacts import (
+    load_hierarchical_artifacts,
+    outputs_are_production,
+    outputs_reportable,
+    validation_gate_state,
+)
+from src.dashboard.risk_architecture import (
+    CountryRiskView,
+    MechanismSignal,
+    ValidationMetric,
+    ValidationSummary,
+    render_country_risk_view,
+    render_methodology_validation,
+)
 from src import utils as dashboard_utils
 
 
@@ -367,6 +381,12 @@ MODEL_MONITORING_REPORT_PATHS = (
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
 CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
+HIERARCHICAL_RISK_SNAPSHOT_PATH = (
+    BASE_DIR / "artifacts" / "hierarchical_risk_snapshot.json"
+)
+HIERARCHICAL_RISK_VALIDATION_PATH = (
+    BASE_DIR / "artifacts" / "hierarchical_risk_validation.json"
+)
 CANDIDATE_RISK_OVERLAY_SCORE_PATHS = {
     "liquidity": (
         BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
@@ -699,6 +719,184 @@ def load_candidate_overlay_scores(scenario: str) -> pd.DataFrame:
     frame["country_code"] = frame["country_code"].astype(str).str.upper()
     frame = frame.rename(columns={"risk_score": "candidate_risk_score"})
     return frame.drop_duplicates("country_code")
+
+
+def _artifact_version(*paths: Path) -> str:
+    """Return a cheap cache key for small, repository-controlled artifacts."""
+    parts = []
+    for path in paths:
+        try:
+            stat = path.stat()
+            parts.append(f"{path.name}:{stat.st_size}:{stat.st_mtime_ns}")
+        except OSError:
+            parts.append(f"{path.name}:missing")
+    return "|".join(parts)
+
+
+@st.cache_data(show_spinner=False)
+def load_hierarchical_risk_artifacts(
+    version: str = "",
+) -> tuple[dict, pd.DataFrame, dict]:
+    """Load compact build-time risk outputs; never train or retrieve in-app."""
+    del version
+    return load_hierarchical_artifacts(
+        HIERARCHICAL_RISK_SNAPSHOT_PATH,
+        HIERARCHICAL_RISK_VALIDATION_PATH,
+    )
+
+
+def _optional_float(value, *, scale_percent: bool = False) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(numeric):
+        return None
+    if scale_percent and numeric > 1:
+        numeric /= 100.0
+    return numeric
+
+
+def _optional_text(value) -> str | None:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return text or None
+
+
+def _mechanism_signal_records(raw) -> tuple[MechanismSignal, ...]:
+    if isinstance(raw, dict):
+        items = [
+            {"key": key, **(value if isinstance(value, dict) else {})}
+            for key, value in raw.items()
+        ]
+    elif isinstance(raw, list):
+        items = [item for item in raw if isinstance(item, dict)]
+    else:
+        items = []
+
+    signals = []
+    for item in items:
+        strength = _optional_float(
+            item.get("signal_strength", item.get("risk_evidence")),
+            scale_percent=True,
+        )
+        confidence = _optional_float(
+            item.get("evidence_confidence"), scale_percent=True
+        )
+        if strength is not None and not 0 <= strength <= 1:
+            strength = None
+        if confidence is not None and not 0 <= confidence <= 1:
+            confidence = None
+        direction = item.get("direction")
+        if not direction and strength is not None:
+            direction = (
+                "Elevated" if strength >= 0.75
+                else "Watch" if strength >= 0.55
+                else "Contained"
+            )
+        elif direction:
+            direction = str(direction).replace("_", " ").title()
+        signals.append(
+            MechanismSignal(
+                name=str(
+                    item.get("name")
+                    or item.get("mechanism_label")
+                    or item.get("label")
+                    or item.get("key")
+                    or "Unlabelled mechanism"
+                ),
+                signal_strength=strength,
+                direction=direction,
+                evidence_confidence=confidence,
+                note=item.get("note") or item.get("dominant_signal_label"),
+            )
+        )
+    return tuple(signals)
+
+
+def build_country_risk_view(
+    score_row: pd.Series,
+    architecture_record: dict | pd.Series | None,
+    *,
+    as_of_date: str | None,
+    early_warning_reportable: bool = True,
+) -> CountryRiskView:
+    """Join the active structural score to an optional research warning record."""
+    record = {} if architecture_record is None else dict(architecture_record)
+    expert = (
+        _optional_text(record.get("hazard_expert"))
+        or _optional_text(record.get("selected_expert"))
+        or "not available"
+    ).replace("_", " ")
+    blockers = record.get("alert_blockers") or record.get("blockers")
+    if isinstance(blockers, list):
+        blockers = "; ".join(str(item) for item in blockers)
+    alert_reason = _optional_text(record.get("alert_reason")) or _optional_text(blockers)
+    alert_status = _optional_text(record.get("alert_status")) or "insufficient evidence"
+    if str(alert_status).lower() == "none":
+        alert_status = "clear"
+    if record and not early_warning_reportable:
+        alert_status = "not issued"
+        alert_reason = (
+            "Country probabilities and review tiers are suppressed because the "
+            "forward validation gate did not pass."
+        )
+
+    tier_labels = {
+        1: "Very low",
+        2: "Low",
+        3: "Moderate",
+        4: "High",
+        5: "Very high",
+    }
+    risk_score = _optional_float(score_row.get("risk_score"))
+    risk_tier = tier_labels.get(score_to_tier(risk_score)) if risk_score is not None else None
+    return CountryRiskView(
+        country_name=str(score_row.get("country_name") or score_row.get("country_code")),
+        operating_environment_score=_optional_float(score_row.get("economic_pillar")),
+        systemic_hazard_1y=(
+            _optional_float(record.get("systemic_hazard_1y"))
+            if early_warning_reportable
+            else None
+        ),
+        systemic_hazard_2_3y=(
+            _optional_float(record.get("systemic_hazard_2_3y"))
+            if early_warning_reportable
+            else None
+        ),
+        alert_status=alert_status,
+        evidence_confidence=_optional_float(
+            record.get("evidence_confidence", record.get("evidence_coverage_score")),
+            scale_percent=True,
+        ),
+        dominant_mechanism=(
+            _optional_text(record.get("dominant_mechanism_label"))
+            or _optional_text(record.get("dominant_mechanism"))
+        ),
+        mechanisms=_mechanism_signal_records(record.get("mechanisms")),
+        model_status=_optional_text(record.get("model_status")) or "research",
+        as_of_date=_optional_text(record.get("as_of_date")) or as_of_date,
+        operating_environment_label="Active structural pillar",
+        alert_reason=alert_reason,
+        evidence_basis=expert.title(),
+        overall_risk_score=risk_score,
+        banking_system_score=_optional_float(score_row.get("industry_pillar")),
+        risk_percentile=_optional_float(score_row.get("risk_percentile")),
+        data_coverage=_optional_float(score_row.get("data_coverage")),
+        risk_tier=risk_tier,
+        hazard_input_coverage=_optional_float(
+            record.get("hazard_evidence_coverage"), scale_percent=True
+        ),
+        mechanism_evidence_coverage=_optional_float(
+            record.get("mechanism_evidence_coverage"), scale_percent=True
+        ),
+    )
 
 
 @st.cache_data(show_spinner=False, max_entries=48)
@@ -2993,16 +3191,31 @@ def render_model_monitoring_summary():
     else:
         st.info("No liquidity candidate score-movement report is packaged with this deployment.")
 
-    with st.expander("Crisis classifier validation and confusion matrix", expanded=False):
+    with st.expander("Active 3-year overlay validation", expanded=False):
         if validation:
-            metric_rows = [
-                {
-                    "Metric": str(key).replace("_", " ").title(),
-                    "Value": _display_value(value),
-                }
-                for key, value in validation.items()
-                if key not in {"notes", "confusion_matrix"}
-            ]
+            metric_rows = []
+            for key, value in validation.items():
+                if key in {"notes", "confusion_matrix"}:
+                    continue
+                if isinstance(value, dict):
+                    for child_key, child_value in value.items():
+                        if isinstance(child_value, (str, int, float, bool)) or child_value is None:
+                            metric_rows.append(
+                                {
+                                    "Metric": (
+                                        f"{str(key).replace('_', ' ')} — "
+                                        f"{str(child_key).replace('_', ' ')}"
+                                    ).title(),
+                                    "Value": _display_value(child_value),
+                                }
+                            )
+                elif isinstance(value, (str, int, float, bool)) or value is None:
+                    metric_rows.append(
+                        {
+                            "Metric": str(key).replace("_", " ").title(),
+                            "Value": _display_value(value),
+                        }
+                    )
             if metric_rows:
                 st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
             if isinstance(validation.get("confusion_matrix"), dict):
@@ -3015,7 +3228,181 @@ def render_model_monitoring_summary():
             st.info("No structured crisis-validation summary is packaged with this deployment.")
 
         if CRISIS_CONFUSION_MATRIX_PATH.exists():
-            st.image(str(CRISIS_CONFUSION_MATRIX_PATH), caption="Crisis classifier confusion matrix")
+            st.image(
+                str(CRISIS_CONFUSION_MATRIX_PATH),
+                caption="Active 3-year overlay confusion matrix",
+            )
+
+
+def render_risk_signal_explorer(
+    selected_country: str,
+    architecture: pd.DataFrame,
+    scores: pd.DataFrame,
+    validation: dict | None = None,
+    reportable: bool = False,
+):
+    """Explore research mechanism signals without mixing them into source data."""
+    st.markdown("### Systemic Risk Signals")
+    st.caption(
+        "Research early-warning outputs are shown separately from the active "
+        "score and from first-hand source observations."
+    )
+    if architecture is None or architecture.empty:
+        st.info("No hierarchical risk snapshot is packaged with this deployment.")
+        return
+    gate_state = validation_gate_state(validation)
+    if gate_state == "failed":
+        st.warning(
+            "The early-warning challenger failed its untouched forward validation "
+            "gate. Country probabilities and review tiers are suppressed; use this "
+            "workspace only for mechanism and coverage diagnosis."
+        )
+    elif gate_state == "unavailable":
+        st.warning(
+            "Forward validation is unavailable. Country probabilities and review "
+            "tiers are not reportable."
+        )
+
+    focus = architecture[architecture["country_code"].eq(selected_country)]
+    if focus.empty:
+        st.info("No research risk record is available for this country.")
+        return
+    focus_record = focus.iloc[0]
+    metrics = st.columns(3)
+    one_year = _optional_float(focus_record.get("systemic_hazard_1y"))
+    medium = _optional_float(focus_record.get("systemic_hazard_2_3y"))
+    if reportable:
+        metrics[0].metric(
+            "1-year crisis-onset probability",
+            "—" if one_year is None else f"{one_year:.1%}",
+        )
+        metrics[1].metric(
+            "Crisis-onset probability in years 2–3",
+            "—" if medium is None else f"{medium:.1%}",
+        )
+    else:
+        metrics[0].metric("Country probabilities", "Not reportable")
+        metrics[1].metric("Forward validation", gate_state.title())
+    raw_status = str(focus_record.get("alert_status") or "insufficient").lower()
+    status_label = {
+        "none": "No active alert",
+        "clear": "No active alert",
+        "amber": "Amber candidate",
+        "red": "Red alert",
+        "insufficient": "Insufficient evidence",
+        "insufficient_evidence": "Insufficient evidence",
+    }.get(raw_status, raw_status.replace("_", " ").title())
+    metrics[2].metric("Review status", status_label if reportable else "Not issued")
+
+    hazard_coverage = _optional_float(
+        focus_record.get("hazard_evidence_coverage"), scale_percent=True
+    )
+    mechanism_coverage = _optional_float(
+        focus_record.get("mechanism_evidence_coverage"), scale_percent=True
+    )
+    coverage_metrics = st.columns(3)
+    coverage_metrics[0].metric(
+        "Hazard input coverage",
+        "—" if hazard_coverage is None else f"{hazard_coverage:.0%}",
+    )
+    coverage_metrics[1].metric(
+        "Mechanism taxonomy coverage",
+        "—" if mechanism_coverage is None else f"{mechanism_coverage:.0%}",
+    )
+    coverage_metrics[2].metric(
+        "Selected hazard expert",
+        str(focus_record.get("hazard_expert") or "Not available")
+        .replace("_", " ")
+        .title(),
+    )
+
+    name_lookup = dict(zip(scores["country_code"], scores["country_name"]))
+    signal_rows = []
+    for _, record in architecture.iterrows():
+        for signal in _mechanism_signal_records(record.get("mechanisms")):
+            signal_rows.append(
+                {
+                    "country_code": record["country_code"],
+                    "Country": name_lookup.get(record["country_code"], record["country_code"]),
+                    "Mechanism": signal.name,
+                    "Signal": signal.signal_strength,
+                    "Evidence": signal.evidence_confidence,
+                    "Direction": signal.direction,
+                }
+            )
+    signals = pd.DataFrame(signal_rows)
+    if signals.empty:
+        st.caption("Mechanism-level evidence is not available in this snapshot.")
+        return
+
+    focus_signals = signals[signals["country_code"].eq(selected_country)].copy()
+    if not focus_signals.empty:
+        st.dataframe(
+            focus_signals[["Mechanism", "Signal", "Evidence", "Direction"]]
+            .sort_values("Signal", ascending=False),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Signal": st.column_config.ProgressColumn(min_value=0.0, max_value=1.0),
+                "Evidence": st.column_config.ProgressColumn(min_value=0.0, max_value=1.0),
+            },
+        )
+
+    mechanism = st.selectbox(
+        "Compare mechanism across countries",
+        options=sorted(signals["Mechanism"].dropna().unique()),
+        key="risk_signal_compare_mechanism",
+    )
+    comparison_pool = (
+        signals[signals["Mechanism"].eq(mechanism)]
+        .dropna(subset=["Signal"])
+        .sort_values(["Signal", "Evidence"], ascending=False)
+    )
+    comparison = comparison_pool.head(25).copy()
+    focus_comparison = comparison_pool[
+        comparison_pool["country_code"].eq(selected_country)
+    ]
+    if (
+        not focus_comparison.empty
+        and not comparison["country_code"].eq(selected_country).any()
+    ):
+        comparison = pd.concat(
+            [comparison.head(24), focus_comparison.head(1)], ignore_index=True
+        )
+    if comparison.empty:
+        st.caption("No comparable country signals are available for this mechanism.")
+        return
+    fig = px.bar(
+        comparison.sort_values("Signal"),
+        x="Signal",
+        y="Country",
+        orientation="h",
+        color="Evidence",
+        color_continuous_scale="Blues",
+        range_color=(0, 1),
+    )
+    fig.update_layout(
+        height=max(360, len(comparison) * 24),
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(range=[0, 1], tickformat=".0%", title="Normalized risk evidence"),
+        yaxis_title=None,
+        coloraxis_colorbar=dict(title="Evidence"),
+    )
+    focus_mask = comparison.sort_values("Signal")["country_code"].eq(selected_country)
+    fig.update_traces(
+        marker_line_color=["#ef5350" if focused else "rgba(0,0,0,0)" for focused in focus_mask],
+        marker_line_width=[2.5 if focused else 0 for focused in focus_mask],
+    )
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        theme="streamlit",
+        key="risk_signal_cross_country_chart",
+    )
+    st.caption(
+        "Signals are empirical risk evidence, not independent crisis probabilities. "
+        "Evidence coverage is displayed separately and low coverage never means low risk."
+    )
 
 
 def render_model_card_summary(
@@ -3029,7 +3416,7 @@ def render_model_card_summary(
     status = str(manifest.get("snapshot_status", "not recorded")).replace("_", " ").title()
     training_date = (pca or {}).get("training_date") or manifest.get("model", {}).get("training_date")
 
-    st.markdown("### Model Card")
+    st.markdown("#### Active model card")
     st.caption("Plain-English summary of the active scoring artifact shown in this app.")
 
     c1, c2, c3, c4 = st.columns(4)
@@ -3248,66 +3635,281 @@ def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
     st.dataframe(pd.DataFrame(gap_rows), use_container_width=True, hide_index=True)
 
 
+def _hierarchical_validation_summary(
+    snapshot: dict,
+    validation: dict,
+) -> ValidationSummary:
+    """Adapt the machine-readable challenger report to the concise UI card."""
+    metrics_payload = validation.get("metrics", {}) if isinstance(validation, dict) else {}
+    metrics: list[ValidationMetric] = []
+    if isinstance(metrics_payload, dict) and isinstance(metrics_payload.get("1y"), dict):
+        one_year = metrics_payload["1y"]
+        medium_horizon = metrics_payload.get("2_3y", {})
+        three_year = metrics_payload.get("3y", {})
+        amber = one_year.get("amber", {})
+        metric_specs = (
+            ("1-year ROC AUC", one_year.get("roc_auc"), "decimal"),
+            ("1-year average precision", one_year.get("average_precision"), "decimal"),
+            ("1-year event rate", one_year.get("prevalence"), "percent"),
+            ("Amber precision", amber.get("precision"), "percent"),
+            ("Amber recall", amber.get("recall"), "percent"),
+            ("Years 2–3 ROC AUC", medium_horizon.get("roc_auc"), "decimal"),
+            ("Years 2–3 average precision", medium_horizon.get("average_precision"), "decimal"),
+            ("3-year ROC AUC", three_year.get("roc_auc"), "decimal"),
+            ("3-year average precision", three_year.get("average_precision"), "decimal"),
+        )
+        for label, value, format_kind in metric_specs:
+            if value is not None:
+                formatted = (
+                    f"{float(value):.1%}"
+                    if format_kind == "percent"
+                    else f"{float(value):.3f}"
+                )
+                metrics.append(ValidationMetric(label, formatted))
+    elif isinstance(metrics_payload, dict):
+        for key, value in metrics_payload.items():
+            if isinstance(value, dict):
+                metric_value = value.get("value")
+                note = value.get("note")
+            else:
+                metric_value = value
+                note = None
+            if metric_value is not None:
+                metrics.append(
+                    ValidationMetric(
+                        str(key).replace("_", " ").title(),
+                        str(metric_value),
+                        note,
+                    )
+                )
+    elif isinstance(metrics_payload, list):
+        for item in metrics_payload:
+            if not isinstance(item, dict):
+                continue
+            label = item.get("label") or item.get("name")
+            value = item.get("value")
+            if label and value is not None:
+                metrics.append(ValidationMetric(str(label), str(value), item.get("note")))
+
+    if not metrics:
+        forward = validation.get("forward_validation", validation) if isinstance(validation, dict) else {}
+        for key in ("roc_auc", "pr_auc", "precision", "recall", "f1", "brier_score"):
+            value = forward.get(key) if isinstance(forward, dict) else None
+            if value is not None:
+                metrics.append(ValidationMetric(key.replace("_", " ").upper(), f"{float(value):.3f}"))
+    if not metrics:
+        metrics.append(ValidationMetric("Validation", "Not yet available"))
+
+    limitations = validation.get("limitations") or validation.get("notes") or []
+    gates = validation.get("promotion_gates", {})
+    if isinstance(gates, dict) and gates.get("passed") is False:
+        failed = [
+            (
+                f"{str(check.get('name', 'gate')).replace('_', ' ')} "
+                f"({check.get('actual')} vs required {check.get('required')})"
+            )
+            for check in gates.get("checks", [])
+            if isinstance(check, dict) and not check.get("passed")
+        ]
+        limitations = [
+            *([limitations] if isinstance(limitations, str) else limitations),
+            "Promotion blocked: " + ", ".join(failed),
+        ]
+    if isinstance(limitations, str):
+        limitations = [limitations]
+    sample_payload = validation.get("sample_description")
+    if isinstance(sample_payload, dict):
+        one_year = metrics_payload.get("1y", {}) if isinstance(metrics_payload, dict) else {}
+        sample_description = (
+            f"{int(sample_payload.get('annual_rows') or 0):,} annual rows; "
+            f"{int(sample_payload.get('countries') or 0):,} countries; "
+            f"forward test {int(one_year.get('rows') or 0):,} rows / "
+            f"{int(one_year.get('positive_events') or 0)} crisis events"
+        )
+    else:
+        sample_description = sample_payload
+    period_payload = validation.get("evaluation_period") or validation.get("test_period")
+    if isinstance(period_payload, dict):
+        def period_text(key: str, label: str) -> str | None:
+            period = period_payload.get(key)
+            if not isinstance(period, dict):
+                return None
+            start = period.get("origin_start", period.get("start"))
+            end = period.get("origin_end", period.get("end"))
+            cutoff = period.get("label_cutoff_exclusive")
+            if end is not None:
+                return f"{label} origins {start}–{end}"
+            if cutoff is not None:
+                return f"{label} origins from {start}; labels before {cutoff}"
+            return f"{label} {start}"
+
+        evaluation_period = "; ".join(
+            part for part in (
+                period_text("training", "train"),
+                period_text("threshold_validation", "tune"),
+                period_text("forward_test", "forward test"),
+            ) if part
+        )
+    else:
+        evaluation_period = str(period_payload or "Not recorded")
+    threshold_payload = validation.get("threshold_policy")
+    if isinstance(threshold_payload, dict):
+        one_policy = threshold_payload.get("one_year", {})
+        amber_policy = one_policy.get("amber", {}) if isinstance(one_policy, dict) else {}
+        red_policy = one_policy.get("red", {}) if isinstance(one_policy, dict) else {}
+        amber_state = (
+            "Amber disabled — no usable validation operating point"
+            if str(amber_policy.get("source", "")).startswith("disabled")
+            else f"Amber threshold {float(amber_policy.get('threshold')):.2%}"
+            if amber_policy.get("threshold") is not None
+            else "Amber not evaluated"
+        )
+        red_state = (
+            "Red disabled — no validated precision tier"
+            if str(red_policy.get("source", "")).startswith("disabled")
+            else f"Red threshold {float(red_policy.get('threshold')):.2%}"
+            if red_policy.get("threshold") is not None
+            else "Red not evaluated"
+        )
+        operating_threshold = f"{amber_state}; {red_state}"
+    else:
+        operating_threshold = threshold_payload or "Provisional Amber and Red policy"
+    return ValidationSummary(
+        model_name=str(
+            validation.get("model_name")
+            or snapshot.get("model_name")
+            or "Discrete-time hazard challenger"
+        ),
+        validation_design=str(
+            validation.get("validation_design")
+            or validation.get("design")
+            or "Forward-time evaluation"
+        ),
+        evaluation_period=evaluation_period,
+        metrics=tuple(metrics[:10]),
+        sample_description=sample_description,
+        operating_threshold=validation.get("operating_threshold") or operating_threshold,
+        status=str(
+            validation.get("status")
+            or snapshot.get("model_status")
+            or "Research"
+        ).replace("_", " ").title(),
+        limitations=tuple(str(item) for item in limitations),
+    )
+
+
+def _confusion_matrix_table(matrix: dict) -> pd.DataFrame | None:
+    if not isinstance(matrix, dict):
+        return None
+    aliases = {
+        "tn": matrix.get("tn", matrix.get("true_negative", matrix.get("true_negatives"))),
+        "fp": matrix.get("fp", matrix.get("false_positive", matrix.get("false_positives"))),
+        "fn": matrix.get("fn", matrix.get("false_negative", matrix.get("false_negatives"))),
+        "tp": matrix.get("tp", matrix.get("true_positive", matrix.get("true_positives"))),
+    }
+    if any(value is None for value in aliases.values()):
+        return None
+    return pd.DataFrame(
+        [
+            {"Actual": "No onset", "No alert": aliases["tn"], "Alert": aliases["fp"]},
+            {"Actual": "Onset", "No alert": aliases["fn"], "Alert": aliases["tp"]},
+        ]
+    )
+
+
+def render_hierarchical_methodology(snapshot: dict, validation: dict):
+    """Surface the research architecture, validation and confusion matrices."""
+    summary = _hierarchical_validation_summary(snapshot, validation)
+    render_methodology_validation(
+        summary,
+        expanded=True,
+        label="Early-warning architecture and forward validation",
+    )
+    matrices = validation.get("confusion_matrices", {}) if isinstance(validation, dict) else {}
+    if not matrices and isinstance(validation, dict) and validation.get("confusion_matrix"):
+        matrices = {"Operating horizon": validation["confusion_matrix"]}
+    if not matrices and isinstance(validation, dict):
+        metric_payload = validation.get("metrics", {})
+        one_year = metric_payload.get("1y", {}) if isinstance(metric_payload, dict) else {}
+        medium_horizon = metric_payload.get("2_3y", {}) if isinstance(metric_payload, dict) else {}
+        three_year = metric_payload.get("3y", {}) if isinstance(metric_payload, dict) else {}
+        threshold_policy = validation.get("threshold_policy", {})
+        one_policy = threshold_policy.get("one_year", {}) if isinstance(threshold_policy, dict) else {}
+        amber_enabled = not str(
+            (one_policy.get("amber", {}) or {}).get("source", "")
+        ).startswith("disabled")
+        red_enabled = not str(
+            (one_policy.get("red", {}) or {}).get("source", "")
+        ).startswith("disabled")
+        matrices = {
+            "1-year Amber": (
+                one_year.get("amber", {}).get("confusion_matrix")
+                if amber_enabled else None
+            ),
+            "1-year Red": (
+                one_year.get("red", {}).get("confusion_matrix")
+                if red_enabled else None
+            ),
+            "Years 2–3 review": medium_horizon.get("review", {}).get("confusion_matrix"),
+            "3-year review": three_year.get("review", {}).get("confusion_matrix"),
+        }
+    rendered = []
+    if isinstance(matrices, dict):
+        for label, matrix in matrices.items():
+            table = _confusion_matrix_table(matrix)
+            if table is not None:
+                rendered.append((str(label).replace("_", " ").title(), table))
+    if rendered:
+        st.markdown("#### Forward-test confusion matrices")
+        matrix_tabs = st.tabs([label for label, _ in rendered])
+        for matrix_tab, (_, table) in zip(matrix_tabs, rendered):
+            with matrix_tab:
+                st.dataframe(table, use_container_width=True, hide_index=True)
+    one_policy = (validation.get("threshold_policy", {}) or {}).get("one_year", {})
+    amber_source = str((one_policy.get("amber", {}) or {}).get("source", ""))
+    red_source = str((one_policy.get("red", {}) or {}).get("source", ""))
+    if amber_source.startswith("disabled") or red_source.startswith("disabled"):
+        st.caption(
+            "Amber is intended as a recall-oriented analyst queue, but it is not "
+            "issued when validation precision or alert burden is unusable. Red is "
+            "disabled until a distinct precision-oriented tier is demonstrated."
+        )
+    else:
+        st.caption(
+            "Amber is the recall-oriented review tier; Red requires stronger "
+            "probability plus corroborating evidence. Mechanism signals and full-"
+            "taxonomy coverage remain distinct from crisis probabilities."
+        )
+
+
 def render_current_methodology(
     scores: pd.DataFrame,
     features: pd.DataFrame | None,
     manifest: dict,
     pca: dict | None,
+    hierarchy_snapshot: dict | None = None,
+    hierarchy_validation: dict | None = None,
 ):
     """Render current, manifest-backed methodology instead of stale README text."""
     st.markdown("## Methodology")
 
-    snapshot_id = manifest.get('snapshot_id', 'unversioned')
-    snapshot_status = manifest.get('snapshot_status', 'manifest unavailable')
-    source_mode = manifest.get('source_mode', 'not recorded')
-    training_date = (pca or {}).get('training_date', 'not recorded')
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Snapshot", snapshot_id)
-    with c2:
-        st.metric("Status", str(snapshot_status).replace('_', ' ').title())
-    with c3:
-        st.metric("Countries", f"{len(scores):,}")
-    with c4:
-        st.metric("Source Mode", str(source_mode).replace('_', ' '))
-
-    st.caption(f"Model training timestamp: {training_date}")
-
-    st.markdown("### Current Model Logic")
-    st.markdown(
-        """
-The app serves a dated country-level snapshot. Source observations are filtered
-to the active cutoff, then each feature uses the latest allowed observation
-available for each country and indicator. Monthly, quarterly, and annual source
-data are preserved in the Data Explorer, but the risk model scores one
-cross-section per snapshot.
-
-The final score is the two-pillar PCA score plus an upward-only crisis
-overlay. Each pillar is a constrained principal component: every feature has a
-declared credit-risk direction (for example, higher NPL ratios can only raise
-risk), so the score cannot learn economically counterintuitive signs from
-covariance alone. Countries missing critical banking soundness fields receive
-a bounded risk penalty instead of relying on imputed values.
-
-The supervised systemic-crisis classifier adds
-`max(0, 0.1 x ((1 + 9 x P(crisis)) - pillar score))`: it is monotone in the
-crisis probability and can never lower a high pillar-based risk score. The
-classifier is trained on annual historical epochs and produces a
-forward-looking three-year risk signal, not a monthly or quarterly crisis
-probability.
-
-Liquidity fields are treated as normal model/source features. Active liquidity
-inputs appear in the same country model-input view as other fields, and the
-underlying external and government series are available in the Explorer source
-selectors for comparison and calculations. Fields not included in the promoted
-model artifact remain insight-only.
-"""
-    )
-
-    card_tab_model, card_tab_data = st.tabs(["Model Card", "Data Card"])
+    card_tab_model, card_tab_data = st.tabs(["Model and Validation", "Data and Sources"])
     with card_tab_model:
         render_model_card_summary(scores, features, manifest, pca)
+        st.markdown("### Research early-warning model")
+        st.caption(
+            "This challenger separates 1-year onset risk, incremental years 2–3 "
+            "risk, mechanism evidence, alert policy, and evidence coverage. It "
+            "does not change the active score unless it passes the stated "
+            "forward-time promotion gates and receives approval."
+        )
+        if hierarchy_snapshot or hierarchy_validation:
+            render_hierarchical_methodology(
+                hierarchy_snapshot or {},
+                hierarchy_validation or {},
+            )
+        else:
+            st.info("No evaluated early-warning artifact is packaged with this snapshot.")
     with card_tab_data:
         render_data_card_summary(features, manifest)
 
@@ -3391,6 +3993,41 @@ if viewing_archived:
     except Exception as snapshot_error:
         st.error(f"Could not load archived snapshot: {snapshot_error}")
         viewing_archived = False
+
+hierarchy_payload, hierarchy_country_frame, hierarchy_validation = (
+    load_hierarchical_risk_artifacts(
+        _artifact_version(
+            HIERARCHICAL_RISK_SNAPSHOT_PATH,
+            HIERARCHICAL_RISK_VALIDATION_PATH,
+        )
+    )
+)
+structural_as_of = (
+    data_manifest.get("as_of_date")
+    or data_manifest.get("snapshot_id")
+)
+hierarchy_gate_state = validation_gate_state(hierarchy_validation)
+hierarchy_outputs_reportable = outputs_reportable(
+    hierarchy_payload,
+    hierarchy_validation,
+    expected_as_of=structural_as_of,
+)
+hierarchy_is_production = outputs_are_production(
+    hierarchy_payload,
+    hierarchy_country_frame,
+    hierarchy_validation,
+    expected_as_of=structural_as_of,
+)
+if not hierarchy_country_frame.empty:
+    hierarchy_country_frame["outputs_reportable"] = hierarchy_outputs_reportable
+    hierarchy_country_frame["effective_production"] = hierarchy_is_production
+if viewing_archived:
+    # The compact hierarchy is built for the active cutoff and must never be
+    # silently paired with a different archived score snapshot.
+    hierarchy_country_frame = pd.DataFrame()
+    hierarchy_outputs_reportable = False
+    hierarchy_is_production = False
+    hierarchy_gate_state = "unavailable"
 
 available_countries = scores_df.sort_values('country_name')[['country_code', 'country_name']].drop_duplicates()
 available_country_codes = available_countries['country_code'].tolist()
@@ -3528,7 +4165,13 @@ tab_global, tab_profile, tab_explorer, tab_methodology = st.tabs([
 # TAB: Global Summary
 # ==============================================================================
 with tab_global:
-    render_global_summary(scores_df, model_features, loader)
+    render_global_summary(
+        scores_df,
+        model_features,
+        loader,
+        risk_architecture=hierarchy_country_frame,
+        risk_validation=hierarchy_validation,
+    )
 
 # ==============================================================================
 # TAB: Country Profile
@@ -3546,96 +4189,110 @@ with tab_profile:
     selected_country_name = country_score_row['country_name']
 
     risk_score = country_score_row['risk_score']
-    tier = score_to_tier(risk_score)
     percentile = (scores_df['risk_score'] < risk_score).mean()
-    overlay_col1, overlay_col2 = st.columns(2)
-    with overlay_col1:
-        show_liquidity_overlay = st.toggle(
-            "Liquidity overlay",
-            value=False,
-            key="profile_liquidity_challenger_overlay",
-            help=(
-                "Monitoring-only overlay for government and external-liquidity "
-                "candidate features. Commodity exposure is excluded."
-            ),
-        )
-    with overlay_col2:
-        show_commodity_overlay = st.toggle(
-            "Commodity overlay",
-            value=False,
-            key="profile_commodity_challenger_overlay",
-            help=(
-                "Monitoring-only overlay for commodity export concentration as "
-                "an external vulnerability factor, not a liquidity metric."
-            ),
-        )
-    overlay_scenario, overlay_label, overlay_groups = candidate_overlay_scenario(
-        show_liquidity_overlay,
-        show_commodity_overlay,
-    )
-    challenger_scores_for_profile = (
-        load_candidate_overlay_scores(overlay_scenario)
-        if overlay_scenario
-        else pd.DataFrame()
-    )
-    challenger_score = None
-    if not challenger_scores_for_profile.empty:
-        challenger_row = challenger_scores_for_profile[
-            challenger_scores_for_profile["country_code"] == selected_country_code
+    architecture_record = None
+    if not hierarchy_country_frame.empty:
+        architecture_match = hierarchy_country_frame[
+            hierarchy_country_frame["country_code"].eq(selected_country_code)
         ]
-        if not challenger_row.empty:
-            challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
-    show_challenger_overlay = overlay_scenario is not None
-
+        if not architecture_match.empty:
+            architecture_record = architecture_match.iloc[0]
+    score_for_view = country_score_row.copy()
+    score_for_view["risk_percentile"] = percentile
+    structural_risk_view = build_country_risk_view(
+        score_for_view,
+        None,
+        as_of_date=structural_as_of,
+        early_warning_reportable=False,
+    )
+    research_risk_view = build_country_risk_view(
+        score_for_view,
+        architecture_record,
+        as_of_date=hierarchy_payload.get("as_of_date"),
+        early_warning_reportable=hierarchy_outputs_reportable,
+    )
+    primary_risk_view = research_risk_view if hierarchy_is_production else structural_risk_view
     with st.container(border=True):
-        st.markdown(f"## {selected_country_name}")
-        tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
-        metric_columns = st.columns(5 if show_challenger_overlay else 4)
-        m1, m2, m3, m4 = metric_columns[:4]
-        m1.metric("Risk Score", f"{risk_score:.1f}/10")
-        m2.metric("Risk Tier", tier_labels.get(tier, "N/A"))
-        m3.metric("Risk Percentile", f"{percentile:.0%}", help="Share of scored countries with a lower risk score.")
-        coverage = country_score_row.get('data_coverage', 0)
-        m4.metric("Data Coverage", f"{coverage:.0%}")
-        if show_challenger_overlay and challenger_score is not None:
-            m5 = metric_columns[4]
-            m5.metric(
-                f"{overlay_label} Overlay",
-                f"{challenger_score:.1f}/10",
-                delta=f"{challenger_score - risk_score:+.1f} vs live",
-                help="Monitoring-only candidate risk score; not the live score.",
-            )
-        if show_challenger_overlay:
-            st.caption(
-                f"{overlay_label} overlay is analytical only. Score Drivers and "
-                "rankings below remain based on the live production score. "
-                "Liquidity and commodity overlays are independent; combined is "
-                "shown only when both toggles are on."
-            )
+        render_country_risk_view(
+            primary_risk_view,
+            title=selected_country_name,
+            show_early_warning=hierarchy_is_production,
+        )
         if country_score_row.get('risk_floor_applied', False):
-            st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
+            st.warning("The active score includes a missing-data risk floor. Interpret it with the coverage shown above.")
 
-    with st.container(border=True):
-        st.markdown("### Score Components")
-        bd1, bd2, bd3 = st.columns(3)
-        with bd1:
-            econ_score = country_score_row['economic_pillar']
-            st.metric(
-                "Operating Environment",
-                f"{econ_score:.1f}/10",
-                delta=f"{econ_score - scores_df['economic_pillar'].mean():.1f} vs avg",
+    if architecture_record is not None and not hierarchy_is_production:
+        with st.expander(
+            f"Research early-warning diagnostic — forward gate {hierarchy_gate_state}",
+            expanded=False,
+        ):
+            if hierarchy_gate_state == "failed":
+                st.warning(
+                    "This challenger failed the untouched forward-performance "
+                    "gate. Country probabilities and review tiers are suppressed; "
+                    "mechanism signals remain descriptive research evidence only."
+                )
+            elif hierarchy_gate_state == "unavailable":
+                st.warning(
+                    "Forward validation is unavailable, so country probabilities "
+                    "and review tiers are not issued."
+                )
+            render_country_risk_view(
+                research_risk_view,
+                title=None,
+                show_structural=False,
             )
-        with bd2:
-            ind_score = country_score_row['industry_pillar']
-            st.metric(
-                "Banking System",
-                f"{ind_score:.1f}/10",
-                delta=f"{ind_score - scores_df['industry_pillar'].mean():.1f} vs avg",
+
+    with st.expander("Scenario overlays", expanded=False):
+        st.caption(
+            "Optional score scenarios are separate from the systemic early-warning "
+            "view above and never change the active score."
+        )
+        overlay_col1, overlay_col2 = st.columns(2)
+        with overlay_col1:
+            show_liquidity_overlay = st.toggle(
+                "Liquidity",
+                value=False,
+                key="profile_liquidity_challenger_overlay",
+                help=(
+                    "Government and external-liquidity candidate features; "
+                    "commodity exposure is excluded."
+                ),
             )
-        with bd3:
-            if 'combined_pillar' in country_score_row:
-                comb_score = country_score_row['combined_pillar']
-                st.metric("Combined Pillar", f"{comb_score:.1f}/10")
+        with overlay_col2:
+            show_commodity_overlay = st.toggle(
+                "Commodity exposure",
+                value=False,
+                key="profile_commodity_challenger_overlay",
+                help="Commodity concentration is a shock exposure, not a liquidity metric.",
+            )
+
+        overlay_scenario, overlay_label, overlay_groups = candidate_overlay_scenario(
+            show_liquidity_overlay,
+            show_commodity_overlay,
+        )
+        challenger_scores_for_profile = (
+            load_candidate_overlay_scores(overlay_scenario)
+            if overlay_scenario
+            else pd.DataFrame()
+        )
+        challenger_score = None
+        if not challenger_scores_for_profile.empty:
+            challenger_row = challenger_scores_for_profile[
+                challenger_scores_for_profile["country_code"].eq(selected_country_code)
+            ]
+            if not challenger_row.empty:
+                challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
+        show_challenger_overlay = overlay_scenario is not None
+        if show_challenger_overlay and challenger_score is not None:
+            st.metric(
+                f"{overlay_label} scenario score",
+                f"{challenger_score:.1f}/10",
+                delta=f"{challenger_score - risk_score:+.1f} vs active",
+                help="Monitoring-only scenario; rankings and drivers remain active-model outputs.",
+            )
+        elif show_challenger_overlay:
+            st.caption("The selected scenario artifact is not packaged with this deployment.")
 
     with st.expander("Score drivers", expanded=False):
         try:
@@ -3960,9 +4617,10 @@ with tab_explorer:
             else:
                 st.caption("No nearest-neighbor peers are available for this country.")
 
-    tool_tab_compare, tool_tab_calc, tool_tab_inspect = st.tabs([
+    tool_tab_compare, tool_tab_calc, tool_tab_signals, tool_tab_inspect = st.tabs([
         "Compare",
         "Calculate",
+        "Risk Signals",
         "Source Inspector",
     ])
     with tool_tab_compare:
@@ -3981,6 +4639,14 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
+    with tool_tab_signals:
+        render_risk_signal_explorer(
+            explorer_focus_country,
+            hierarchy_country_frame,
+            scores_df,
+            hierarchy_validation,
+            reportable=hierarchy_outputs_reportable,
+        )
     with tool_tab_inspect:
         render_source_inspector(
             selected_country=explorer_focus_country,
@@ -3998,6 +4664,8 @@ with tab_methodology:
         features=model_features,
         manifest=data_manifest,
         pca=pca_info,
+        hierarchy_snapshot=hierarchy_payload,
+        hierarchy_validation=hierarchy_validation,
     )
     if SHOW_ADMIN_DIAGNOSTICS:
         with st.expander(
