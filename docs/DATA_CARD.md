@@ -34,6 +34,22 @@ systemic episodes from the source's explicitly borderline Nicaragua 2018,
 Vietnam 2022, and Sri Lanka 2023 cases. Borderline cases are queryable for
 sensitivity analysis but are not positive training targets by default.
 
+## Research-only BIS Historical Supplement
+
+The repository includes an offline adapter for four official BIS bulk data
+sets: total credit (`WS_TC`), the published credit-to-GDP gap
+(`WS_CREDIT_GAP`), debt-service ratios (`WS_DSR`), and selected residential
+property prices (`WS_SPP`). These series are optional model-development inputs.
+They are not in the default feature contract, are not used by the committed
+serving artifacts, and are never retrieved by Streamlit at runtime.
+
+The normalized history is built with
+`python -m src.scripts.fetch_bis_financial_history`. Local cache and manifest
+outputs are ignored by Git and must be promoted through the normal candidate
+data workflow if a future validated model uses them. BIS coverage is narrower
+than the World Bank fallback universe, so country, period, and data-regime
+coverage must be reported before model comparison.
+
 ## Observation Status
 
 New normalized WEO caches preserve:
@@ -63,6 +79,9 @@ Known weak features include:
 - `large_exposure_ratio`: approximately one-third coverage.
 - `sovereign_exposure_fsibsis`: approximately one-third coverage.
 - Several FSIBSIS-derived funding and income features: below 50% coverage.
+- BIS debt-service, credit-gap and property series are higher-quality direct
+  candidates for covered countries but have a materially narrower universe;
+  they remain opt-in research inputs.
 
 Country-level outputs must disclose coverage, freshness, carry-forward, and
 imputation.

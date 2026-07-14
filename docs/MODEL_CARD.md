@@ -58,6 +58,13 @@ are excluded from primary training and reserved for sensitivity analysis.
 The current final score uses a 90% pillar component and a 10% crisis-probability
 component. Scores are bounded from 1 to 10.
 
+The repository also contains inactive model-development utilities for
+discrete-time hazard targets, expanding outcome-year validation, optional BIS
+inputs, and descriptive mechanism evidence. They are not imported by the live
+application, have no committed probability artifact, and do not change the
+current score. Any future output from this tooling must pass the governance
+gate before it is added to this model card as a serving component.
+
 ## Interpretation Limitations
 
 - Pillar scores are relative to the scored country universe.
