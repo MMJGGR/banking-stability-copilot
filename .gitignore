@@ -14,6 +14,8 @@ env/
 
 # Downloaded source snapshots are stored as workflow/release artifacts.
 data/raw/
+/dataset_*_DEFAULT_INTEGRATION_*.csv
+/indicator_survey.csv
 
 # IDE
 .vscode/

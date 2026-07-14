@@ -8,9 +8,9 @@
   "crisis_labels": {
     "borderline_episodes_excluded": 3,
     "source_coverage_end_year": 2025,
-    "source_version": "IMF WP/26/94 (May 2026)",
-    "systemic_countries": 81,
-    "systemic_episodes": 103
+    "source_version": "IMF Working Paper WP/26/94 (May 2026)",
+    "systemic_countries": 120,
+    "systemic_episodes": 161
   },
   "scenarios": {
     "no_confidence_regression": {

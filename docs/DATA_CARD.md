@@ -2,14 +2,14 @@
 
 ## Current Active Sources
 
-| Source | Role | Current effective position |
+| Source | Role | Current serving-manifest position |
 |---|---|---|
-| IMF WEO | Macroeconomic and fiscal indicators | Official SDMX dataflow `IMF.RES:WEO(9.0.0)`; rows through 2031 horizon; snapshot logic separates actuals, estimates, and projections |
-| IMF FSIC | Core banking soundness indicators | Official SDMX dataflow `IMF.STA:FSIC(13.0.1)`; normalized cache reaches 2026-04 |
-| IMF MFS | Monetary and banking balance sheets | Official SDMX dataflow `IMF.STA:MFS_DC(8.0.0)`; normalized cache reaches 2026-05 |
-| IMF FSIBSIS | Detailed banking balance-sheet and income-statement data | Official SDMX dataflow `IMF.STA:FSIBSIS(18.0.0)`; normalized cache reaches 2026-M04 |
-| World Bank WGI | Structural governance indicators | World Bank API; current data through 2024 |
-| IMF systemic banking crises | Supervised target labels | May 2026 Laeven-Valencia release covers 1970-2025; borderline events are excluded from training by default |
+| IMF WEO | Macroeconomic and fiscal indicators | Local normalized cache; 208 countries, 145 indicators, latest included observation 2025-12-31 |
+| IMF FSIC | Core banking soundness indicators | Local normalized cache; 155 countries, 398 indicators, latest included observation 2026-05-31 |
+| IMF MFS | Monetary and banking balance sheets | Local normalized cache; 180 countries, 91 indicators, latest included observation 2026-05-31 |
+| IMF FSIBSIS | Detailed banking balance-sheet and income-statement data | Local normalized cache; 141 countries, 289 observed indicator labels, latest included observation 2026-05-31 |
+| World Bank WGI | Structural governance indicators | Local normalized cache; 207 countries, six measures, latest included observation 2024-12-31 |
+| IMF WP/26/94 crisis episodes | Governed label reference for research/retraining | Exact Appendix I, Table A1 artifact: 161 systemic and three explicitly borderline episodes; not the label build used by the served legacy classifier |
 
 The generated `artifacts/data_manifest.json` is the authoritative machine-
 readable record of the current serving inputs and checksums.
@@ -17,22 +17,26 @@ readable record of the current serving inputs and checksums.
 Current active serving snapshot:
 
 - Snapshot cutoff: `2026-06-30`
-- Manifest status: `verified`
-- Source mode: `official_api_sdmx_worldbank`
+- Manifest status: `verified` (actively served; no recorded `approved` lifecycle transition)
+- Source mode: `local_cached_sources`
+- Generated: `2026-07-12T14:39:35.619879+00:00`
 - Archived official API checkpoint bundle: `artifacts/snapshots/2026-06-30-official-api`
 - Previous local cached-source checkpoint bundle: `artifacts/snapshots/2026-06-30`
 - YE2025 checkpoint bundle: `artifacts/snapshots/2025-12-31`
 
-Freshness note: the `2026-06-30` model is a mid-2026 cutoff snapshot. The
-official IMF banking and monetary sources now include 2026 observations where
-available. WEO remains the October 2025 vintage upstream (`9.0.0`) with a
-forecast horizon through 2031; the model cutoff excludes periods after
-2026-06-30 and does not include WEO projections in scoring.
+Freshness note: the `2026-06-30` model is a mid-2026 cutoff snapshot. Its
+locally cached IMF banking and monetary inputs include May 2026 observations
+where available. The active manifest does not record source dataflow versions,
+so those versions must not be inferred from the archived official-API bundle.
+WEO projections are excluded from scoring.
 
-The crisis-label source is IMF Working Paper 26/94. The project distinguishes
-systemic episodes from the source's explicitly borderline Nicaragua 2018,
-Vietnam 2022, and Sri Lanka 2023 cases. Borderline cases are queryable for
-sensitivity analysis but are not positive training targets by default.
+The governed crisis-label source is Laeven and Valencia (2026), *Systemic
+Banking Crises Database: 1970-2025*, IMF Working Paper WP/26/94, Appendix I,
+Table A1. The pinned CSV preserves all 164 published rows and the source PDF
+checksum. Nicaragua 2018, Vietnam 2022, and Sri Lanka 2023 are explicitly
+borderline and are not positive targets by default. This exact artifact was
+added after the served classifier was trained; it governs research and future
+retraining, not the provenance of the current legacy classifier probabilities.
 
 ## Research-only BIS Historical Supplement
 
@@ -100,8 +104,13 @@ only until a future promoted model includes them.
 | External liquidity | IMF BOP/IIP + World Bank WDI/IDS | Current-account receipts/payments, reserve adequacy, net IIP, external and portfolio liabilities, external debt service, a gross-external-financing-need proxy, FDI flow stability, export-concentration / terms-of-trade, and REER valuation stress | ~79-90% (market/FDI/REER series populate on the next CI fetch) |
 | Government liquidity | IMF WEO general government (`GGXWDG_NGDP`, `GGXCNL_NGDP`, `GGXONLB_NGDP`, `GGR_NGDP`, `GGX_NGDP`, `GGSB_NPGDP`) | Gross public debt, primary/structural balance, implied interest burden, and the rating-agency affordability ratios interest-to-revenue and debt-to-revenue | ~94-100% for core ratios; structural balance ~42% |
 
-In the current promoted 2026-06-30 artifact, `govt_interest_to_revenue` and
-`govt_debt_to_revenue` are production-scored government-liquidity inputs.
+In the current serving 2026-06-30 artifact, the persisted economic loading map
+shows six packaged government-liquidity fields as active score inputs:
+`govt_interest_to_revenue`, `govt_debt_to_revenue`, `govt_revenue_gdp`,
+`govt_interest_to_revenue_change_3y`,
+`govt_debt_to_revenue_change_3y`, and
+`govt_revenue_gdp_change_3y`. The Methodology tab derives this role from the
+served loading map instead of trusting an older candidate-report label.
 
 Government-liquidity build notes:
 

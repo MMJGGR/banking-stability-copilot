@@ -2,28 +2,27 @@
 
 ## Release Status
 
-| Field | Value |
+| Field | Current position |
 |---|---|
-| Current committed artifact | Official API-sourced snapshot dated `2026-06-30` |
+| Serving snapshot | `2026-06-30`, generated `2026-07-12` |
 | Countries scored | 201 |
-| Artifact status | `verified` manifest status; policy approval still pending |
-| Active snapshot cutoff | `2026-06-30` |
+| Manifest status | `verified` and actively served; no recorded transition to the governance lifecycle state `approved` |
+| Source mode | `local_cached_sources` |
+| Governance policy | Approved by `@MMJGGR` on 2026-07-10 |
+| Crisis-validation status | `invalid_superseded`; legacy summary metrics and confusion matrix are withheld in the app |
 | Archived checkpoints | `artifacts/snapshots/2025-12-31`, `artifacts/snapshots/2026-06-30`, `artifacts/snapshots/2026-06-30-official-api` |
-| Production-validation status | Local model checks passed; final promotion requires governance approval |
 
-The active artifact was rebuilt from official IMF SDMX and World Bank API
-retrievals on 2026-07-10. It is a serving-ready candidate, not a formal
-production approval. The mid-2026 snapshot uses WEO dataflow
-`IMF.RES:WEO(9.0.0)`, FSIC `IMF.STA:FSIC(13.0.1)`, MFS
-`IMF.STA:MFS_DC(8.0.0)`, FSIBSIS `IMF.STA:FSIBSIS(18.0.0)`, and WGI through
-2024. The active manifest records official retrieval checksums and source
-versions.
+`artifacts/data_manifest.json` is the authority for the artifact currently
+served. It records a 2026-06-30 cutoff, a 2026-07-12 build, 201 scored
+countries, zero failed model smoke checks, and locally cached IMF/World Bank
+source inputs. The snapshot is serving successfully, but `verified` proves
+artifact integrity and recorded checks; it is not evidence of owner approval
+or external model validation.
 
-New candidate models persist a separate inference-pipeline artifact containing
-training-time imputation values, scaling, PCA transforms and orientation, and
-the reference distributions used for comparable percentile scoring. The crisis
-classifier artifact likewise persists training-time fill values and its
-calibrated estimator.
+The serving artifact persists its feature values and PCA loading maps. The
+separate inference-pipeline artifact contains the fitted imputation values,
+scaling, constrained components, direction rules, and reference distributions
+needed to score a fixed snapshot consistently.
 
 ## Intended Use
 
@@ -42,77 +41,94 @@ It is not intended for:
 - Replacement of country experts or supervisory information.
 - Causal claims about individual indicators.
 
-## Model Structure
+## Current Serving Structure
 
-The current architecture combines:
+The served score combines:
 
-- Economic pillar PCA.
-- Industry pillar PCA.
-- A supervised systemic-banking-crisis classifier.
-- Data-coverage and confidence adjustments.
+- A directionally constrained economic pillar.
+- A directionally constrained banking/industry pillar.
+- Confidence weighting, risk floors, and a bounded critical-field missingness
+  penalty.
+- A legacy supervised systemic-banking-crisis overlay.
 
-The supervised target uses the May 2026 Laeven-Valencia systemic banking crisis
-database through 2025. Events explicitly classified as borderline by the source
-are excluded from primary training and reserved for sensitivity analysis.
+The base pillar score gives equal weight to the economic and industry
+components. The crisis component is not a simple 90/10 average. It can only
+raise risk and is calculated as:
 
-The current final score uses a 90% pillar component and a 10% crisis-probability
-component. Scores are bounded from 1 to 10.
+`max(0, 0.1 x ((1 + 9 x P(crisis)) - pillar score))`
 
-The repository also contains inactive model-development utilities for
-discrete-time hazard targets, expanding outcome-year validation, optional BIS
-inputs, and descriptive mechanism evidence. They are not imported by the live
-application, have no committed probability artifact, and do not change the
-current score. Any future output from this tooling must pass the governance
-gate before it is added to this model card as a serving component.
+The crisis probability and final risk score are different measures; neither
+is a literal probability of bank failure.
+
+## Crisis Labels and Validation Truth
+
+The governed reference artifact is extracted from Appendix I, Table A1 of
+Laeven and Valencia (2026), *Systemic Banking Crises Database: 1970-2025*, IMF
+Working Paper WP/26/94. It contains exactly 164 published rows: 161 systemic
+episodes and three episodes the authors explicitly classify as borderline.
+The borderline Nicaragua 2018, Vietnam 2022, and Sri Lanka 2023 rows are
+excluded from default positive targets.
+
+The served classifier predates that exact reconciliation and was trained on
+the earlier incomplete label implementation. Its packaged grouped/holdout
+summary also selected and reported the operating threshold on the same
+holdout. Consequently, its precision, recall, F1, alert count, and confusion
+matrix are not clean external-test evidence. The app now fails closed and does
+not show them as current validation results.
+
+The repository contains a replacement research foundation with exact labels,
+nested grouped and forward validation, cross-fitted calibration, frozen
+inner-fold thresholds, and out-of-fold ledgers. Tested challengers failed the
+pre-declared 2014-2018 forward holdout (approximately 0.37-0.56 ROC-AUC across
+the tested specifications with an unusable alert burden). No replacement
+classifier, hazard probability, or alert policy was promoted. Active country
+scores remain unchanged by that research work.
 
 ## Interpretation Limitations
 
 - Pillar scores are relative to the scored country universe.
-- A score is not a literal probability of bank failure.
-- The crisis probability and composite score are different measures.
-- Countries with missing data can depend materially on imputation.
-- Confidence floors are policy rules rather than learned model parameters.
-- GDP per capita affects PCA construction and direction and requires bias
-  sensitivity review.
-
-The current machine-readable sensitivity audit is
-`artifacts/model_policy_audit.json`. GDP orientation remains a material policy
-choice because it determines whether higher GDP per capita anchors lower risk
-or whether the PCA sign is allowed to drift. This must remain explicitly
-reviewed before production promotion.
-
-## Validation Standard
-
-Future approved releases must include:
-
-- Country-grouped validation.
-- Out-of-time or rolling-origin evaluation.
-- ROC-AUC and PR-AUC.
-- Recall, precision, false-positive rate, and calibration.
-- Results by region, income group, crisis epoch, and data coverage.
-- Baseline comparisons.
-- Leakage checks.
-- Sensitivity to imputation, confidence floors, and country-universe changes.
-
-Historical README metrics are not approved until reproduced under this
-standard.
-
-## Known Open Risks
-
-- Crisis-label completeness requires independent review.
-- Relative percentile scoring can change when the country universe changes.
+- Countries with missing data can depend materially on imputation and policy
+  floors.
 - Some banking-sector features have less than 50% direct coverage.
-- The model has not completed a formal external validation.
+- The legacy crisis overlay is not a validated stand-alone early-warning
+  model and should not drive decisions.
+- Relative percentile scores can move when the country universe or source
+  coverage changes.
+- The model has not completed formal external validation.
 
-## Release Requirements
+The current sensitivity evidence is
+`artifacts/model_policy_audit.json`. It records the exact WP/26/94 label counts
+and policy sensitivities. Directional constraints make score orientation
+deterministic; GDP per capita remains an input whose inclusion sensitivity is
+reported rather than an uncontrolled sign anchor.
 
-An approved release requires:
+## Validation and Promotion Standard
 
-1. Versioned source and feature manifests.
-2. A fixed snapshot cutoff.
-3. Complete preprocessing-pipeline serialization.
-4. Grouped and out-of-time validation.
-5. Challenger-versus-production comparison.
-6. Material score-movement review.
-7. Artifact checksums.
-8. Named approval and rollback artifact.
+A future classifier or score release must include:
+
+- Exact WP/26/94 label reconciliation and explicit borderline treatment.
+- Country-grouped and expanding out-of-time evaluation.
+- Preprocessing, calibration, and threshold selection fitted without outer
+  test leakage.
+- A final confirmation period untouched by model, feature, calibration, and
+  threshold selection.
+- ROC-AUC, PR-AUC, Brier score, calibration, precision, recall, specificity,
+  false alerts per 100 country-years, event recall, and alert burden.
+- Results by region, income group, crisis epoch, regime, and data coverage.
+- Baseline comparison, confidence intervals, and sensitivity to imputation and
+  country-universe changes.
+- Challenger-versus-production score movement, named approval, checksums, and
+  a rollback artifact.
+
+Validation metrics may appear in the Methodology tab only when the packaged
+summary explicitly carries `validation_status: validated_clean`,
+`clean_validation: true`, and `display_metrics: true`. Historical README or
+artifact metrics without that evidence gate are not approved results.
+
+A confusion-matrix image has an additional, independent gate. The clean report
+must use validation-report `schema_version: 1` and include
+`confusion_matrix_artifact` with `schema_version: 1`, a repository-relative
+`path`, and the image's exact `sha256`. The app resolves the path inside the
+repository and verifies the bytes before display. Clean metrics may be shown
+without an image; an absent, escaped, unsupported, or checksum-mismatched image
+is withheld rather than falling back to a static filename.

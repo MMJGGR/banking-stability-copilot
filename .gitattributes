@@ -5,3 +5,10 @@ cache/*.pkl filter=lfs diff=lfs merge=lfs -text
 # Small bootstrap metadata required during CI collection must remain available
 # when the workflow intentionally skips large Git LFS source artifacts.
 data/reference/systemic_banking_crises_1970_2025.csv !filter !diff !merge text
+
+# Checksummed JSON artifacts must have platform-independent bytes.
+artifacts/model_policy_audit.json text eol=lf
+artifacts/data_manifest.json text eol=lf
+artifacts/crisis_validation_summary.json text eol=lf
+artifacts/government_liquidity_features_report.json text eol=lf
+data/reference/government_liquidity_features_report.json text eol=lf

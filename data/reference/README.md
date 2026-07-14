@@ -31,28 +31,31 @@ labels score role from the active model artifact.
 
 ## Laeven-Valencia crisis episode dataset (required for label provenance)
 
-The training labels in `src/crisis_labels.py` are transcribed from:
+The governed episode artifact is extracted from Appendix I, Table A1 of:
 
 > Laeven, L., & Valencia, F. (2026). Systemic Banking Crises Database:
 > 1970-2025. IMF Working Paper WP/26/94.
 
-IMF web hosts return HTTP 403 to non-browser clients, so the published
-workbook cannot be fetched by automation. To verify the transcription:
+`systemic_banking_crises_1970_2025.csv` contains all 164 published rows: 161
+systemic episodes and three explicitly borderline episodes. Each row carries
+the source table, URL, and pinned source-PDF SHA-256. `src/crisis_labels.py`
+loads and validates this artifact; it is not a separate hand-maintained event
+dictionary.
 
-1. Download the episode dataset (Excel or CSV) from the working-paper page in
-   a browser and place it in this directory.
+IMF web hosts may return HTTP 403 to non-browser clients, so source retrieval
+is an explicit offline step. To reproduce the pinned artifact:
+
+1. Download the official working-paper PDF in a browser.
 2. Run:
 
    ```bash
-   python -m src.scripts.verify_crisis_labels --dataset data/reference/<file>
+   python -m src.scripts.extract_crisis_labels_from_imf_pdf --pdf <WP2694.pdf>
    ```
 
-   Pass `--country-col/--start-col/--end-col/--sheet` if the layout is not
-   auto-detected.
-3. The script pins the file's SHA-256 in `crisis_label_source.json`, writes a
-   reconciliation report to `artifacts/crisis_label_reconciliation.json`, and
-   fails when the in-code dictionary disagrees with the dataset.
+3. The extractor enforces the pinned PDF checksum, exact classification counts,
+   and source-row provenance before writing the CSV.
 
-Once the registry file exists, `tests/test_verify_crisis_labels.py` re-runs
-the reconciliation on every test run, so any future label edit that diverges
-from the pinned dataset fails CI.
+`tests/test_crisis_labels.py` verifies the exact counts, checksum format,
+published dates, and borderline policy on every test run. The older
+`verify_crisis_labels` utility remains available for an optional independent
+cross-check against a separately downloaded workbook/CSV.

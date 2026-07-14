@@ -51,13 +51,58 @@ jobs:
           path: candidate
 
       - name: Install candidate artifacts into working tree
+        shell: bash
         run: |
           set -euo pipefail
-          cp -v candidate/cache/*.parquet candidate/cache/*.pkl cache/
-          cp -v candidate/artifacts/data_manifest.json artifacts/data_manifest.json
-          cp -v candidate/artifacts/model_policy_audit.json artifacts/model_policy_audit.json
-          if [ -f candidate/artifacts/feature_heuristics.json ]; then
-            cp -v candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json
+
+          install_required() {
+            local source="$1"
+            local target="$2"
+            if [ ! -s "$source" ]; then
+              echo "Required candidate artifact is missing or empty: $source" >&2
+              exit 1
+            fi
+            install -D -m 0644 -v "$source" "$target"
+          }
+
+          for filename in \
+            FSIBSIS_cache.parquet \
+            FSIC_cache.parquet \
+            MFS_cache.parquet \
+            WEO_cache.parquet \
+            WGI_cache.parquet \
+            crisis_features.parquet \
+            imputed_features.parquet \
+            risk_model.pkl \
+            inference_pipeline.pkl \
+            crisis_classifier.pkl
+          do
+            install_required "candidate/cache/$filename" "cache/$filename"
+          done
+
+          install_required \
+            candidate/artifacts/data_manifest.json \
+            artifacts/data_manifest.json
+          install_required \
+            candidate/artifacts/model_policy_audit.json \
+            artifacts/model_policy_audit.json
+          install_required \
+            candidate/artifacts/government_liquidity_features_report.json \
+            artifacts/government_liquidity_features_report.json
+          install_required \
+            candidate/data/reference/government_liquidity_features.parquet \
+            data/reference/government_liquidity_features.parquet
+          install_required \
+            candidate/data/reference/government_liquidity_observations.parquet \
+            data/reference/government_liquidity_observations.parquet
+          install_required \
+            candidate/data/reference/government_liquidity_features_report.json \
+            data/reference/government_liquidity_features_report.json
+
+          if [ -s candidate/artifacts/feature_heuristics.json ]; then
+            install -D -m 0644 -v \
+              candidate/artifacts/feature_heuristics.json \
+              artifacts/feature_heuristics.json
           fi
 
       - name: Smoke-test candidate artifacts
@@ -75,7 +120,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add cache artifacts
+          git add -- \
+            cache/FSIBSIS_cache.parquet \
+            cache/FSIC_cache.parquet \
+            cache/MFS_cache.parquet \
+            cache/WEO_cache.parquet \
+            cache/WGI_cache.parquet \
+            cache/crisis_features.parquet \
+            cache/imputed_features.parquet \
+            cache/risk_model.pkl \
+            cache/inference_pipeline.pkl \
+            cache/crisis_classifier.pkl \
+            artifacts/data_manifest.json \
+            artifacts/model_policy_audit.json \
+            artifacts/government_liquidity_features_report.json \
+            data/reference/government_liquidity_features.parquet \
+            data/reference/government_liquidity_observations.parquet \
+            data/reference/government_liquidity_features_report.json
+          if [ -s artifacts/feature_heuristics.json ]; then
+            git add -- artifacts/feature_heuristics.json
+          fi
+          if git diff --cached --quiet; then
+            echo "Candidate bundle is identical to the current serving tree; no promotion PR needed."
+            exit 0
+          fi
           git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
 
           Candidate bundle from Actions run ${RUN_ID}; smoke tests passed."

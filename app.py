@@ -19,6 +19,12 @@ from src.data_loader import (
 )
 from src.country_names import fill_missing_country_names
 from src.health import build_health_report
+from src.model_evidence import (
+    active_model_feature_codes,
+    crisis_validation_display_state,
+    liquidity_feature_role,
+    validated_confusion_matrix_path,
+)
 from src import model_store
 
 SNAPSHOT_ARCHIVE = getattr(model_store, "SNAPSHOT_ARCHIVE", None)
@@ -366,7 +372,6 @@ MODEL_MONITORING_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "liquidity_challenger_comparison.json",
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
-CRISIS_CONFUSION_MATRIX_PATH = BASE_DIR / "artifacts" / "crisis_confusion_matrix.png"
 CANDIDATE_RISK_OVERLAY_SCORE_PATHS = {
     "liquidity": (
         BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
@@ -2675,6 +2680,7 @@ def render_candidate_country_evidence(
     model_features: pd.DataFrame | None,
     overlay_enabled: bool = False,
     selected_groups: list[str] | None = None,
+    active_features: set[str] | None = None,
 ):
     """Show monitored candidate liquidity evidence for the selected country."""
     report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
@@ -2685,6 +2691,11 @@ def render_candidate_country_evidence(
             candidate_features.extend(candidate_groups.get(group, []))
     else:
         candidate_features = report.get("candidate_features") or report.get("added_features") or []
+    if active_features is not None:
+        candidate_features = [
+            feature for feature in candidate_features
+            if feature not in active_features
+        ]
     if not candidate_features:
         return
 
@@ -2709,7 +2720,11 @@ def render_candidate_country_evidence(
 
     govt_coverage = government_report.get("feature_coverage", {})
     external_coverage = external_report.get("feature_coverage", {})
-    active_columns = set(model_features.columns) if model_features is not None else set()
+    active_columns = (
+        active_features
+        if active_features is not None
+        else set(model_features.columns) if model_features is not None else set()
+    )
     rows = []
     for feature in candidate_features:
         if feature not in feature_frame.columns:
@@ -2882,13 +2897,16 @@ def _comparison_block(report: dict) -> dict:
     return {}
 
 
-def _liquidity_feature_status_rows(report: dict) -> list[dict]:
+def _liquidity_feature_status_rows(
+    report: dict,
+    active_features: set[str] | None = None,
+) -> list[dict]:
     govt_report = _load_first_json(GOVT_REPORT_PATHS)
     external_report = _load_first_json(EXTERNAL_REPORT_PATHS)
     govt_coverage = govt_report.get("feature_coverage", {})
     external_coverage = external_report.get("feature_coverage", {})
 
-    def row(feature: str, status: str, group: str) -> dict:
+    def row(feature: str, group: str) -> dict:
         source = "Government liquidity" if feature.startswith("govt_") else "External liquidity"
         coverage = govt_coverage.get(feature) if feature.startswith("govt_") else external_coverage.get(feature)
         coverage = coverage or {}
@@ -2897,7 +2915,7 @@ def _liquidity_feature_status_rows(report: dict) -> list[dict]:
             "Feature": labels.get(feature, feature.replace("_", " ").title()),
             "Code": feature,
             "Group": group,
-            "Role": status,
+            "Role": liquidity_feature_role(feature, report, active_features),
             "Coverage": _display_value(coverage.get("countries"), integer=True),
             "% Scored Countries": (
                 f"{coverage.get('pct_model_countries'):.1f}%"
@@ -2908,9 +2926,17 @@ def _liquidity_feature_status_rows(report: dict) -> list[dict]:
         }
 
     rows: list[dict] = []
+    seen: set[str] = set()
+
+    def append_feature(feature: str, group: str) -> None:
+        if feature in seen:
+            return
+        rows.append(row(feature, group))
+        seen.add(feature)
+
     for feature in report.get("active_features") or []:
         group = "Government" if feature.startswith("govt_") else "External"
-        rows.append(row(feature, "Active score input", group))
+        append_feature(feature, group)
 
     candidate_groups = report.get("candidate_groups") or {}
     if candidate_groups:
@@ -2921,17 +2947,18 @@ def _liquidity_feature_status_rows(report: dict) -> list[dict]:
                 "external_vulnerability": "External vulnerability",
             }.get(group_name, str(group_name).replace("_", " ").title())
             for feature in features:
-                rows.append(row(feature, "Candidate / monitoring", group))
+                append_feature(feature, group)
     else:
         for feature in report.get("candidate_features") or report.get("added_features") or []:
             group = "Government" if feature.startswith("govt_") else "External"
-            rows.append(row(feature, "Candidate / monitoring", group))
+            append_feature(feature, group)
     return rows
 
 
-def render_model_monitoring_summary():
+def render_model_monitoring_summary(pca_info: dict | None = None):
     report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
     validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
+    active_features = active_model_feature_codes(pca_info)
 
     st.markdown("#### Model Monitoring")
     st.caption(
@@ -2965,9 +2992,20 @@ def render_model_monitoring_summary():
         review_basis = str(report.get("review_basis") or "candidate comparison").replace("_", " ")
         st.caption(f"Review basis: {review_basis}. Active serving scores are unchanged by this report.")
 
-        status_rows = _liquidity_feature_status_rows(report)
+        status_rows = _liquidity_feature_status_rows(
+            report,
+            active_features=active_features or None,
+        )
         if status_rows:
             with st.expander("Active and candidate liquidity features", expanded=True):
+                reported_candidates = set(report.get("candidate_features") or [])
+                reclassified = sorted(reported_candidates.intersection(active_features))
+                if reclassified:
+                    st.info(
+                        "This comparison report predates the current serving artifact. "
+                        "Feature roles below are derived from the active model loadings; "
+                        f"{len(reclassified)} formerly monitored field(s) are now active."
+                    )
                 st.dataframe(pd.DataFrame(status_rows), use_container_width=True, hide_index=True)
 
         movements = effect.get("largest_movements") or []
@@ -2993,15 +3031,25 @@ def render_model_monitoring_summary():
     else:
         st.info("No liquidity candidate score-movement report is packaged with this deployment.")
 
-    with st.expander("Crisis classifier validation and confusion matrix", expanded=False):
-        if validation:
+    validation_state = crisis_validation_display_state(validation)
+    with st.expander("Crisis classifier validation status", expanded=False):
+        if not validation:
+            st.info(str(validation_state["reason"]))
+        elif validation_state["display_metrics"]:
             metric_rows = [
                 {
                     "Metric": str(key).replace("_", " ").title(),
                     "Value": _display_value(value),
                 }
                 for key, value in validation.items()
-                if key not in {"notes", "confusion_matrix"}
+                if key not in {
+                    "clean_validation",
+                    "confusion_matrix",
+                    "display_metrics",
+                    "notes",
+                    "status_reason",
+                    "validation_status",
+                }
             ]
             if metric_rows:
                 st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
@@ -3012,10 +3060,29 @@ def render_model_monitoring_summary():
                 for note in validation["notes"]:
                     st.caption(str(note))
         else:
-            st.info("No structured crisis-validation summary is packaged with this deployment.")
+            st.warning("Legacy crisis-classifier metrics are withheld from the Methodology tab.")
+            st.caption(str(validation_state["reason"]))
+            st.caption(
+                "The packaged summary and image remain in the repository for audit history, "
+                "but they are not clean external-test evidence and must not be used to assess "
+                "current model quality."
+            )
 
-        if CRISIS_CONFUSION_MATRIX_PATH.exists():
-            st.image(str(CRISIS_CONFUSION_MATRIX_PATH), caption="Crisis classifier confusion matrix")
+        if validation_state["display_metrics"]:
+            confusion_matrix_path = validated_confusion_matrix_path(
+                validation,
+                BASE_DIR,
+            )
+            if confusion_matrix_path is not None:
+                st.image(
+                    str(confusion_matrix_path),
+                    caption="Crisis classifier confusion matrix",
+                )
+            else:
+                st.caption(
+                    "No schema-versioned, checksum-linked confusion matrix is "
+                    "approved for this validation report."
+                )
 
 
 def render_model_card_summary(
@@ -3076,8 +3143,8 @@ Do not use for:
         },
         {
             "Component": "Crisis classifier",
-            "Current role": "10% final-score blend",
-            "What it captures": "Forward-looking three-year systemic-banking-crisis signal from historical crisis labels.",
+            "Current role": "Upward-only 10% overlay (legacy)",
+            "What it captures": "A three-year crisis signal whose historical validation is superseded and withheld pending a clean replacement.",
         },
         {
             "Component": "Coverage policy",
@@ -3101,8 +3168,8 @@ Do not use for:
             },
             {
                 "Issue": "Crisis overlay",
-                "Why it matters": "The current 90/10 blend is not a literal probability and should not be described as a direct additive penalty.",
-                "Status": "Needs formula review before formal approval",
+                "Why it matters": "The served legacy classifier predates the exact WP/26/94 label artifact, and its old threshold metrics are not clean external-test evidence.",
+                "Status": "Metrics withheld; replacement blocked by forward validation",
             },
             {
                 "Issue": "External liquidity gap",
@@ -3123,7 +3190,7 @@ Do not use for:
         "grouped/out-of-time validation, material score-movement review, challenger comparison, "
         "and named approval with rollback artifacts."
     )
-    render_model_monitoring_summary()
+    render_model_monitoring_summary(pca)
 
 
 def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
@@ -3293,9 +3360,12 @@ a bounded risk penalty instead of relying on imputed values.
 The supervised systemic-crisis classifier adds
 `max(0, 0.1 x ((1 + 9 x P(crisis)) - pillar score))`: it is monotone in the
 crisis probability and can never lower a high pillar-based risk score. The
-classifier is trained on annual historical epochs and produces a
-forward-looking three-year risk signal, not a monthly or quarterly crisis
-probability.
+served classifier produces a forward-looking three-year signal, not a monthly
+or quarterly crisis probability. It predates the exact IMF WP/26/94 episode
+artifact and clean nested validation foundation. Its historical summary and
+confusion matrix are therefore withheld. Leakage-safe research challengers
+failed the forward holdout and were not promoted, so the served crisis output
+must be treated as a legacy overlay rather than a validated probability.
 
 Liquidity fields are treated as normal model/source features. Active liquidity
 inputs appear in the same country model-input view as other fields, and the
@@ -3778,6 +3848,7 @@ with tab_profile:
             model_features,
             overlay_enabled=show_challenger_overlay,
             selected_groups=overlay_groups if show_challenger_overlay else None,
+            active_features=active_model_feature_codes(pca_info),
         )
 
     with st.container(border=True):
