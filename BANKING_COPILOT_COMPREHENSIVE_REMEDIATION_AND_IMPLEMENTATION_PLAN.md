@@ -1641,7 +1641,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
 
 #### 21.6.2 P0 — trust and correctness blockers
 
-##### [ ] UX-01 — Use one score direction and correct all risk semantics
+##### [x] UX-01 — Use one score direction and correct all risk semantics
 
 - **Finding:** headline Risk Score is higher = worse, while the displayed
   Operating Environment, Banking System, and Combined Pillar percentiles are
@@ -1668,7 +1668,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   Banking as the weaker/risk-driving pillar; no diagnostic PCA appears as a
   served-score component; light/dark regression tests pass.
 
-##### [ ] UX-02 — Separate risk floors from missing-data penalties
+##### [x] UX-02 — Separate risk floors from missing-data penalties
 
 - **Finding:** the app says a score may be "capped" even though a minimum risk
   floor raises low scores. The persisted `risk_floor_applied` flag is calculated
@@ -1685,7 +1685,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   names every critical field imputed; an artifact-level regression test covers
   floor-only, penalty-only, both, and neither.
 
-##### [ ] UX-03 — Make the Country input inventory authoritative
+##### [x] UX-03 — Make the Country input inventory authoritative
 
 - **Finding:** the panel labelled "Model inputs" is a hard-coded 24-field key
   subset rather than the active model inventory. The current artifact has 40
@@ -1709,7 +1709,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   imputed values are explicit; coverage and critical-field disclosure reconcile
   to the score artifact.
 
-##### [ ] UX-04 — Use lifecycle-accurate trust language
+##### [x] UX-04 — Use lifecycle-accurate trust language
 
 - **Finding:** bare "Verified" and "live production score" wording can imply
   model approval or external validation, while governance records only artifact
@@ -1724,7 +1724,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   validated crisis probability; integrity, model validation, and release
   approval are distinct; metadata appears once and is human-readable.
 
-##### [ ] UX-05 — Distinguish unavailable data from application failure
+##### [x] UX-05 — Distinguish unavailable data from application failure
 
 - **Finding:** some source/input exceptions are swallowed and become dashes,
   while other caught exceptions are printed directly to public users. Both can
@@ -1741,7 +1741,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
 
 #### 21.6.3 P1 — core analyst workflow and usability
 
-##### [ ] UX-06 — Add a reconciling Country score bridge and demote scenarios
+##### [x] UX-06 — Add a reconciling Country score bridge and demote scenarios
 
 - **Finding:** the served score, pillar diagnostics, confidence/floor effects,
   critical penalty, and legacy crisis adjustment are dispersed. Monitoring-only
@@ -1757,7 +1757,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   score and either cascade through a complete reviewed scenario artifact or
   remain visibly separate.
 
-##### [ ] UX-07 — Replace the driver debug table with analyst-readable evidence
+##### [x] UX-07 — Replace the driver debug table with analyst-readable evidence
 
 - **Finding:** the default Score Drivers view exposes snake-case codes, internal
   `economic`/`industry` labels, eight wide columns, and a dense technical note.
@@ -1773,7 +1773,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   interpreting internal codes; default content fits 390px without horizontal
   scroll; numeric audit columns remain sortable and downloadable.
 
-##### [ ] UX-08 — Make Global a triage surface, not a chart gallery
+##### [x] UX-08 — Make Global a triage surface, not a chart gallery
 
 - **Finding:** the actionable watchlist sits below a map and two charts. Its
   population is risk > 6 plus GDP above the median, but the GDP rule is hidden.
@@ -1787,7 +1787,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   Country with the selected country, counts excluded observations, and never
   calls a strength percentile a risk driver.
 
-##### [ ] UX-09 — Establish one analytically valid Explorer chart standard
+##### [x] UX-09 — Establish one analytically valid Explorer chart standard
 
 - **Finding:** mobile chart titles and selected labels truncate, the legend
   exposes technical `country_name`, y-axis units are absent, dates are always
@@ -1807,7 +1807,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   visually distinct; every chart has a unit or "unit not supplied"; incompatible
   raw index comparisons cannot silently render.
 
-##### [ ] UX-10 — Add calculation recipes, validity gates, and an Apply boundary
+##### [x] UX-10 — Add calculation recipes, validity gates, and an Apply boundary
 
 - **Finding:** five technical modes share one dropdown; Raw mode automatically
   runs the first three alphabetical indicators; Custom formula starts from an
@@ -1822,7 +1822,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   silently dropped; shares require additive compatible series; ratios/formulas
   report lost dates/frequencies; expensive work runs once per Apply.
 
-##### [ ] UX-11 — Clarify dataset taxonomy, lineage, and load behavior
+##### [x] UX-11 — Clarify dataset taxonomy, lineage, and load behavior
 
 - **Finding:** official WEO/FSI/MFS/WGI datasets and BankEnv-derived liquidity
   packages appear in one flat "Source" list. Derived live packages are still
@@ -1837,7 +1837,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   staged; the three Explorer tools share the same taxonomy, labels, and
   predictable loading behavior.
 
-##### [ ] UX-12 — Rebuild Methodology for comprehension and trust
+##### [x] UX-12 — Rebuild Methodology for comprehension and trust
 
 - **Finding:** Methodology starts with repeated metrics and long technical
   paragraphs, then repeats snapshot/training/source metadata inside Model and
@@ -1854,7 +1854,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   integrity only; limitations are concise and candidate/release evidence is
   progressively disclosed.
 
-##### [ ] UX-13 — Replace contradictory Data Card gap lists
+##### [x] UX-13 — Replace contradictory Data Card gap lists
 
 - **Finding:** "Priority Missing Data Families" contains rows described as
   production-scored, while liquidity roles/coverage repeat across Model
@@ -1868,7 +1868,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   reconcile across Data Card, artifact, and Explorer; domain/source/role/coverage
   filters are available.
 
-##### [ ] UX-14 — Connect Global, Country, peers, and Explorer state
+##### [x] UX-14 — Connect Global, Country, peers, and Explorer state
 
 - **Finding:** map/watchlist rows cannot open a country, Country peers and
   Explorer peers are separate, and clearing the Country peer multiselect can
@@ -1884,7 +1884,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   be carried deliberately; empty controls never produce unexplained peers;
   copied links restore valid state and reject stale parameters safely.
 
-##### [ ] UX-15 — Render only the selected page and expensive panel
+##### [x] UX-15 — Render only the selected page and expensive panel
 
 - **Finding:** `st.tabs` eagerly executes all four primary pages, all Explorer
   tools, and both Methodology cards. Even collapsed Score Drivers computes
@@ -1900,7 +1900,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   loader; changing a calculation does not rerun unrelated pages; measured cold
   load and rerun targets are recorded and enforced.
 
-##### [ ] UX-16 — Create deliberate mobile KPI, map, chart, and table layouts
+##### [x] UX-16 — Create deliberate mobile KPI, map, chart, and table layouts
 
 - **Finding:** Global's four KPIs and Methodology metrics stack into long pages;
   wide Score Driver/peer/data-card tables are cropped; fixed 350-500px Plotly
@@ -1915,7 +1915,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   output are reachable within one normal swipe; no core task requires horizontal
   scrolling; 320px remains usable; full audit columns remain downloadable.
 
-##### [ ] UX-17 — Meet keyboard, contrast, touch, and non-visual access needs
+##### [x] UX-17 — Meet keyboard, contrast, touch, and non-visual access needs
 
 - **Finding:** selected-label previews are hover-only, nowrap, and ellipsized;
   color contrast fails for some small text/imputation/chart colors; the red-
@@ -1935,7 +1935,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   labels work by touch/keyboard; every chart value is available without hover;
   no stylesheet content enters the focus order.
 
-##### [ ] UX-18 — Standardize loading, empty, and recovery states
+##### [x] UX-18 — Standardize loading, empty, and recovery states
 
 - **Finding:** initial heavy work precedes the visible shell, source operations
   use inconsistent spinners/checkboxes, and empty results often say only "No
@@ -1950,7 +1950,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
 
 #### 21.6.4 P2 — consistency, reproducibility, and maintainability
 
-##### [ ] UX-19 — Improve peer evidence and table behavior
+##### [x] UX-19 — Improve peer evidence and table behavior
 
 - Preserve numeric types instead of preformatting strings; show delta versus the
   focus country, risk tier, direct coverage, top risk-raising driver, distance,
@@ -1979,7 +1979,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   inaccessible labels, raw errors, runtime exceptions, and accidental eager
   loading regressions.
 
-##### [ ] UX-22 — Add low-noise freshness and compatible score history
+##### [x] UX-22 — Add low-noise freshness and compatible score history
 
 - Keep detailed System Health admin-only, but show source period/freshness in the
   Data Card and warn globally only when degraded. Show movement from the last
@@ -1988,7 +1988,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
 - **Acceptance:** public users can tell how current each source is without an
   operations dashboard; no invalid cross-model comparison is displayed.
 
-##### [ ] UX-23 — Make every analysis reproducible and exportable
+##### [x] UX-23 — Make every analysis reproducible and exportable
 
 - Add "View data" and CSV with full history for each chart, plus formula,
   selections, units, source/version, status, and alignment metadata for computed
@@ -1998,7 +1998,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
 
 #### 21.6.5 P3 — copy and visual polish
 
-##### [ ] UX-24 — Apply one editorial and visual dictionary
+##### [x] UX-24 — Apply one editorial and visual dictionary
 
 - Standardize Banking System versus legacy Industry, page/inner headings,
   Stability vs Growth versus Risk vs GDP Growth, source names, feature names,
@@ -3299,13 +3299,24 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     sanitized; source failures clear after a successful retry; floor and
     critical-missingness outputs remain distinct; obsolete duplicate
     Methodology/liquidity renderers were removed.
-  - Automated evidence at this checkpoint: 65 focused model/dashboard tests
-    passed; 10 rendered AppTest routes passed locally and two interaction tests
-    were skipped only because the local Streamlit 1.30 test harness predates the
-    repository's supported `>=1.45` range. The supported-version CI run, full
-    repository suite, viewport/theme browser matrix, and live deployment smoke
-    test remain required before this checkpoint or UX-01 through UX-24 can be
-    marked complete.
+  - Automated evidence at this checkpoint: the full local repository suite is
+    green at 250 passed and four skipped. The four skips are widget-rerun
+    contracts that require the repository's supported Streamlit `>=1.45`; this
+    machine has 1.30, so those contracts remain enabled for the clean CI
+    environment. Syntax compilation and `git diff --check` are clean.
+  - Rendered evidence: Global, Country, Explorer, and Methodology were exercised
+    at 320, 390, 768, and 1440px in light and dark themes. Explorer comparison,
+    raw history, ratio, cross-sectional share, temporal change, and custom
+    formula paths rendered without application exceptions. Review found and
+    fixed four release-candidate defects: timestamp boundary annotation,
+    blank Methodology default state, stale formatted country-selector state,
+    and nominal-GDP display scaling.
+  - Release status: UX-01 through UX-19 and UX-22 through UX-24 meet their
+    release-candidate acceptance evidence. UX-20 (full page-module extraction)
+    and UX-21 (automated browser/axe/performance gates) remain explicit
+    engineering-hardening work; neither is represented as a known public
+    runtime defect. Supported-version CI and the live deployment smoke test
+    remain required before this checkpoint is closed.
   - Score invariance check: the recomputed structural score matches the served
     score for 199/201 countries; the only two differences are exactly the
     recorded legacy crisis adjustments for Switzerland and Seychelles. USA

@@ -36,10 +36,16 @@ STYLES = """
             Roboto, Helvetica, Arial, sans-serif;
         --bankenv-font-mono: ui-monospace, "SFMono-Regular", Consolas,
             "Liberation Mono", monospace;
-        --bankenv-background: var(--background-color, #FFFFFF);
-        --bankenv-surface: var(--secondary-background-color, #F4F6F8);
-        --bankenv-text: var(--text-color, #111827);
-        --bankenv-primary: var(--primary-color, #0B74DE);
+        /*
+         * Streamlit 1.59 no longer publishes the older --text-color and
+         * --background-color custom properties. CSS system colors resolve
+         * against the app's active color-scheme, including an in-app theme
+         * override that differs from the operating system.
+         */
+        --bankenv-background: Canvas;
+        --bankenv-surface: color-mix(in srgb, CanvasText 8%, Canvas);
+        --bankenv-text: CanvasText;
+        --bankenv-primary: #FF4B4B;
         --bankenv-muted-text: #4B5563;
         --bankenv-muted-text: color-mix(
             in srgb,
@@ -102,7 +108,8 @@ STYLES = """
     }
     
     .block-container {
-        padding-top: 2rem !important;
+        /* Streamlit's fixed 60px toolbar otherwise masks the product mark. */
+        padding-top: 4.5rem !important;
         padding-bottom: 2rem !important;
         max-width: 1180px;
     }
@@ -533,10 +540,6 @@ STYLES = """
     }
 
     @media (max-width: 380px) {
-        .bankenv-kpi-grid {
-            grid-template-columns: 1fr;
-        }
-
         div[data-testid="stHorizontalBlock"]:has(
             > div[data-testid="stColumn"] div[data-testid="stMetric"]
         ) > div[data-testid="stColumn"] {

@@ -7,6 +7,7 @@ import json
 import re
 import logging
 from pathlib import Path
+from urllib.parse import urlencode
 
 from src.data_loader import (
     FSIBSISLoader,
@@ -53,6 +54,7 @@ else:
         raise FileNotFoundError("Archived snapshots are unavailable in this deployment")
 from src.dashboard.styles import score_to_tier
 from src.dashboard.presentation import (
+    add_time_boundary,
     accessible_plotly_config,
     apply_responsive_chart_layout,
     format_identifier,
@@ -465,6 +467,8 @@ render_dashboard_styles()
 
 
 PRIMARY_VIEWS = ("Global", "Country", "Explorer", "Methodology")
+EXPLORER_TOOLS = ("Compare", "Calculate", "Source Inspector")
+EXPLORER_TOOL_LOOKUP = {tool.lower(): tool for tool in EXPLORER_TOOLS}
 
 
 def _query_param_value(name: str, default: str = "") -> str:
@@ -481,21 +485,111 @@ def _query_param_value(name: str, default: str = "") -> str:
 def _sync_public_query_state() -> None:
     """Keep shareable page/country state in the URL without exposing internals."""
     try:
-        st.query_params["view"] = str(
-            st.session_state.get("primary_view", "Global")
-        ).lower()
+        active_view = str(st.session_state.get("primary_view", "Global"))
+        st.query_params["view"] = active_view.lower()
         country_code = st.session_state.get("profile_country_code")
         if country_code:
             st.query_params["country"] = str(country_code).upper()
         explorer_country = st.session_state.get("explorer_focus_country")
-        if explorer_country:
+        if active_view == "Explorer" and explorer_country:
             st.query_params["explorer_country"] = str(explorer_country).upper()
         explorer_tool = st.session_state.get("explorer_tool")
-        if explorer_tool:
+        if active_view == "Explorer" and explorer_tool:
             st.query_params["tool"] = str(explorer_tool).lower()
+        if active_view == "Country":
+            peer_country = str(country_code or "").upper()
+        elif active_view == "Explorer":
+            peer_country = str(explorer_country or country_code or "").upper()
+        else:
+            peer_country = ""
+        peer_codes = [
+            str(code).upper()
+            for code in st.session_state.get(
+                f"shared_peer_codes_{peer_country}",
+                [],
+            )
+            if re.fullmatch(r"[A-Z0-9]{3}", str(code).upper())
+        ][:8]
+        if peer_codes:
+            st.query_params["peers"] = ",".join(dict.fromkeys(peer_codes))
+        elif "peers" in st.query_params:
+            del st.query_params["peers"]
+
+        if active_view == "Explorer":
+            source_key = {
+                "Compare": "compare_source",
+                "Calculate": "calc_source",
+                "Source Inspector": "inspect_source",
+            }.get(str(explorer_tool))
+            source_label = st.session_state.get(source_key) if source_key else None
+            source_map = (
+                _explorer_source_options()[1]
+                if "_explorer_source_options" in globals()
+                else {}
+            )
+            source_code = source_map.get(source_label)
+            if source_code:
+                st.query_params["source"] = str(source_code).lower()
+            elif (
+                _query_param_value("source").strip().upper()
+                not in {str(value).upper() for value in source_map.values()}
+                and "source" in st.query_params
+            ):
+                del st.query_params["source"]
+
+            if str(explorer_tool) == "Compare":
+                indicator = (
+                    st.session_state.get(f"compare_indicator_{source_code}")
+                    if source_code
+                    else _query_param_value("indicator")
+                )
+                if indicator is not None and re.fullmatch(
+                    r"[A-Za-z0-9_.:-]{1,120}", str(indicator)
+                ):
+                    st.query_params["indicator"] = str(indicator)
+                elif "indicator" in st.query_params:
+                    del st.query_params["indicator"]
+            elif "indicator" in st.query_params:
+                del st.query_params["indicator"]
+        else:
+            for key in ("explorer_country", "tool", "source", "indicator"):
+                if key in st.query_params:
+                    del st.query_params[key]
     except Exception:
         # URL state is a convenience; it must never prevent the app from loading.
         return
+
+
+def _render_shareable_state_link() -> None:
+    """Expose the current safe public state as a copyable production URL."""
+
+    public_base = os.getenv(
+        "BANKENV_PUBLIC_URL",
+        "https://bankenv.streamlit.app",
+    ).rstrip("/")
+    safe_keys = (
+        "view",
+        "country",
+        "explorer_country",
+        "tool",
+        "peers",
+        "source",
+        "indicator",
+    )
+    params = {
+        key: _query_param_value(key)
+        for key in safe_keys
+        if _query_param_value(key)
+    }
+    url = public_base + "/"
+    if params:
+        url += "?" + urlencode(params)
+    with st.expander("Share current analysis", expanded=False):
+        st.code(url, language=None)
+        st.caption(
+            "The link restores only public navigation, country, peer, source, "
+            "and indicator state; stale values are ignored safely."
+        )
 
 
 def _render_brand_shell() -> None:
@@ -565,6 +659,15 @@ primary_view = _segmented_navigation(
 )
 if primary_view not in PRIMARY_VIEWS:
     primary_view = "Global"
+st.session_state.setdefault(
+    "explorer_tool",
+    EXPLORER_TOOL_LOOKUP.get(
+        _query_param_value("tool", "compare").strip().lower(),
+        "Compare",
+    ),
+)
+if st.session_state.get("explorer_tool") not in EXPLORER_TOOLS:
+    st.session_state["explorer_tool"] = "Compare"
 
 # ==============================================================================
 # DATA LOADING (Cached)
@@ -652,12 +755,21 @@ def load_archived_snapshot_cached(name: str):
 def find_prior_comparable_score(
     country_code: str,
     current_snapshot: str,
-    economic_features: tuple[str, ...],
-    banking_features: tuple[str, ...],
+    current_status: str,
+    economic_loadings: tuple[tuple[str, float], ...],
+    banking_loadings: tuple[tuple[str, float], ...],
     economic_weight: float,
     banking_weight: float,
 ) -> dict:
-    """Return the newest earlier score only when the fitted contract matches."""
+    """Return prior score only for approved, exactly compatible model contracts."""
+    if str(current_status).lower() != "approved":
+        return {
+            "available": False,
+            "reason": (
+                "Comparable score movement is withheld because approval is not "
+                "recorded for the current serving artifact."
+            ),
+        }
     candidates = [
         name for name in list_archived_snapshots()
         if "challenger" not in name.lower()
@@ -666,10 +778,28 @@ def find_prior_comparable_score(
     for name in sorted(candidates, reverse=True):
         try:
             artifact, archive_manifest = load_archived_snapshot(name)
+            if str((archive_manifest or {}).get("snapshot_status", "")).lower() != "approved":
+                continue
             archive_pca = artifact.get("pca_info", {})
+            archive_economic = tuple(
+                sorted(
+                    (str(feature), round(float(loading), 12))
+                    for feature, loading in archive_pca.get(
+                        "economic_loadings", {}
+                    ).items()
+                )
+            )
+            archive_banking = tuple(
+                sorted(
+                    (str(feature), round(float(loading), 12))
+                    for feature, loading in archive_pca.get(
+                        "industry_loadings", {}
+                    ).items()
+                )
+            )
             compatible = (
-                set(archive_pca.get("economic_loadings", {})) == set(economic_features)
-                and set(archive_pca.get("industry_loadings", {})) == set(banking_features)
+                archive_economic == economic_loadings
+                and archive_banking == banking_loadings
                 and float(archive_pca.get("economic_weight", 0.5)) == float(economic_weight)
                 and float(archive_pca.get("industry_weight", 0.5)) == float(banking_weight)
             )
@@ -693,7 +823,7 @@ def find_prior_comparable_score(
             LOGGER.exception("Could not inspect archived snapshot %s", name)
     return {
         "available": False,
-        "reason": "No earlier reviewed snapshot uses the same active feature and weighting contract.",
+        "reason": "No earlier approved snapshot uses the exact same fitted loading and weighting contract.",
     }
 
 
@@ -1264,6 +1394,11 @@ def render_indicator_comparison(
             default_countries.append(code)
     default_countries = default_countries[:5]
     source_options, source_to_dataset = _explorer_source_options()
+    source_kwargs = _source_selectbox_kwargs(
+        "compare_source",
+        source_options,
+        source_to_dataset,
+    )
 
     control_col1, control_col2 = st.columns([1, 3])
     with control_col1:
@@ -1271,6 +1406,7 @@ def render_indicator_comparison(
             "Source",
             source_options,
             key="compare_source",
+            **source_kwargs,
         )
     with control_col2:
         compare_countries = st.multiselect(
@@ -1333,11 +1469,32 @@ def render_indicator_comparison(
 
     indicator_col1, indicator_col2, indicator_col3 = st.columns([3, 1, 1])
     with indicator_col1:
+        indicator_key = f"compare_indicator_{dataset}"
+        requested_indicator = _query_param_value("indicator").strip()
+        preferred_indicator = next(
+            (
+                candidate
+                for candidate in (
+                    requested_indicator,
+                    "PCPIEPCH",
+                    "PCPIPCH",
+                )
+                if candidate in indicator_options
+            ),
+            indicator_options[0],
+        )
+        indicator_select_kwargs = {}
+        if st.session_state.get(indicator_key) not in indicator_options:
+            st.session_state.pop(indicator_key, None)
+            indicator_select_kwargs["index"] = indicator_options.index(
+                preferred_indicator
+            )
         selected_indicator = st.selectbox(
             "Indicator",
             options=indicator_options,
             format_func=lambda x: display_map[x],
-            key=f"compare_indicator_{dataset}",
+            key=indicator_key,
+            **indicator_select_kwargs,
         )
         render_full_label(display_map[selected_indicator])
     with indicator_col2:
@@ -1383,11 +1540,20 @@ def render_indicator_comparison(
                 chart_df = chart_df[chart_df['frequency'] == selected_freq]
 
     comparison_unit = str(comparison_metadata.get("Unit") or "Not specified")
-    if "index" in comparison_unit.lower() and len(compare_countries) > 1:
+    comparison_label = display_map[selected_indicator].lower()
+    index_level_series = (
+        "index" in comparison_unit.lower()
+        or (
+            re.search(r"\bindex\b", comparison_label, re.IGNORECASE) is not None
+            and "percent change" not in comparison_label
+            and not str(selected_indicator).upper().endswith("PCH")
+        )
+    )
+    if index_level_series and len(compare_countries) > 1:
         st.error(
             "Cross-country comparison is blocked because this source index may "
-            "use country-specific base values. Use Calculate → Change over time "
-            "and rebase each country to 100."
+            "use country-specific base values. Use Calculate, choose Temporal "
+            "change / index, and rebase each country to 100."
         )
         return
     if not st.button(
@@ -1454,12 +1620,10 @@ def render_indicator_comparison(
             )
         ]
         if not projected.empty:
-            fig.add_vline(
-                x=projected["date"].min(),
-                line_dash="dot",
-                line_color="#7C8798",
-                annotation_text="Projection begins",
-                annotation_position="top right",
+            add_time_boundary(
+                fig,
+                projected["date"].min(),
+                label="Projection begins",
             )
     focus_label = country_formatter(selected_country)
     for trace in fig.data:
@@ -1628,6 +1792,27 @@ def _explorer_source_options() -> tuple[list[str], dict[str, str]]:
     return source_options, source_to_dataset
 
 
+def _source_selectbox_kwargs(
+    key: str,
+    source_options: list[str],
+    source_to_dataset: dict[str, str],
+) -> dict:
+    """Return a safe initial index for URL-restored source state."""
+
+    requested_code = _query_param_value("source").strip().upper()
+    reverse_map = {
+        str(dataset).upper(): label
+        for label, dataset in source_to_dataset.items()
+    }
+    requested_label = reverse_map.get(requested_code)
+    current = st.session_state.get(key)
+    if current in source_options:
+        return {}
+    st.session_state.pop(key, None)
+    desired = requested_label if requested_label in source_options else source_options[0]
+    return {"index": source_options.index(desired)}
+
+
 def render_source_inspector(
     selected_country: str,
     country_formatter,
@@ -1640,12 +1825,18 @@ def render_source_inspector(
     )
 
     source_options, source_to_dataset = _explorer_source_options()
+    source_kwargs = _source_selectbox_kwargs(
+        "inspect_source",
+        source_options,
+        source_to_dataset,
+    )
     source_col, action_col = st.columns([2, 3])
     with source_col:
         source_choice = st.selectbox(
             "Source",
             source_options,
             key="inspect_source",
+            **source_kwargs,
         )
     dataset = source_to_dataset[source_choice]
     inspection_key = f"{dataset}:{str(selected_country).upper()}"
@@ -2096,12 +2287,10 @@ def _render_calculated_chart(
             )
         ]
         if not projected.empty:
-            fig.add_vline(
-                x=projected["date"].min(),
-                line_dash="dot",
-                line_color="#7C8798",
-                annotation_text="Projection begins",
-                annotation_position="top right",
+            add_time_boundary(
+                fig,
+                projected["date"].min(),
+                label="Projection begins",
             )
     st.plotly_chart(
         fig,
@@ -2417,10 +2606,16 @@ def render_calculated_series_builder(
         )
         return
 
+    calc_source_kwargs = _source_selectbox_kwargs(
+        "calc_source",
+        source_options,
+        source_to_dataset,
+    )
     source_choice = st.selectbox(
         "Source",
         source_options,
         key="calc_source",
+        **calc_source_kwargs,
     )
     dataset = source_to_dataset[source_choice]
 
@@ -3124,10 +3319,7 @@ def render_methodology_workspace(
         "Data and Coverage",
         "Validation and Release",
     )
-    if st.session_state.get("methodology_section") not in {
-        None,
-        *methodology_sections,
-    }:
+    if st.session_state.get("methodology_section") not in methodology_sections:
         st.session_state["methodology_section"] = methodology_sections[0]
     section = _segmented_navigation(
         "Methodology section",
@@ -3256,7 +3448,9 @@ def render_methodology_workspace(
                 })
             coverage_table = pd.DataFrame(coverage_rows).sort_values(["Direct Coverage", "Input"])
             st.markdown("### Active-Input Coverage")
-            filter_a, filter_b, filter_c, filter_d = st.columns([2, 1, 1, 1])
+            filter_a, filter_b, filter_c, filter_d, filter_e = st.columns(
+                [2, 1, 1, 1, 1]
+            )
             with filter_a:
                 coverage_search = st.text_input(
                     "Search active inputs",
@@ -3281,6 +3475,18 @@ def render_methodology_workspace(
                     ["All", *sorted(coverage_table["Role"].dropna().unique())],
                     key="methodology_coverage_role",
                 )
+            with filter_e:
+                coverage_band = st.selectbox(
+                    "Coverage",
+                    [
+                        "All",
+                        "Complete",
+                        "High (90%+)",
+                        "Partial (<90%)",
+                        "Unavailable",
+                    ],
+                    key="methodology_coverage_band",
+                )
             filtered_coverage = coverage_table.copy()
             if coverage_search.strip():
                 needle = coverage_search.strip().lower()
@@ -3302,6 +3508,24 @@ def render_methodology_workspace(
             if coverage_role != "All":
                 filtered_coverage = filtered_coverage[
                     filtered_coverage["Role"] == coverage_role
+                ]
+            if coverage_band == "Complete":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Direct Coverage"] >= 1.0
+                ]
+            elif coverage_band == "High (90%+)":
+                filtered_coverage = filtered_coverage[
+                    (filtered_coverage["Direct Coverage"] >= 0.9)
+                    & (filtered_coverage["Direct Coverage"] < 1.0)
+                ]
+            elif coverage_band == "Partial (<90%)":
+                filtered_coverage = filtered_coverage[
+                    (filtered_coverage["Direct Coverage"] > 0.0)
+                    & (filtered_coverage["Direct Coverage"] < 0.9)
+                ]
+            elif coverage_band == "Unavailable":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Direct Coverage"] <= 0.0
                 ]
             st.dataframe(
                 filtered_coverage,
@@ -3588,6 +3812,29 @@ if _requested_explorer_country not in available_country_codes:
     )
 if st.session_state.get("explorer_focus_country") not in available_country_codes:
     st.session_state["explorer_focus_country"] = _requested_explorer_country
+_requested_peer_codes = [
+    code.strip().upper()
+    for code in _query_param_value("peers").split(",")
+    if code.strip()
+]
+if _requested_peer_codes:
+    peer_focus = (
+        st.session_state["profile_country_code"]
+        if primary_view == "Country"
+        else st.session_state["explorer_focus_country"]
+    )
+    restored_peers = list(
+        dict.fromkeys(
+            code
+            for code in _requested_peer_codes
+            if code in available_country_codes and code != peer_focus
+        )
+    )[:8]
+    st.session_state[f"shared_peer_codes_{peer_focus}"] = restored_peers
+    if peer_focus == st.session_state["profile_country_code"]:
+        st.session_state[
+            f"custom_peer_codes_{peer_focus}"
+        ] = restored_peers
 _sync_public_query_state()
 
 # ==============================================================================
@@ -3600,14 +3847,34 @@ if primary_view == "Global":
 # VIEW: Country Profile
 # ==============================================================================
 if primary_view == "Country":
+    profile_selector_key = "_profile_country_selector"
+    profile_selector_kwargs = {}
+    if (
+        st.session_state.get(profile_selector_key) not in available_country_codes
+        or st.session_state.get(profile_selector_key)
+        != st.session_state["profile_country_code"]
+    ):
+        st.session_state.pop(profile_selector_key, None)
+        profile_selector_kwargs["index"] = available_country_codes.index(
+            st.session_state["profile_country_code"]
+        )
+
+    def _commit_profile_country_selection() -> None:
+        selected = st.session_state.get(profile_selector_key)
+        if selected in available_country_codes:
+            st.session_state["profile_country_code"] = selected
+        _sync_public_query_state()
+
     selected_country_code = st.selectbox(
         "Country",
         options=available_country_codes,
         format_func=format_country_option,
-        key="profile_country_code",
-        on_change=_sync_public_query_state,
+        key=profile_selector_key,
+        on_change=_commit_profile_country_selection,
         help="This selector controls the Country tab only.",
+        **profile_selector_kwargs,
     )
+    st.session_state["profile_country_code"] = selected_country_code
 
     country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
     selected_country_name = country_score_row['country_name']
@@ -3629,8 +3896,23 @@ if primary_view == "Country":
     prior_score_evidence = find_prior_comparable_score(
         selected_country_code,
         str(data_manifest.get("snapshot_id") or ""),
-        tuple(sorted((pca_info or {}).get("economic_loadings", {}))),
-        tuple(sorted((pca_info or {}).get("industry_loadings", {}))),
+        str(data_manifest.get("snapshot_status") or ""),
+        tuple(
+            sorted(
+                (str(feature), round(float(loading), 12))
+                for feature, loading in (pca_info or {}).get(
+                    "economic_loadings", {}
+                ).items()
+            )
+        ),
+        tuple(
+            sorted(
+                (str(feature), round(float(loading), 12))
+                for feature, loading in (pca_info or {}).get(
+                    "industry_loadings", {}
+                ).items()
+            )
+        ),
         float((pca_info or {}).get("economic_weight", 0.5)),
         float((pca_info or {}).get("industry_weight", 0.5)),
     )
@@ -3687,7 +3969,7 @@ if primary_view == "Country":
             help="Share of scored countries with a lower risk score.",
         )
         m4.metric(
-            "Direct Active-Input Coverage",
+            "Direct Coverage",
             f"{direct_count}/{direct_total}",
             help=(
                 "Reported or derived values present before scoring imputation, "
@@ -3987,145 +4269,6 @@ if primary_view == "Country":
                 )
 
     with st.container(border=True):
-        st.markdown("## Model Evidence")
-        st.caption(
-            "The inventory is derived from the fitted loading maps. Every active "
-            "input shows the value used for scoring, unit, source family, period, "
-            "and whether the value was direct or imputed."
-        )
-        inventory_df = input_inventory.rows.copy()
-        if inventory_df.empty:
-            st.info(
-                "The active loading-map inventory is unavailable for this snapshot. "
-                "The served score can be viewed, but its input evidence cannot be listed."
-            )
-        else:
-            strongest = (
-                inventory_df.assign(_importance=inventory_df["loading"].abs())
-                .sort_values(["pillar", "_importance"], ascending=[True, False])
-                .groupby("pillar", sort=False)
-                .head(6)
-                .drop(columns="_importance")
-            )
-            compact = strongest[
-                [
-                    "label", "pillar_label", "value", "unit", "period",
-                    "status", "evidence_type",
-                ]
-            ].rename(
-                columns={
-                    "label": "Input",
-                    "pillar_label": "Pillar",
-                    "value": "Value Used",
-                    "unit": "Unit",
-                    "period": "Period",
-                    "status": "Status",
-                    "evidence_type": "Evidence Type",
-                }
-            )
-            st.markdown("### Key Active Inputs")
-            st.dataframe(
-                compact,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Input": st.column_config.TextColumn(width="large"),
-                    "Value Used": st.column_config.NumberColumn(format="%.2f"),
-                },
-            )
-            with st.expander(
-                f"All {len(inventory_df)} Active Inputs",
-                expanded=False,
-            ):
-                filter_col1, filter_col2, filter_col3 = st.columns([2, 1, 1])
-                with filter_col1:
-                    evidence_search = st.text_input(
-                        "Search inputs",
-                        key=f"evidence_search_{selected_country_code}",
-                        placeholder="Feature, source, or unit",
-                    )
-                with filter_col2:
-                    pillar_filter = st.selectbox(
-                        "Pillar",
-                        options=["All", *sorted(inventory_df["pillar_label"].unique())],
-                        key=f"evidence_pillar_{selected_country_code}",
-                    )
-                with filter_col3:
-                    status_filter = st.selectbox(
-                        "Status",
-                        options=["All", *sorted(inventory_df["status"].unique())],
-                        key=f"evidence_status_{selected_country_code}",
-                    )
-                filtered_inventory = inventory_df.copy()
-                if evidence_search.strip():
-                    needle = evidence_search.strip().lower()
-                    search_columns = [
-                        "label", "feature", "source_family", "unit", "pillar_label"
-                    ]
-                    mask = pd.Series(False, index=filtered_inventory.index)
-                    for column in search_columns:
-                        mask |= filtered_inventory[column].astype(str).str.lower().str.contains(
-                            needle,
-                            regex=False,
-                        )
-                    filtered_inventory = filtered_inventory.loc[mask]
-                if pillar_filter != "All":
-                    filtered_inventory = filtered_inventory[
-                        filtered_inventory["pillar_label"] == pillar_filter
-                    ]
-                if status_filter != "All":
-                    filtered_inventory = filtered_inventory[
-                        filtered_inventory["status"] == status_filter
-                    ]
-                authoritative = filtered_inventory[
-                    [
-                        "label", "feature", "pillar_label", "value", "unit",
-                        "period", "status", "evidence_type", "source_family",
-                        "model_role",
-                    ]
-                ].rename(
-                    columns={
-                        "label": "Input",
-                        "feature": "Technical Code",
-                        "pillar_label": "Pillar",
-                        "value": "Value Used",
-                        "unit": "Unit",
-                        "period": "Period",
-                        "status": "Status",
-                        "evidence_type": "Evidence Type",
-                        "source_family": "Source / Lineage",
-                        "model_role": "Score Role",
-                    }
-                )
-                st.dataframe(
-                    authoritative,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Input": st.column_config.TextColumn(width="large"),
-                        "Value Used": st.column_config.NumberColumn(format="%.3f"),
-                    },
-                )
-                st.download_button(
-                    "Download Active-Input Evidence",
-                    data=authoritative.to_csv(index=False).encode("utf-8"),
-                    file_name=(
-                        f"bankenv_{selected_country_code.lower()}_active_inputs_"
-                        f"{snapshot_label}.csv"
-                    ),
-                    mime="text/csv",
-                    key=f"download_inputs_{selected_country_code}",
-                )
-
-        render_candidate_country_evidence(
-            selected_country_code,
-            model_features,
-            overlay_enabled=False,
-            selected_groups=None,
-            active_features=active_feature_codes,
-        )
-
-    with st.container(border=True):
         st.markdown("## Peer Comparison")
 
         peers_df = safe_find_peers(
@@ -4178,7 +4321,21 @@ if primary_view == "Country":
             if peer_codes
             else "No peers selected"
         )
-        peer_status_col, peer_reset_col = st.columns([3, 1])
+
+        def _open_peer_set_in_explorer() -> None:
+            st.session_state[f"shared_peer_codes_{selected_country_code}"] = list(
+                peer_codes
+            )
+            st.session_state["explorer_focus_country"] = selected_country_code
+            st.session_state.pop("_explorer_focus_selector", None)
+            st.session_state["explorer_tool"] = "Compare"
+            st.session_state[
+                f"compare_countries_{selected_country_code}"
+            ] = [selected_country_code, *peer_codes][:8]
+            st.session_state["primary_view"] = "Explorer"
+            _sync_public_query_state()
+
+        peer_status_col, peer_reset_col, peer_analyze_col = st.columns([3, 1, 1.25])
         peer_status_col.caption(
             f"{peer_mode}. Recommended peers use economic scale, development "
             "level, banking structure, liquidity, and score proximity."
@@ -4189,6 +4346,12 @@ if primary_view == "Country":
             use_container_width=True,
             on_click=_reset_recommended_peers,
             disabled=not recommended_peer_codes,
+        )
+        peer_analyze_col.button(
+            "Analyze in Explorer",
+            key=f"analyze_peers_{selected_country_code}",
+            use_container_width=True,
+            on_click=_open_peer_set_in_explorer,
         )
         st.session_state[f"shared_peer_codes_{selected_country_code}"] = peer_codes
 
@@ -4358,6 +4521,146 @@ if primary_view == "Country":
                 "recommended set to restore the comparison."
             )
 
+    with st.container(border=True):
+        st.markdown("## Model Evidence")
+        st.caption(
+            "The inventory is derived from the fitted loading maps. Every active "
+            "input shows the value used for scoring, unit, source family, period, "
+            "and whether the value was direct or imputed."
+        )
+        inventory_df = input_inventory.rows.copy()
+        if inventory_df.empty:
+            st.info(
+                "The active loading-map inventory is unavailable for this snapshot. "
+                "The served score can be viewed, but its input evidence cannot be listed."
+            )
+        else:
+            strongest = (
+                inventory_df.assign(_importance=inventory_df["loading"].abs())
+                .sort_values(["pillar", "_importance"], ascending=[True, False])
+                .groupby("pillar", sort=False)
+                .head(6)
+                .drop(columns="_importance")
+            )
+            compact = strongest[
+                [
+                    "label", "pillar_label", "value", "unit", "period",
+                    "status", "evidence_type",
+                ]
+            ].rename(
+                columns={
+                    "label": "Input",
+                    "pillar_label": "Pillar",
+                    "value": "Value Used",
+                    "unit": "Unit",
+                    "period": "Period",
+                    "status": "Status",
+                    "evidence_type": "Evidence Type",
+                }
+            )
+            st.markdown("### Key Active Inputs")
+            st.dataframe(
+                compact,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Input": st.column_config.TextColumn(width="large"),
+                    "Value Used": st.column_config.NumberColumn(format="%.2f"),
+                },
+            )
+            with st.expander(
+                f"All {len(inventory_df)} Active Inputs",
+                expanded=False,
+            ):
+                filter_col1, filter_col2, filter_col3 = st.columns([2, 1, 1])
+                with filter_col1:
+                    evidence_search = st.text_input(
+                        "Search inputs",
+                        key=f"evidence_search_{selected_country_code}",
+                        placeholder="Feature, source, or unit",
+                    )
+                with filter_col2:
+                    pillar_filter = st.selectbox(
+                        "Pillar",
+                        options=["All", *sorted(inventory_df["pillar_label"].unique())],
+                        key=f"evidence_pillar_{selected_country_code}",
+                    )
+                with filter_col3:
+                    status_filter = st.selectbox(
+                        "Status",
+                        options=["All", *sorted(inventory_df["status"].unique())],
+                        key=f"evidence_status_{selected_country_code}",
+                    )
+                filtered_inventory = inventory_df.copy()
+                if evidence_search.strip():
+                    needle = evidence_search.strip().lower()
+                    search_columns = [
+                        "label", "feature", "source_family", "unit", "pillar_label"
+                    ]
+                    mask = pd.Series(False, index=filtered_inventory.index)
+                    for column in search_columns:
+                        mask |= filtered_inventory[column].astype(str).str.lower().str.contains(
+                            needle,
+                            regex=False,
+                        )
+                    filtered_inventory = filtered_inventory.loc[mask]
+                if pillar_filter != "All":
+                    filtered_inventory = filtered_inventory[
+                        filtered_inventory["pillar_label"] == pillar_filter
+                    ]
+                if status_filter != "All":
+                    filtered_inventory = filtered_inventory[
+                        filtered_inventory["status"] == status_filter
+                    ]
+                authoritative = filtered_inventory[
+                    [
+                        "label", "feature", "pillar_label", "value", "unit",
+                        "period", "status", "evidence_type", "source_family",
+                        "model_role",
+                    ]
+                ].rename(
+                    columns={
+                        "label": "Input",
+                        "feature": "Technical Code",
+                        "pillar_label": "Pillar",
+                        "value": "Value Used",
+                        "unit": "Unit",
+                        "period": "Period",
+                        "status": "Status",
+                        "evidence_type": "Evidence Type",
+                        "source_family": "Source / Lineage",
+                        "model_role": "Score Role",
+                    }
+                )
+                st.dataframe(
+                    authoritative,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Input": st.column_config.TextColumn(width="large"),
+                        "Value Used": st.column_config.NumberColumn(format="%.3f"),
+                    },
+                )
+                st.download_button(
+                    "Download Active-Input Evidence",
+                    data=authoritative.to_csv(index=False).encode("utf-8"),
+                    file_name=(
+                        f"bankenv_{selected_country_code.lower()}_active_inputs_"
+                        f"{snapshot_label}.csv"
+                    ),
+                    mime="text/csv",
+                    key=f"download_inputs_{selected_country_code}",
+                )
+
+        render_candidate_country_evidence(
+            selected_country_code,
+            model_features,
+            overlay_enabled=False,
+            selected_groups=None,
+            active_features=active_feature_codes,
+        )
+
+
     with st.expander("Saved Scenario Preview", expanded=False):
         st.caption(
             "Optional saved challenger artifacts show a separate analytical score. "
@@ -4415,6 +4718,8 @@ if primary_view == "Country":
                 selected_groups=overlay_groups,
                 active_features=active_feature_codes,
             )
+    _sync_public_query_state()
+    _render_shareable_state_link()
 
 # ==============================================================================
 # VIEW: Data Explorer
@@ -4425,20 +4730,9 @@ if primary_view == "Explorer":
         "Compare source histories, calculate auditable ratios and changes, or "
         "inspect one source. Nothing here changes the served model score."
     )
-    st.session_state.setdefault(
-        "explorer_tool",
-        {
-            "compare": "Compare",
-            "calculate": "Calculate",
-            "source inspector": "Source Inspector",
-        }.get(_query_param_value("tool", "compare").strip().lower(), "Compare"),
-    )
-    explorer_tools = ("Compare", "Calculate", "Source Inspector")
-    if st.session_state.get("explorer_tool") not in explorer_tools:
-        st.session_state["explorer_tool"] = "Compare"
     explorer_tool = _segmented_navigation(
         "Explorer task",
-        options=explorer_tools,
+        options=EXPLORER_TOOLS,
         key="explorer_tool",
         on_change=_sync_public_query_state,
     )
@@ -4446,17 +4740,38 @@ if primary_view == "Explorer":
     with st.container(border=True):
         explorer_col1, explorer_col2 = st.columns([2, 3])
         with explorer_col1:
+            explorer_selector_key = "_explorer_focus_selector"
+            explorer_selector_kwargs = {}
+            if (
+                st.session_state.get(explorer_selector_key)
+                not in available_country_codes
+                or st.session_state.get(explorer_selector_key)
+                != st.session_state["explorer_focus_country"]
+            ):
+                st.session_state.pop(explorer_selector_key, None)
+                explorer_selector_kwargs["index"] = available_country_codes.index(
+                    st.session_state["explorer_focus_country"]
+                )
+
+            def _commit_explorer_country_selection() -> None:
+                selected = st.session_state.get(explorer_selector_key)
+                if selected in available_country_codes:
+                    st.session_state["explorer_focus_country"] = selected
+                _sync_public_query_state()
+
             explorer_focus_country = st.selectbox(
                 "Focus country",
                 options=available_country_codes,
                 format_func=format_country_option,
-                key="explorer_focus_country",
-                on_change=_sync_public_query_state,
+                key=explorer_selector_key,
+                on_change=_commit_explorer_country_selection,
                 help=(
                     "Used for source history and to seed comparison "
                     "country defaults."
                 ),
+                **explorer_selector_kwargs,
             )
+            st.session_state["explorer_focus_country"] = explorer_focus_country
         explorer_default_peers = []
         with explorer_col2:
             if explorer_tool in {"Compare", "Calculate"}:
@@ -4522,6 +4837,8 @@ if primary_view == "Explorer":
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
+    _sync_public_query_state()
+    _render_shareable_state_link()
 
 
 # ==============================================================================

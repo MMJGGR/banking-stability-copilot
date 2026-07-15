@@ -14,6 +14,7 @@ import streamlit as st
 
 from src.dashboard.styles import get_risk_color_hex, get_risk_label
 from src.dashboard.presentation import (
+    add_time_boundary,
     accessible_plotly_config,
     apply_responsive_chart_layout,
     render_full_label,
@@ -755,8 +756,9 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
                     and len(actual_dates) > 0
                 )
                 if shows_forward_values:
-                    fig.add_vline(
-                        x=actual_dates.max(),
+                    add_time_boundary(
+                        fig,
+                        actual_dates.max(),
                         line_dash='dash',
                         line_color='#6B7280',
                     )

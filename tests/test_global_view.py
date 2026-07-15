@@ -88,6 +88,16 @@ def test_weighted_metrics_do_not_turn_unavailable_data_into_zero():
     assert metrics["global_risk_score"] == pytest.approx(6.5)
     assert pd.isna(metrics["global_economic_pillar"])
 
+    dollar_metrics = calculate_weighted_metrics(
+        pd.DataFrame(
+            {
+                "risk_score": [2.0, 8.0],
+                "nominal_gdp": [1_000_000_000_000.0, 3_000_000_000_000.0],
+            }
+        )
+    )
+    assert dollar_metrics["total_gdp_trillions"] == pytest.approx(4.0)
+
 
 def test_region_summary_discloses_weighted_and_fallback_bases():
     frame = pd.DataFrame(
@@ -113,4 +123,3 @@ def test_global_view_source_has_no_misleading_delta_or_main_driver_copy():
     assert "Main Driver" not in source
     assert "✓" not in source
     assert "âœ“" not in source
-

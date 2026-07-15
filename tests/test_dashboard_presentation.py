@@ -20,8 +20,9 @@ def test_styles_use_streamlit_theme_tokens_not_os_theme_or_remote_font():
     assert "fonts.googleapis.com" not in STYLES
     assert "@import" not in STYLES
     assert "@media (prefers-color-scheme" not in STYLES
-    assert "--bankenv-background: var(--background-color" in STYLES
-    assert "--bankenv-text: var(--text-color" in STYLES
+    assert "--bankenv-background: Canvas" in STYLES
+    assert "--bankenv-text: CanvasText" in STYLES
+    assert "--bankenv-surface: color-mix(in srgb, CanvasText" in STYLES
     assert "--bankenv-tile-bg: var(--bankenv-text)" in STYLES
     assert "--bankenv-main-stroke: var(--bankenv-background)" in STYLES
 
@@ -35,6 +36,17 @@ def test_styles_include_accessible_focus_and_responsive_primitives():
     assert "div[data-testid=\"stPlotlyChart\"]" in STYLES
     assert "@media (prefers-reduced-motion: reduce)" in STYLES
     assert "@media (forced-colors: active)" in STYLES
+
+
+def test_desktop_and_mobile_layouts_clear_the_fixed_streamlit_toolbar():
+    desktop_styles, mobile_styles = STYLES.split(
+        "@media (max-width: 640px)",
+        maxsplit=1,
+    )
+
+    assert "padding-top: 4.5rem !important;" in desktop_styles
+    assert "padding-top: 4.5rem !important;" in mobile_styles
+    assert "env(safe-area-inset-top)" in mobile_styles
 
 
 def test_dashboard_styles_prefer_style_only_streamlit_renderer(monkeypatch):
@@ -52,6 +64,21 @@ def test_dashboard_styles_prefer_style_only_streamlit_renderer(monkeypatch):
     presentation.render_dashboard_styles()
 
     assert rendered == [STYLES]
+
+
+def test_time_boundary_accepts_pandas_timestamp_with_annotation():
+    import pandas as pd
+
+    figure = go.Figure()
+    presentation.add_time_boundary(
+        figure,
+        pd.Timestamp("2026-01-01"),
+        label="Projection begins",
+    )
+
+    assert len(figure.layout.shapes) == 1
+    assert figure.layout.shapes[0].x0 == pd.Timestamp("2026-01-01").to_pydatetime()
+    assert figure.layout.annotations[0].text == "Projection begins"
 
 
 def test_full_label_markup_is_escaped_visible_and_wrapping():
@@ -106,4 +133,3 @@ def test_responsive_chart_layout_uses_automatic_margins_and_bottom_legend():
     assert figure.layout.legend.orientation == "h"
     assert figure.layout.legend.y < 0
     assert figure.layout.showlegend is True
-

@@ -25,6 +25,8 @@ CONTINENT_OVERRIDES = {
 HIGH_RISK_THRESHOLD = 6.0
 LOW_RISK_THRESHOLD = 4.0
 WATCHLIST_LIMIT = 10
+USD_PER_BILLION = 1_000_000_000.0
+USD_PER_TRILLION = 1_000_000_000_000.0
 RISK_COLOR_SCALE = [
     [0.0, "#D9EAF5"],
     [0.35, "#75ADD1"],
@@ -182,7 +184,7 @@ def calculate_weighted_metrics(df: pd.DataFrame) -> Dict[str, float]:
 
     total_gdp = float(valid_df["nominal_gdp"].sum())
     return {
-        "total_gdp_trillions": total_gdp / 1000,
+        "total_gdp_trillions": total_gdp / USD_PER_TRILLION,
         "global_risk_score": weighted_average("risk_score"),
         "global_economic_pillar": weighted_average("economic_pillar"),
         "global_industry_pillar": weighted_average("industry_pillar"),
@@ -233,7 +235,8 @@ def _render_watchlist(df: pd.DataFrame) -> None:
 
     rule = (
         f"Rule: risk score > {metadata['risk_threshold']:.1f} and nominal GDP "
-        f"above the valid-country median of ${metadata['gdp_median']:,.0f}bn. "
+        "above the valid-country median of "
+        f"${metadata['gdp_median'] / USD_PER_BILLION:,.1f}bn. "
         f"{metadata['eligible_countries']:,} countries had both inputs; "
         f"{metadata['excluded_missing']:,} were excluded for missing or "
         "non-positive GDP or a missing risk score."
@@ -304,7 +307,9 @@ def _render_watchlist(df: pd.DataFrame) -> None:
                 "Country": watchlist["country_name"],
                 "Region": watchlist["Region"],
                 "Risk Score": watchlist["risk_score"].astype(float),
-                "Nominal GDP (USD bn)": watchlist["nominal_gdp"].astype(float),
+                "Nominal GDP (USD bn)": (
+                    watchlist["nominal_gdp"].astype(float) / USD_PER_BILLION
+                ),
                 "Operating Environment Strength": _numeric_series(
                     watchlist, "economic_pillar"
                 ),
@@ -329,7 +334,11 @@ def _render_risk_map(df: pd.DataFrame) -> None:
     if "country_name" not in map_df.columns:
         map_df["country_name"] = map_df["country_code"]
     map_df["gdp_billions"] = _numeric_series(map_df, "nominal_gdp").map(
-        lambda value: f"${value:,.0f}bn" if pd.notna(value) else "Unavailable"
+        lambda value: (
+            f"${value / USD_PER_BILLION:,.1f}bn"
+            if pd.notna(value)
+            else "Unavailable"
+        )
     )
 
     hover_data: dict[str, Any] = {
@@ -356,6 +365,10 @@ def _render_risk_map(df: pd.DataFrame) -> None:
         color_continuous_scale=RISK_COLOR_SCALE,
         range_color=(1, 10),
         projection="natural earth",
+    )
+    fig_map.update_traces(
+        marker_line_color="#7C8798",
+        marker_line_width=0.7,
     )
     fig_map.update_layout(
         margin={"r": 0, "t": 5, "l": 0, "b": 55},

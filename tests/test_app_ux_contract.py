@@ -48,6 +48,73 @@ def test_public_workspace_loads_without_streamlit_errors(view, tool, section):
     _run_app(view=view, tool=tool, section=section)
 
 
+def test_methodology_defaults_to_score_overview_without_prior_section_state():
+    app = _run_app(view="methodology")
+
+    assert app.session_state["methodology_section"] == "How the Score Works"
+    assert any("## Model Card" in str(item.value) for item in app.markdown)
+
+
+@requires_supported_widget_testing
+def test_comparison_apply_renders_without_timestamp_boundary_error():
+    app = _run_app(view="explorer", tool="compare")
+    apply_button = next(
+        button for button in app.button if button.label == "Apply Comparison"
+    )
+
+    apply_button.click().run(timeout=180)
+
+    assert not app.exception, [str(item.value) for item in app.exception]
+    assert len(app.get("plotly_chart")) >= 1
+
+
+def test_shareable_explorer_state_restores_safe_source_indicator_and_peers():
+    app = AppTest.from_file("app.py", default_timeout=180)
+    app.query_params.update(
+        {
+            "view": "explorer",
+            "country": "USA",
+            "explorer_country": "USA",
+            "tool": "compare",
+            "peers": "FRA,ZZZ,FRA",
+            "source": "weo",
+            "indicator": "NGDP_RPCH",
+        }
+    )
+
+    app.run(timeout=180)
+
+    assert not app.exception, [str(item.value) for item in app.exception]
+    assert not app.error, [str(item.value) for item in app.error]
+    assert app.session_state["explorer_focus_country"] == "USA"
+    assert app.session_state["shared_peer_codes_USA"] == ["FRA"]
+    assert app.session_state["compare_source"] == "Official · Economic (WEO)"
+    assert app.session_state["compare_indicator_WEO"] == "NGDP_RPCH"
+
+
+def test_country_share_state_restores_peers_for_the_country_not_stale_explorer():
+    app = AppTest.from_file("app.py", default_timeout=180)
+    app.query_params.update(
+        {
+            "view": "country",
+            "country": "KEN",
+            "explorer_country": "USA",
+            "peers": "TZA,UGA,TZA,KEN,ZZZ",
+        }
+    )
+
+    app.run(timeout=180)
+
+    assert not app.exception, [str(item.value) for item in app.exception]
+    assert app.session_state["profile_country_code"] == "KEN"
+    assert app.session_state["custom_peer_codes_KEN"] == ["TZA", "UGA"]
+    peer_param = app.query_params["peers"]
+    if isinstance(peer_param, list):
+        peer_param = peer_param[0]
+    assert peer_param == "TZA,UGA"
+    assert "explorer_country" not in app.query_params
+
+
 def test_stale_country_navigation_and_peer_state_are_sanitized():
     app = AppTest.from_file("app.py", default_timeout=180)
     app.query_params.update({"view": "country", "country": "USA"})

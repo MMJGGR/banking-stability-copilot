@@ -140,6 +140,51 @@ def accessible_plotly_config() -> dict[str, Any]:
     return deepcopy(_PLOTLY_CONFIG)
 
 
+def add_time_boundary(
+    figure: Any,
+    boundary: Any,
+    *,
+    label: str | None = None,
+    line_dash: str = "dot",
+    line_color: str = "#7C8798",
+) -> Any:
+    """Add a dated chart boundary without Plotly's timestamp annotation bug.
+
+    Older Plotly releases try to average ``pandas.Timestamp`` values inside
+    ``add_vline`` when an annotation is supplied. Newer pandas versions reject
+    that integer arithmetic. Explicit shape and annotation calls preserve the
+    same presentation across the app's supported dependency range.
+    """
+
+    if boundary is None:
+        return figure
+    to_python_datetime = getattr(boundary, "to_pydatetime", None)
+    if callable(to_python_datetime):
+        boundary = to_python_datetime()
+    figure.add_shape(
+        type="line",
+        x0=boundary,
+        x1=boundary,
+        xref="x",
+        y0=0,
+        y1=1,
+        yref="paper",
+        line={"dash": line_dash, "color": line_color},
+    )
+    if label:
+        figure.add_annotation(
+            x=boundary,
+            xref="x",
+            y=1,
+            yref="paper",
+            text=label,
+            showarrow=False,
+            xanchor="left",
+            yanchor="bottom",
+        )
+    return figure
+
+
 def apply_responsive_chart_layout(
     figure: Any,
     *,
@@ -184,4 +229,3 @@ def apply_responsive_chart_layout(
         layout["yaxis"]["title"] = {"text": str(yaxis_title)}
     figure.update_layout(**layout)
     return figure
-
