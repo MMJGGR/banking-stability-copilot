@@ -402,10 +402,11 @@ class PillarInferencePipeline:
         confidence = 1 - original_missing.mean(axis=1)
         score_raw = 1 + 9 * (1 - percentiles["risk"])
         confidence_weight = confidence.pow(self.confidence_exponent)
-        risk_scores = (
+        confidence_adjusted_scores = (
             confidence_weight * score_raw
             + (1 - confidence_weight) * self.median_risk
         )
+        confidence_adjustment = confidence_adjusted_scores - score_raw
 
         economic_coverage = (
             1 - original_missing[self.economic_columns_].mean(axis=1)
@@ -427,8 +428,14 @@ class PillarInferencePipeline:
                 risk_floor.loc[weak_pillar],
                 5.0,
             )
-        before_floor = risk_scores.copy()
-        risk_scores = np.maximum(risk_scores, risk_floor)
+        score_after_risk_floor = np.maximum(
+            confidence_adjusted_scores,
+            risk_floor,
+        )
+        risk_floor_delta = (
+            score_after_risk_floor - confidence_adjusted_scores
+        )
+        risk_floor_applied = risk_floor_delta > 1e-12
 
         # Critical-field missingness penalty: countries missing core banking
         # soundness fields cannot be scored safer than observed peers purely
@@ -441,17 +448,49 @@ class PillarInferencePipeline:
             critical_missing_share = (
                 original_missing[critical_columns].mean(axis=1)
             )
+            critical_missing_fields = original_missing[critical_columns].apply(
+                lambda row: tuple(
+                    column for column in critical_columns if bool(row[column])
+                ),
+                axis=1,
+            )
         else:
             critical_missing_share = pd.Series(0.0, index=eligible.index)
+            critical_missing_fields = pd.Series(
+                [tuple() for _ in range(len(eligible))],
+                index=eligible.index,
+                dtype=object,
+            )
         critical_penalty = (
             critical_missing_share
             * getattr(self, "critical_missing_max_penalty", 0.0)
         )
-        risk_scores = np.minimum(risk_scores + critical_penalty, 10.0).round(1)
+        pre_round_structural_scores = np.minimum(
+            score_after_risk_floor + critical_penalty,
+            10.0,
+        )
+        critical_penalty_applied = (
+            pre_round_structural_scores - score_after_risk_floor
+        )
+        structural_risk_scores = pre_round_structural_scores.round(1)
 
         results = pd.DataFrame(
             {
-                "risk_score": np.asarray(risk_scores),
+                # ``risk_score`` remains the backward-compatible structural
+                # output of this pipeline. ``train_model.py`` may subsequently
+                # add the separately persisted crisis uplift. The additive
+                # bridge fields below expose each policy adjustment without
+                # changing the score arithmetic.
+                "risk_score": np.asarray(structural_risk_scores),
+                "structural_risk_score": np.asarray(structural_risk_scores),
+                "pillar_risk_score": np.asarray(score_raw),
+                "confidence_adjustment": np.asarray(confidence_adjustment),
+                "confidence_adjusted_risk_score": np.asarray(
+                    confidence_adjusted_scores
+                ),
+                "risk_floor_value": np.asarray(risk_floor),
+                "risk_floor_delta": np.asarray(risk_floor_delta),
+                "score_after_risk_floor": np.asarray(score_after_risk_floor),
                 "economic_pillar": percentiles["economic"] * 10,
                 "industry_pillar": percentiles["industry"] * 10,
                 "combined_pillar": percentiles["combined"] * 10,
@@ -461,13 +500,20 @@ class PillarInferencePipeline:
                 ].to_numpy(),
                 "economic_coverage": economic_coverage.to_numpy(),
                 "industry_coverage": industry_coverage.to_numpy(),
-                "risk_floor_applied": np.asarray(
-                    risk_scores > before_floor.round(1)
-                ),
+                "risk_floor_applied": np.asarray(risk_floor_applied),
                 "critical_missing_share": critical_missing_share.round(
                     3
                 ).to_numpy(),
-                "critical_penalty": critical_penalty.round(2).to_numpy(),
+                "critical_missing_fields": critical_missing_fields,
+                # Preserve the exact policy amount for reconciliation; display
+                # layers may round it without changing the stored bridge.
+                "critical_penalty": critical_penalty.to_numpy(),
+                "critical_penalty_applied": np.asarray(
+                    critical_penalty_applied
+                ),
+                "pre_round_structural_risk_score": np.asarray(
+                    pre_round_structural_scores
+                ),
             },
             index=eligible.index,
         )
