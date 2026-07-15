@@ -8,31 +8,21 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import html
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from src.dashboard.styles import get_risk_color_hex, get_risk_label, COLORS
+from src.dashboard.presentation import (
+    accessible_plotly_config,
+    apply_responsive_chart_layout,
+    render_full_label,
+)
 
 RESERVE_CURRENCY_COUNTRIES = ['USA', 'GBR', 'JPN', 'CHE', 'EMU', 'DEU', 'FRA', 'ITA', 'ESP', 'NLD', 'BEL', 'AUT']
 
 
 def _render_hover_full_label(label: str, prefix: str = "Selected item") -> None:
-    """Show a compact selected-label preview with the full text on hover."""
-    text = str(label or "").strip()
-    if not text:
-        return
-    safe_text = html.escape(text, quote=True)
-    safe_prefix = html.escape(prefix, quote=True)
-    st.markdown(
-        (
-            f'<div title="{safe_text}" '
-            'style="font-size:0.82rem;color:#6B7280;line-height:1.3;'
-            'margin-top:-0.35rem;margin-bottom:0.35rem;white-space:nowrap;'
-            'overflow:hidden;text-overflow:ellipsis;">'
-            f'<span style="font-weight:600;">{safe_prefix}:</span> {safe_text}</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+    """Backward-compatible alias for the accessible full-label readback."""
+    render_full_label(label, prefix)
 
 SOURCE_CONTEXT = {
     "WEO": ("IMF World Economic Outlook", "Country macroeconomic, fiscal and external-sector series."),

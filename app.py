@@ -7,7 +7,6 @@ import time
 import os
 import json
 import re
-import html
 from pathlib import Path
 
 from src.data_loader import (
@@ -53,7 +52,15 @@ if hasattr(model_store, "load_archived_snapshot"):
 else:
     def load_archived_snapshot(name: str):
         raise FileNotFoundError("Archived snapshots are unavailable in this deployment")
-from src.dashboard.styles import STYLES, score_to_tier
+from src.dashboard.styles import score_to_tier
+from src.dashboard.presentation import (
+    accessible_plotly_config,
+    apply_responsive_chart_layout,
+    format_identifier,
+    format_pillar_label,
+    render_dashboard_styles,
+    render_full_label,
+)
 from src.dashboard.components import (
     render_summary_card,
     render_data_snapshot,
@@ -78,22 +85,8 @@ from src import utils as dashboard_utils
 
 
 def _render_hover_full_label(label: str, prefix: str = "Selected item") -> None:
-    """Show a compact selected-label preview with the full text on hover."""
-    text = str(label or "").strip()
-    if not text:
-        return
-    safe_text = html.escape(text, quote=True)
-    safe_prefix = html.escape(prefix, quote=True)
-    st.markdown(
-        (
-            f'<div title="{safe_text}" '
-            'style="font-size:0.82rem;color:#6B7280;line-height:1.3;'
-            'margin-top:-0.35rem;margin-bottom:0.35rem;white-space:nowrap;'
-            'overflow:hidden;text-overflow:ellipsis;">'
-            f'<span style="font-weight:600;">{safe_prefix}:</span> {safe_text}</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+    """Backward-compatible alias for the accessible full-label readback."""
+    render_full_label(label, prefix)
 
 
 def _fallback_driver_metric_value(
@@ -528,8 +521,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Apply Custom Styles
-st.markdown(STYLES, unsafe_allow_html=True)
+# Apply the style-only payload without adding a focusable Markdown artifact.
+render_dashboard_styles()
 
 
 PRIMARY_VIEWS = ("Global", "Country", "Explorer", "Methodology")
