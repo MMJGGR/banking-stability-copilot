@@ -220,6 +220,28 @@ STYLES = """
         border-radius: var(--bankenv-radius-md);
         background: var(--bankenv-surface);
     }
+
+    .bankenv-kpi-label {
+        color: var(--bankenv-muted-text);
+        font-size: 0.8125rem;
+        line-height: 1.25;
+    }
+
+    .bankenv-kpi-value {
+        color: var(--bankenv-text);
+        font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+        font-weight: 700;
+        line-height: 1.2;
+        margin-top: var(--bankenv-space-1);
+        overflow-wrap: anywhere;
+    }
+
+    .bankenv-kpi-context {
+        color: var(--bankenv-muted-text);
+        font-size: 0.78rem;
+        line-height: 1.35;
+        margin-top: var(--bankenv-space-1);
+    }
     
     /* =========================================
        SUMMARY CARDS
