@@ -306,6 +306,66 @@ def build_active_feature_registry(pca_info: Mapping[str, Any] | None) -> pd.Data
     return pd.DataFrame(rows, columns=REGISTRY_COLUMNS)
 
 
+def build_active_feature_coverage(
+    scores: pd.DataFrame,
+    model_features: pd.DataFrame,
+    pca_info: Mapping[str, Any] | None,
+) -> pd.DataFrame:
+    """Summarize direct input coverage across distinct served countries.
+
+    Coverage uses the country universe in ``scores``. Duplicate feature rows do
+    not inflate the numerator: a country is counted once when any of its rows
+    carries a non-null value for the feature.
+    """
+
+    if not isinstance(scores, pd.DataFrame):
+        raise TypeError("scores must be a pandas DataFrame")
+    if not isinstance(model_features, pd.DataFrame):
+        raise TypeError("model_features must be a pandas DataFrame")
+    if "country_code" not in scores.columns:
+        raise ValueError("scores must contain country_code")
+    if "country_code" not in model_features.columns:
+        raise ValueError("model_features must contain country_code")
+
+    registry = build_active_feature_registry(pca_info)
+    served_codes = set(scores["country_code"].astype(str).str.upper())
+    country_total = len(served_codes)
+    normalized = model_features.copy()
+    normalized["_coverage_country_code"] = (
+        normalized["country_code"].astype(str).str.upper()
+    )
+    normalized = normalized[
+        normalized["_coverage_country_code"].isin(served_codes)
+    ]
+
+    rows: list[dict[str, Any]] = []
+    for registry_row in registry.to_dict(orient="records"):
+        feature = registry_row["feature"]
+        direct_countries = (
+            int(
+                normalized.loc[
+                    normalized[feature].notna(),
+                    "_coverage_country_code",
+                ].nunique()
+            )
+            if feature in normalized.columns
+            else 0
+        )
+        rows.append(
+            {
+                **registry_row,
+                "direct_countries": direct_countries,
+                "direct_coverage": (
+                    direct_countries / country_total if country_total else np.nan
+                ),
+            }
+        )
+    return pd.DataFrame(
+        rows,
+        columns=[*REGISTRY_COLUMNS, "direct_countries", "direct_coverage"],
+    )
+
+
 def _available(value: Any) -> bool:
     if value is None:
         return False
@@ -468,6 +528,7 @@ __all__ = [
     "STATUS_REPORTED_DERIVED",
     "STATUS_UNAVAILABLE",
     "build_active_feature_registry",
+    "build_active_feature_coverage",
     "build_active_input_inventory",
     "feature_metadata",
 ]

@@ -92,6 +92,7 @@ from src.dashboard.calculated_series import (
 )
 from src.dashboard.global_view import render_global_summary
 from src.dashboard.evidence import (
+    build_active_feature_coverage,
     build_active_feature_registry,
     build_active_input_inventory,
 )
@@ -377,6 +378,7 @@ MODEL_MONITORING_REPORT_PATHS = (
     BASE_DIR / "artifacts" / "liquidity_challenger_comparison.json",
 )
 CRISIS_VALIDATION_SUMMARY_PATH = BASE_DIR / "artifacts" / "crisis_validation_summary.json"
+MODEL_POLICY_AUDIT_PATH = BASE_DIR / "artifacts" / "model_policy_audit.json"
 CANDIDATE_RISK_OVERLAY_SCORE_PATHS = {
     "liquidity": (
         BASE_DIR / "artifacts" / "snapshots" / "2026-06-30-challenger-liquidity" / "challenger_scores.parquet"
@@ -3118,7 +3120,11 @@ def render_candidate_country_evidence(
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
-def _display_value(value, integer: bool = False) -> str:
+def _display_value(
+    value,
+    integer: bool = False,
+    digits: int | None = None,
+) -> str:
     """Format card values without leaking None/NaN into the UI."""
     if value is None:
         return "—"
@@ -3132,16 +3138,21 @@ def _display_value(value, integer: bool = False) -> str:
             return f"{int(value):,}"
         except (TypeError, ValueError):
             return str(value)
+    if digits is not None:
+        try:
+            return f"{float(value):.{digits}f}"
+        except (TypeError, ValueError):
+            return str(value)
     return str(value)
 
 
 def _source_role(source_name: str) -> str:
     roles = {
-        "WEO": "Macro, fiscal, GDP and external-balance baseline",
-        "FSIC": "Core banking soundness ratios",
-        "MFS": "Monetary, credit and banking balance-sheet aggregates",
-        "FSIBSIS": "Detailed bank balance-sheet and income-statement measures",
-        "WGI": "Governance and institutional-quality scores",
+        "WEO": "Economic growth, prices, public finances, and external balances",
+        "FSIC": "Bank capital, asset quality, earnings, funding, and liquidity",
+        "MFS": "Money, credit, deposits, loans, and banking balance sheets",
+        "FSIBSIS": "Detailed bank balance sheets and profitability",
+        "WGI": "Governance and institutional strength",
     }
     return roles.get(source_name, "Supporting source")
 
@@ -3307,27 +3318,36 @@ def render_methodology_workspace(
     features: pd.DataFrame | None,
     manifest: dict,
     pca: dict | None,
+    evidence_root: Path | None = None,
 ) -> None:
-    """Render the single authoritative methodology, data, and release view."""
+    """Render the public, analyst-facing explanation of BankEnv."""
     st.markdown("# Methodology")
+    resolved_evidence_root = Path(evidence_root or BASE_DIR).resolve()
+    uses_active_evidence = resolved_evidence_root == BASE_DIR.resolve()
     snapshot_id = str(manifest.get("snapshot_id") or "Unversioned")
     snapshot_status = str(manifest.get("snapshot_status") or "Not recorded")
-    integrity_verified = snapshot_status.lower() == "verified"
+    snapshot_date = pd.to_datetime(snapshot_id, errors="coerce")
+    snapshot_label = (
+        snapshot_date.strftime("%d %b %Y").lstrip("0")
+        if pd.notna(snapshot_date)
+        else snapshot_id
+    )
+    served_country_count = (
+        int(scores["country_code"].astype(str).str.upper().nunique())
+        if "country_code" in scores
+        else len(scores)
+    )
+    release_checks_passed = snapshot_status.lower() in {"verified", "approved"}
     registry = build_active_feature_registry(pca)
     operating_count = int((registry["pillar"] == "economic").sum()) if not registry.empty else 0
     banking_count = int((registry["pillar"] == "industry").sum()) if not registry.empty else 0
     st.caption(
-        f"Snapshot {snapshot_id} · {len(scores):,} countries · "
-        + (
-            "Artifact integrity verified; model approval not recorded."
-            if integrity_verified
-            else "Artifact integrity is not verified."
-        )
+        f"Model snapshot {snapshot_label} · {served_country_count:,} countries"
     )
     methodology_sections = (
         "How the Score Works",
         "Data and Coverage",
-        "Validation and Release",
+        "Evidence and Limits",
     )
     if st.session_state.get("methodology_section") not in methodology_sections:
         st.session_state["methodology_section"] = methodology_sections[0]
@@ -3338,134 +3358,215 @@ def render_methodology_workspace(
     )
 
     if section == "How the Score Works":
-        st.markdown("## Model Card")
+        st.markdown("## How the Score Works")
         st.caption(
-            "BankEnv is a country-level banking-system risk screener for analyst "
-            "triage and peer comparison. It is not a bank rating, crisis-timing "
-            "forecast, or automated lending decision."
+            "BankEnv compares country banking-system risk using public economic, "
+            "government, external, governance, and banking data."
         )
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Scale", "1–10", help="1 lower relative risk; 10 higher relative risk")
-        m2.metric("Operating Inputs", f"{operating_count}")
-        m3.metric("Banking Inputs", f"{banking_count}")
-        m4.metric("Served Countries", f"{len(scores):,}")
-        score_flow = pd.DataFrame(
-            [
-                ("1. Active inputs", "Dated macro, fiscal, governance, external, liquidity, and banking evidence.", "Country evidence shows value, unit, source, period, and status."),
-                ("2. Two fitted pillars", "Operating Environment and Banking System components are estimated separately.", "Both are displayed in risk orientation: 1 lower; 10 higher."),
-                ("3. Coverage policy", "Confidence adjustment and a minimum risk floor limit false precision.", "Any floor effect is a separate Country score-bridge step."),
-                ("4. Critical-data penalty", "A bounded penalty applies when defined core banking fields are imputed.", "Country view names the exact fields and penalty."),
-                ("5. Legacy crisis adjustment", "An upward-only overlay remains in the served artifact.", "It is not presented as a validated crisis probability."),
-                ("6. Served score", "Rounded 1–10 relative-risk output for the active snapshot.", "The Country Score Bridge reconciles every adjustment."),
-            ],
-            columns=["Stage", "Purpose", "Public Interpretation"],
+        m1, m2, m3 = st.columns(3)
+        m1.metric(
+            "Risk scale",
+            "1–10",
+            help="1 means lower relative risk; 10 means higher relative risk.",
         )
-        st.dataframe(score_flow, use_container_width=True, hide_index=True)
+        m2.metric(
+            "Inputs used in score",
+            f"{len(registry):,}",
+            help=(
+                f"{operating_count} operating-environment inputs and "
+                f"{banking_count} banking-system inputs."
+            ),
+        )
+        m3.metric("Countries", f"{served_country_count:,}")
+        st.markdown(
+            f"1. **Select current evidence.** Use the latest permitted observation "
+            f"on or before {snapshot_label}. Country pages show the value, date, "
+            "and source.\n"
+            "2. **Estimate two risk components.** Score the operating environment "
+            "and banking system separately, then give each component 50% weight. "
+            "Both use the same scale: 1 lower risk; 10 higher risk.\n"
+            "3. **Allow for missing evidence.** Fill missing values using documented "
+            "rules. Weak coverage and missing core banking data can raise the score; "
+            "the Country Score Bridge shows the exact effect.\n"
+            "4. **Apply the older crisis adjustment.** A retained adjustment from an "
+            "older crisis model can only raise the score. It is not an approved crisis "
+            "probability or timing forecast.\n"
+            "5. **Publish the country score.** Use the final relative-risk score to "
+            "prioritize analysis, not as a stand-alone decision."
+        )
+        with st.expander("Missing-data rules", expanded=False):
+            st.markdown(
+                "- Missing inputs pull the score toward the model's middle value.\n"
+                "- If direct coverage is below 70%, the score cannot be below 4.\n"
+                "- If direct coverage is below 50%, the score cannot be below 6.\n"
+                "- If either risk component has below 30% direct coverage, the score cannot be below 5.\n"
+                "- Missing core banking inputs can add up to 1.5 points.\n"
+                "- The Country Score Bridge shows every rule that affected a country."
+            )
         use_col, limit_col = st.columns(2)
         with use_col:
-            st.markdown("### Appropriate Uses")
+            st.markdown("### Use BankEnv for")
             st.markdown(
-                "- Cross-country screening and watchlist prioritization.\n"
-                "- Peer comparison and evidence-gap review.\n"
-                "- Structured input to analyst judgment."
+                "- Comparing country banking systems.\n"
+                "- Prioritizing watchlists and deeper reviews.\n"
+                "- Checking peer differences and evidence gaps."
             )
         with limit_col:
-            st.markdown("### Important Limits")
+            st.markdown("### Do not use it as")
             st.markdown(
-                "- Relative scores can move with the country universe or coverage.\n"
-                "- Public-source lags and imputation can be material.\n"
-                "- The legacy crisis overlay is not decision-grade on its own."
+                "- A bank or sovereign credit rating.\n"
+                "- An exact probability or date of a crisis.\n"
+                "- An automatic lending, investment, or policy decision."
             )
-        with st.expander("Technical Diagnostics", expanded=False):
-            st.info(
-                "Combined Pillar is a separate PCA diagnostic and is not the "
-                "arithmetic precursor to the served score. It is excluded from "
-                "the public Country score block."
-            )
-            if not registry.empty:
-                technical = registry[
-                    ["label", "feature", "pillar_label", "loading", "unit", "source_family"]
-                ].rename(columns={
-                    "label": "Input", "feature": "Technical Code",
-                    "pillar_label": "Pillar", "loading": "Loading",
-                    "unit": "Unit", "source_family": "Source / Lineage",
-                })
-                st.dataframe(
-                    technical,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={"Loading": st.column_config.NumberColumn(format="%+.4f")},
-                )
 
     elif section == "Data and Coverage":
-        st.markdown("## Data Card")
+        st.markdown("## Data and Coverage")
         st.caption(
-            "Official upstream sources are separated from BankEnv-derived feature "
-            "packages. Active membership always comes from fitted loading maps."
+            "See where the model inputs come from, how current each source is, and "
+            "where missing data may affect a country score."
         )
-        source_rows: list[dict] = []
+        source_display_names = {
+            "WEO": "IMF World Economic Outlook",
+            "FSIC": "IMF Financial Soundness Indicators",
+            "FSIBSIS": "IMF Bank Balance Sheet and Income Data",
+            "MFS": "IMF Monetary and Financial Statistics",
+            "WGI": "World Bank Governance Indicators",
+        }
+        def plain_period(value) -> str:
+            parsed = pd.to_datetime(value, errors="coerce")
+            return (
+                parsed.strftime("%b %Y")
+                if pd.notna(parsed)
+                else _display_value(value)
+            )
+
+        official_source_rows: list[dict] = []
         for source_name, details in sorted((manifest.get("sources") or {}).items()):
-            source_rows.append({
-                "Dataset": source_name,
-                "Type": "Official upstream source",
-                "Countries": _display_value(details.get("countries"), integer=True),
-                "Latest Observation": _display_value(details.get("latest_observation")),
-                "Role": _source_role(source_name),
-                "Availability": "Active source family",
+            official_source_rows.append({
+                "Source": source_display_names.get(source_name, source_name),
+                "Main use": _source_role(source_name),
+                "Countries": _display_value(
+                    details.get("countries"), integer=True
+                ),
+                "Latest": plain_period(details.get("latest_observation")),
             })
-        external_features, external_observations, external_report = load_external_insight_data()
-        government_features, government_observations, government_report = load_government_insight_data()
-        for label, package, observations, report in (
-            ("External liquidity", external_features, external_observations, external_report),
-            ("Government liquidity", government_features, government_observations, government_report),
+        st.markdown("### Official Sources")
+        st.dataframe(
+            pd.DataFrame(official_source_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(
+            f"Source country counts can exceed the {served_country_count} countries scored. "
+            "The input-coverage table below shows exactly which source supports "
+            "each score input."
+        )
+
+        if uses_active_evidence:
+            external_report = _load_first_json(EXTERNAL_REPORT_PATHS)
+            government_report = _load_first_json(GOVT_REPORT_PATHS)
+        else:
+            external_report = _load_first_json(
+                (resolved_evidence_root / "external_liquidity_features_report.json",)
+            )
+            government_report = _load_first_json(
+                (resolved_evidence_root / "government_liquidity_features_report.json",)
+            )
+        derived_rows: list[dict] = []
+        for label, description, calculated_from, report in (
+            (
+                "External liquidity indicators",
+                "Reserves, external financing pressure, cross-border assets and liabilities, and flows",
+                "IMF external accounts, cross-border assets and liabilities, monetary, and economic data; World Bank trade data",
+                external_report,
+            ),
+            (
+                "Government liquidity indicators",
+                "Debt, revenue, interest burden, and government financing pressure",
+                "IMF World Economic Outlook",
+                government_report,
+            ),
         ):
+            if not report:
+                continue
+            report_features = set((report.get("feature_coverage") or {}).keys())
             active_in_package = [
                 feature for feature in registry["feature"].tolist()
-                if feature in package.columns
-            ] if not registry.empty and not package.empty else []
-            source_rows.append({
-                "Dataset": label,
-                "Type": "BankEnv-derived feature package",
+                if feature in report_features
+            ] if not registry.empty else []
+            derived_rows.append({
+                "Indicator family": label,
+                "What it covers": description,
+                "Calculated from": calculated_from,
                 "Countries": _display_value(
-                    int(package["country_code"].nunique())
-                    if not package.empty and "country_code" in package
-                    else 0,
+                    report.get("observation_countries"),
                     integer=True,
                 ),
-                "Latest Observation": _display_value(report.get("cutoff") or report.get("as_of_date")),
-                "Role": f"{len(active_in_package)} active inputs; remaining fields insight-only",
-                "Availability": "Available" if not observations.empty else "Not packaged",
+                "Score inputs": len(active_in_package),
             })
-        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
-        if features is None or features.empty or registry.empty:
-            st.info(
-                "Feature-level coverage is unavailable because the served feature "
-                "artifact or loading maps are not packaged."
+        st.markdown("### Derived Indicator Families")
+        st.caption(
+            "These indicators are calculated by BankEnv from official source data. "
+            "They are not separate IMF or World Bank datasets."
+        )
+        if derived_rows:
+            st.dataframe(
+                pd.DataFrame(derived_rows),
+                use_container_width=True,
+                hide_index=True,
             )
         else:
-            country_total = int(features["country_code"].nunique())
-            coverage_rows = []
-            for item in registry.to_dict(orient="records"):
-                feature = item["feature"]
-                direct = int(features[feature].notna().sum()) if feature in features else 0
-                coverage_rows.append({
-                    "Input": item["label"],
-                    "Pillar": item["pillar_label"],
-                    "Direct Countries": direct,
-                    "Direct Coverage": direct / country_total if country_total else np.nan,
-                    "Source / Lineage": item["source_family"],
-                    "Role": item["model_role"],
-                })
-            coverage_table = pd.DataFrame(coverage_rows).sort_values(["Direct Coverage", "Input"])
-            st.markdown("### Active-Input Coverage")
-            filter_a, filter_b, filter_c, filter_d, filter_e = st.columns(
-                [2, 1, 1, 1, 1]
+            st.info(
+                "Package-level totals were not stored with this snapshot. The "
+                "input-coverage table below remains specific to the displayed model."
             )
+        if features is None or features.empty or registry.empty:
+            st.info(
+                "Input coverage is unavailable for this snapshot. Country scores remain "
+                "visible, but the reported-versus-filled data split cannot be shown."
+            )
+        else:
+            coverage_table = build_active_feature_coverage(
+                scores,
+                features,
+                pca,
+            ).rename(columns={
+                "label": "Indicator",
+                "pillar_label": "Pillar",
+                "direct_countries": "Countries with direct data",
+                "direct_coverage": "Coverage",
+                "source_family": "Main source",
+            })[[
+                "Indicator",
+                "Pillar",
+                "Countries with direct data",
+                "Coverage",
+                "Main source",
+            ]].sort_values(
+                ["Coverage", "Indicator"]
+            )
+            st.markdown("### Coverage of Inputs Used in the Score")
+            st.caption(
+                "Direct data means reported or calculated from reported observations "
+                "before the model fills missing values."
+            )
+            coverage_metric_a, coverage_metric_b, coverage_metric_c = st.columns(3)
+            coverage_metric_a.metric("Inputs used in score", f"{len(coverage_table):,}")
+            coverage_metric_b.metric(
+                "Median direct coverage",
+                f"{coverage_table['Coverage'].median():.0%}",
+            )
+            coverage_metric_c.metric(
+                "Inputs below 50%",
+                f"{int((coverage_table['Coverage'] < 0.5).sum()):,}",
+                help="Includes inputs with no direct data in the served country set.",
+            )
+            filter_a, filter_b, filter_c, filter_d = st.columns([2, 1, 1, 1])
             with filter_a:
                 coverage_search = st.text_input(
-                    "Search active inputs",
+                    "Search indicators",
                     key="methodology_coverage_search",
-                    placeholder="Input, source, or role",
+                    placeholder="Indicator or source",
                 )
             with filter_b:
                 coverage_pillar = st.selectbox(
@@ -3476,24 +3577,18 @@ def render_methodology_workspace(
             with filter_c:
                 coverage_source = st.selectbox(
                     "Source",
-                    ["All", *sorted(coverage_table["Source / Lineage"].dropna().unique())],
+                    ["All", *sorted(coverage_table["Main source"].dropna().unique())],
                     key="methodology_coverage_source",
                 )
             with filter_d:
-                coverage_role = st.selectbox(
-                    "Role",
-                    ["All", *sorted(coverage_table["Role"].dropna().unique())],
-                    key="methodology_coverage_role",
-                )
-            with filter_e:
                 coverage_band = st.selectbox(
                     "Coverage",
                     [
                         "All",
-                        "Complete",
-                        "High (90%+)",
-                        "Partial (<90%)",
-                        "Unavailable",
+                        "100%",
+                        "90–99%",
+                        "1–89%",
+                        "No direct data",
                     ],
                     key="methodology_coverage_band",
                 )
@@ -3501,7 +3596,7 @@ def render_methodology_workspace(
             if coverage_search.strip():
                 needle = coverage_search.strip().lower()
                 search_mask = pd.Series(False, index=filtered_coverage.index)
-                for column in ("Input", "Source / Lineage", "Role"):
+                for column in ("Indicator", "Main source"):
                     search_mask |= filtered_coverage[column].astype(str).str.lower().str.contains(
                         needle,
                         regex=False,
@@ -3513,112 +3608,232 @@ def render_methodology_workspace(
                 ]
             if coverage_source != "All":
                 filtered_coverage = filtered_coverage[
-                    filtered_coverage["Source / Lineage"] == coverage_source
+                    filtered_coverage["Main source"] == coverage_source
                 ]
-            if coverage_role != "All":
+            if coverage_band == "100%":
                 filtered_coverage = filtered_coverage[
-                    filtered_coverage["Role"] == coverage_role
+                    filtered_coverage["Coverage"] >= 1.0
                 ]
-            if coverage_band == "Complete":
+            elif coverage_band == "90–99%":
                 filtered_coverage = filtered_coverage[
-                    filtered_coverage["Direct Coverage"] >= 1.0
+                    (filtered_coverage["Coverage"] >= 0.9)
+                    & (filtered_coverage["Coverage"] < 1.0)
                 ]
-            elif coverage_band == "High (90%+)":
+            elif coverage_band == "1–89%":
                 filtered_coverage = filtered_coverage[
-                    (filtered_coverage["Direct Coverage"] >= 0.9)
-                    & (filtered_coverage["Direct Coverage"] < 1.0)
+                    (filtered_coverage["Coverage"] > 0.0)
+                    & (filtered_coverage["Coverage"] < 0.9)
                 ]
-            elif coverage_band == "Partial (<90%)":
+            elif coverage_band == "No direct data":
                 filtered_coverage = filtered_coverage[
-                    (filtered_coverage["Direct Coverage"] > 0.0)
-                    & (filtered_coverage["Direct Coverage"] < 0.9)
-                ]
-            elif coverage_band == "Unavailable":
-                filtered_coverage = filtered_coverage[
-                    filtered_coverage["Direct Coverage"] <= 0.0
+                    filtered_coverage["Coverage"] <= 0.0
                 ]
             st.dataframe(
                 filtered_coverage,
                 use_container_width=True,
                 hide_index=True,
-                column_config={"Direct Coverage": st.column_config.NumberColumn(format="percent")},
+                column_config={
+                    "Coverage": st.column_config.NumberColumn(format="percent")
+                },
             )
             st.download_button(
-                "Download Data Card Inventory",
+                "Download Coverage Table",
                 data=coverage_table.to_csv(index=False).encode("utf-8"),
                 file_name=f"bankenv_data_card_{snapshot_id}.csv",
                 mime="text/csv",
                 key="download_data_card_inventory",
             )
         st.caption(
-            "Explorer preserves source-native periodicity. The served model uses "
-            "one latest-allowed country cross-section at the snapshot cutoff."
+            f"Explorer shows each source's full available history. Country scores use "
+            f"the most recent permitted actual or estimate on or before "
+            f"{snapshot_label}; WEO projections are excluded. Source dates differ "
+            "because monthly, quarterly, and annual datasets update on different schedules."
         )
 
-    elif section == "Validation and Release":
-        st.markdown("## Validation and Release")
-        validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
+    elif section == "Evidence and Limits":
+        st.markdown("## Evidence and Limits")
+        st.caption(
+            "What the published score can support, what has been checked, and "
+            "which model rules have the largest effect."
+        )
+        validation_path = (
+            CRISIS_VALIDATION_SUMMARY_PATH
+            if uses_active_evidence
+            else resolved_evidence_root / "crisis_validation_summary.json"
+        )
+        validation = _load_first_json((validation_path,))
         validation_state = crisis_validation_display_state(validation)
-        lifecycle = pd.DataFrame([
-            {
-                "Control": "Artifact integrity",
-                "Status": "Verified" if integrity_verified else "Not verified",
-                "Meaning": "Manifest checks the served bundle; this is not model approval.",
-            },
-            {
-                "Control": "Named model approval",
-                "Status": "Not recorded",
-                "Meaning": "No approval transition is recorded in the served manifest.",
-            },
-            {
-                "Control": "Crisis-classifier validation",
-                "Status": "Displayable" if validation_state["display_metrics"] else "Superseded / withheld",
-                "Meaning": str(validation_state["reason"]),
-            },
-            {
-                "Control": "Rollback",
-                "Status": "Archived snapshots available" if SNAPSHOT_ARCHIVE else "Not recorded",
-                "Meaning": "Fallback is restricted to checksum-verified bundles.",
-            },
-        ])
-        st.dataframe(lifecycle, use_container_width=True, hide_index=True)
-        st.markdown("### Confusion Matrix Status")
-        confusion_matrix_path = validated_confusion_matrix_path(validation, BASE_DIR)
-        if confusion_matrix_path is not None:
-            st.image(
-                str(confusion_matrix_path),
-                caption="Governed crisis-classifier confusion matrix",
+        confusion_matrix_path = validated_confusion_matrix_path(
+            validation,
+            BASE_DIR if uses_active_evidence else resolved_evidence_root,
+        )
+        crisis_test_available = (
+            bool(validation_state["display_metrics"])
+            and confusion_matrix_path is not None
+        )
+        crisis_uplift = (
+            pd.to_numeric(scores["crisis_uplift"], errors="coerce").fillna(0.0)
+            if "crisis_uplift" in scores
+            else pd.Series(dtype=float)
+        )
+        uplifted_countries = int((crisis_uplift > 0).sum())
+        largest_uplift = float(crisis_uplift.max()) if not crisis_uplift.empty else 0.0
+        file_check_text = (
+            "The published snapshot passed its recorded file and data checks."
+            if release_checks_passed
+            else "The published snapshot does not record completed release checks."
+        )
+        crisis_evidence_text = (
+            "Its approved historical test is shown below, but it still cannot "
+            "predict the timing of a crisis."
+            if crisis_test_available
+            else (
+                "Its earlier test results are not valid evidence of future "
+                "prediction performance."
+                if validation
+                else "No approved historical test is packaged with this snapshot."
+            )
+        )
+        st.markdown(
+            "- **Country comparison — supported for screening.** Use the 1–10 "
+            "score to compare countries and focus deeper analysis. It is not a "
+            "credit rating and does not state a precise probability.\n"
+            f"- **Published files — {'checked' if release_checks_passed else 'review needed'}.** "
+            f"{file_check_text}\n"
+            "- **Crisis prediction — not supported.** The retained crisis adjustment "
+            f"affects {uplifted_countries} of {served_country_count} country scores and adds "
+            f"at most {largest_uplift:.2f} points. {crisis_evidence_text}\n"
+            "- **Independent rating validation — not completed.** Treat BankEnv as a "
+            "transparent analyst aid and verify conclusions against current country evidence."
+        )
+        if crisis_test_available:
+            st.caption(
+                "Precision, recall, and a confusion matrix do not apply to the main "
+                "1–10 country-risk score. They apply only to the separate yes-or-no "
+                "crisis test shown below."
+            )
+        elif validation:
+            st.caption(
+                "Precision, recall, and a confusion matrix do not apply to the main "
+                "1–10 country-risk score. They apply only to a separate yes-or-no crisis "
+                "test, whose current evidence is withheld because the test design was not "
+                "strong enough."
             )
         else:
-            st.warning(
-                "No schema-versioned, checksum-linked confusion matrix is approved "
-                "for the served classifier. Superseded threshold results are not "
-                "shown as current validation evidence."
+            st.caption(
+                "Precision, recall, and a confusion matrix do not apply to the main "
+                "1–10 country-risk score. No approved results for the separate "
+                "yes-or-no crisis test are packaged with this snapshot."
             )
-        st.caption(
-            "The structural country score remains usable as an analyst screener; "
-            "the crisis overlay must not be used as a stand-alone prediction model."
+
+        policy_audit_path = (
+            MODEL_POLICY_AUDIT_PATH
+            if uses_active_evidence
+            else resolved_evidence_root / "model_policy_audit.json"
         )
-        st.markdown("### Release Gate")
-        release_rows = pd.DataFrame([
-            ("Artifact checksums and schema", "Passed for served bundle" if integrity_verified else "Open"),
-            ("Material score-movement review", "Required for every candidate"),
-            ("Out-of-time and grouped validation", "Required before classifier promotion"),
-            ("Named owner approval", "Not recorded"),
-            ("Rollback bundle and smoke test", "Required before promotion"),
-        ], columns=["Requirement", "Current State"])
-        st.dataframe(release_rows, use_container_width=True, hide_index=True)
-        show_candidate_appendix = st.checkbox(
-            "Show candidate monitoring appendix",
-            value=False,
-            key="show_candidate_monitoring_appendix",
-            help=(
-                "Loads archived challenger movement and validation evidence. "
-                "These diagnostics do not change the served score."
+        policy_audit = _load_first_json((policy_audit_path,))
+        scenarios = policy_audit.get("scenarios") or {}
+        sensitivity_specs = (
+            (
+                "no_risk_floors",
+                "Coverage-based minimum scores",
+                "These rules have the largest measured effect and should be checked when a country has weak coverage.",
+            ),
+            (
+                "no_gdp_pca_input",
+                "GDP per person",
+                "Removing this input has little effect on most published country scores.",
+            ),
+            (
+                "no_confidence_regression",
+                "Pull toward the middle when evidence is incomplete",
+                "This generally limits overconfidence; removing it changes few countries by a full point.",
             ),
         )
-        if show_candidate_appendix:
-            render_model_monitoring_summary(pca)
+        sensitivity_rows = []
+        for scenario_key, design_choice, interpretation in sensitivity_specs:
+            scenario = scenarios.get(scenario_key) or {}
+            if not scenario:
+                continue
+            countries_moving = int(
+                scenario.get("countries_moving_at_least_one_point") or 0
+            )
+            sensitivity_rows.append({
+                "rule": design_choice,
+                "countries": countries_moving,
+                "largest_change": _display_value(
+                    scenario.get("maximum_absolute_score_change"),
+                    digits=1,
+                ),
+                "interpretation": interpretation,
+            })
+        st.markdown("### How Model Rules Affect Scores")
+        st.caption(
+            "These checks recalculate the same snapshot after removing one rule. "
+            "They show how much the score depends on that rule, not how accurately "
+            "the model predicts future events."
+        )
+        if sensitivity_rows:
+            st.markdown(
+                "\n".join(
+                    f"- **{row['rule']}.** If removed, {row['countries']} "
+                    f"{'country' if row['countries'] == 1 else 'countries'} "
+                    f"move by at least 1 point; the largest change is "
+                    f"{row['largest_change']} points. {row['interpretation']}"
+                    for row in sensitivity_rows
+                )
+            )
+            baseline = policy_audit.get("baseline") or {}
+            if baseline.get("risk_floor_count") is not None:
+                st.caption(
+                    f"Coverage-based minimum scores currently affect "
+                    f"{int(baseline['risk_floor_count'])} of "
+                    f"{int(baseline.get('countries') or served_country_count)} countries."
+                )
+        else:
+            st.info("Sensitivity results are unavailable for this snapshot.")
+
+        if confusion_matrix_path is not None:
+            st.markdown("### Crisis-Adjustment Test Results")
+            st.image(
+                str(confusion_matrix_path),
+                caption="Approved test results for the separate crisis adjustment",
+            )
+
+        if globals().get("SHOW_ADMIN_DIAGNOSTICS", False):
+            st.divider()
+            st.markdown("### Admin Release Record")
+            lifecycle = pd.DataFrame([
+                {
+                    "Control": "Snapshot checks",
+                    "Status": "Passed" if release_checks_passed else "Needs review",
+                    "Detail": f"Manifest status: {snapshot_status}",
+                },
+                {
+                    "Control": "Crisis-adjustment test evidence",
+                    "Status": (
+                        "Available" if validation_state["display_metrics"] else "Withheld"
+                    ),
+                    "Detail": str(validation_state["reason"]),
+                },
+                {
+                    "Control": "Archived fallback",
+                    "Status": "Available" if SNAPSHOT_ARCHIVE.exists() else "Not recorded",
+                    "Detail": "Used only if the active snapshot fails its file checks.",
+                },
+            ])
+            st.dataframe(lifecycle, use_container_width=True, hide_index=True)
+            show_candidate_appendix = st.checkbox(
+                "Show candidate monitoring appendix",
+                value=False,
+                key="show_candidate_monitoring_appendix",
+                help=(
+                    "Loads archived candidate movement and validation evidence. "
+                    "These diagnostics do not change the published score."
+                ),
+            )
+            if show_candidate_appendix:
+                render_model_monitoring_summary(pca)
 
 
 _serving_ver = _serving_version()
@@ -4855,11 +5070,23 @@ if primary_view == "Explorer":
 # VIEW: Methodology
 # ==============================================================================
 if primary_view == "Methodology":
+    methodology_evidence_root = BASE_DIR
+    if viewing_archived and SNAPSHOT_ARCHIVE is not None:
+        methodology_evidence_root = Path(SNAPSHOT_ARCHIVE) / selected_snapshot
+    elif (
+        (serving_status or {}).get("mode") == "fallback"
+        and (serving_status or {}).get("fallback_snapshot")
+        and SNAPSHOT_ARCHIVE is not None
+    ):
+        methodology_evidence_root = (
+            Path(SNAPSHOT_ARCHIVE) / serving_status["fallback_snapshot"]
+        )
     render_methodology_workspace(
         scores=scores_df,
         features=model_features,
         manifest=data_manifest,
         pca=pca_info,
+        evidence_root=methodology_evidence_root,
     )
     if SHOW_ADMIN_DIAGNOSTICS:
         with st.expander(

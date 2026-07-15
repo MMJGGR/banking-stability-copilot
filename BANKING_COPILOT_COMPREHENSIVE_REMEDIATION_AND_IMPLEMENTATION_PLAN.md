@@ -1845,10 +1845,10 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   notices, and crisis validation are mixed into the public explanation. On
   mobile the four summary metrics and prose create a very long page.
 - **Evidence:** `app.py:2958-3376` and live Methodology checks.
-- **Required change:** organize three concise sections/tabs: "How the score
-  works," "Data and coverage," and "Validation and release." Begin with what
-  BankEnv measures/does not measure and a small score-flow diagram; show metadata
-  once; move release/candidate detail to a collapsed appendix.
+- **Required change:** organize three concise sections: "How the Score Works,"
+  "Data and Coverage," and "Evidence and Limits." Begin with what BankEnv
+  measures/does not measure and a plain score flow; show metadata once; keep
+  release and candidate diagnostics out of the public view.
 - **Acceptance:** the top section is understandable without technical tables;
   each concept and metadata field appears once; "Verified" is qualified as
   integrity only; limitations are concise and candidate/release evidence is
@@ -1861,12 +1861,12 @@ An item is checked only after its acceptance criteria pass in the rendered app.
   Monitoring and the Data Card. Five manifest sources do not visibly reconcile
   with seven Explorer choices because derived packages are not separated.
 - **Evidence:** `app.py:3198-3315` and the active manifest.
-- **Required change:** use one filterable inventory with `Active`,
-  `Partial/proxy`, `Insight only`, and `Unavailable`; separate upstream source
-  families from derived packages; remove completed items from the gap list.
-- **Acceptance:** nothing is simultaneously "missing" and active; counts
-  reconcile across Data Card, artifact, and Explorer; domain/source/role/coverage
-  filters are available.
+- **Required change:** use one filterable inventory of inputs used in the score;
+  separate upstream source families from derived indicator packages; remove
+  completed items and insight-only fields from the score-input inventory.
+- **Acceptance:** nothing is simultaneously "missing" and used in the score;
+  counts reconcile across Methodology, the artifact, and Explorer; indicator,
+  pillar, source, and coverage filters are available without invariant controls.
 
 ##### [x] UX-14 — Connect Global, Country, peers, and Explorer state
 
@@ -3332,3 +3332,39 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     score for 199/201 countries; the only two differences are exactly the
     recorded legacy crisis adjustments for Switzerland and Seychelles. USA
     remains 7.0, Kenya 8.0, and Mozambique 8.6.
+- [ ] Checkpoint 52: Make the public Methodology workspace concise and useful.
+  - Trigger: rendered production review found an empty confusion-matrix warning,
+    internal release-engineering language, repeated status controls, misleading
+    derived-package counts, and conceptual tables whose explanations were
+    truncated on ordinary browser widths.
+  - Public information architecture: retain three analyst-facing sections only:
+    How the Score Works, Data and Coverage, and Evidence and Limits. Explain the
+    five score steps, exact missing-data rules, intended uses, and limitations in
+    plain language. Conceptual explanations use readable lists; tables remain
+    only where comparison or filtering adds value.
+  - Data correction: calculate model-input coverage against the 201 served
+    countries rather than all 214 rows in the feature artifact. Separate five
+    official sources from two BankEnv-derived indicator families, use the
+    reports' 198-country external and 197-country government observation counts,
+    and remove the invariant Role filter. Coverage counts distinct country codes,
+    so duplicate feature rows cannot inflate a result above 100%.
+  - Model evidence: distinguish the relative 1–10 country score from the
+    separate older crisis adjustment. Do not show an empty confusion-matrix
+    section or superseded precision/recall evidence. Surface the current policy
+    checks: coverage minimums affect 136/201 countries; removing them moves 17
+    countries by at least one point with a maximum 3.3-point change.
+  - Progressive disclosure: public copy does not expose raw release reasons,
+    candidate monitoring, technical loading maps, checksums, threshold-selection
+    terminology, or promotion controls. Existing admin diagnostics retain the
+    detailed release record and candidate appendix when explicitly enabled.
+  - Snapshot consistency: Methodology evidence follows the model actually being
+    displayed. Active, automatic-fallback, and explicitly selected archived
+    snapshots resolve their own policy audit and validation files; package-level
+    totals are withheld when an archive did not store them.
+  - Verification and release: implementation is on
+    `agent/methodology-plain-language`. The three sections were rendered locally
+    and reviewed at desktop width without application errors or clipped
+    conceptual explanations. Syntax checks and the full local suite are green at
+    254 passed and five supported-version skips; an independent post-fix diff
+    review found no remaining material issue. Pull-request, CI, merge, and
+    production checks remain pending.
