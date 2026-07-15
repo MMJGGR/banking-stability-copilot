@@ -531,6 +531,81 @@ st.set_page_config(
 # Apply Custom Styles
 st.markdown(STYLES, unsafe_allow_html=True)
 
+
+PRIMARY_VIEWS = ("Global", "Country", "Explorer", "Methodology")
+
+
+def _query_param_value(name: str, default: str = "") -> str:
+    """Return one normalized query-parameter value across Streamlit versions."""
+    try:
+        value = st.query_params.get(name, default)
+    except Exception:
+        return default
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else default
+    return str(value or default)
+
+
+def _sync_public_query_state() -> None:
+    """Keep shareable page/country state in the URL without exposing internals."""
+    try:
+        st.query_params["view"] = str(
+            st.session_state.get("primary_view", "Global")
+        ).lower()
+        country_code = st.session_state.get("profile_country_code")
+        if country_code:
+            st.query_params["country"] = str(country_code).upper()
+        explorer_country = st.session_state.get("explorer_focus_country")
+        if explorer_country:
+            st.query_params["explorer_country"] = str(explorer_country).upper()
+        explorer_tool = st.session_state.get("explorer_tool")
+        if explorer_tool:
+            st.query_params["tool"] = str(explorer_tool).lower()
+    except Exception:
+        # URL state is a convenience; it must never prevent the app from loading.
+        return
+
+
+def _render_brand_shell() -> None:
+    """Render the compact product identity before expensive data work starts."""
+    st.markdown(
+        """
+        <div class="bankenv-brand" aria-label="BankEnv">
+            <span class="bankenv-brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false">
+                    <path class="bankenv-main-stroke" d="M17 47H48" stroke-width="4" stroke-linecap="round"/>
+                    <path class="bankenv-muted-stroke" d="M17 18V47" stroke-width="4" stroke-linecap="round"/>
+                    <path class="bankenv-main-stroke" d="M25 41V31" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-accent-stroke" d="M34 41V23" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-main-stroke" d="M43 41V27" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-accent-stroke" d="M23 28L31 22L39 25L47 17" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="bankenv-brand-name">BankEnv</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_render_brand_shell()
+_requested_view = _query_param_value("view", "global").strip().lower()
+_view_lookup = {view.lower(): view for view in PRIMARY_VIEWS}
+st.session_state.setdefault(
+    "primary_view",
+    _view_lookup.get(_requested_view, "Global"),
+)
+primary_view = st.segmented_control(
+    "Primary navigation",
+    options=PRIMARY_VIEWS,
+    key="primary_view",
+    selection_mode="single",
+    on_change=_sync_public_query_state,
+    label_visibility="collapsed",
+)
+if primary_view not in PRIMARY_VIEWS:
+    primary_view = "Global"
+
 # ==============================================================================
 # DATA LOADING (Cached)
 # ==============================================================================
@@ -3560,55 +3635,39 @@ if viewing_archived:
     )
 
 default_country_code = 'USA' if 'USA' in available_country_codes else available_country_codes[0]
+_requested_country = _query_param_value("country", default_country_code).upper()
+if _requested_country not in available_country_codes:
+    _requested_country = default_country_code
 if "profile_country_code" not in st.session_state:
-    st.session_state["profile_country_code"] = default_country_code
-if "explorer_focus_country" not in st.session_state:
-    st.session_state["explorer_focus_country"] = st.session_state.get(
+    st.session_state["profile_country_code"] = _requested_country
+_requested_explorer_country = _query_param_value(
+    "explorer_country",
+    st.session_state.get("profile_country_code", default_country_code),
+).upper()
+if _requested_explorer_country not in available_country_codes:
+    _requested_explorer_country = st.session_state.get(
         "profile_country_code",
         default_country_code,
     )
-
-st.markdown(
-    """
-    <div class="bankenv-brand" aria-label="BankEnv">
-        <span class="bankenv-brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 64 64" focusable="false">
-                <path class="bankenv-main-stroke" d="M17 47H48" stroke-width="4" stroke-linecap="round"/>
-                <path class="bankenv-muted-stroke" d="M17 18V47" stroke-width="4" stroke-linecap="round"/>
-                <path class="bankenv-main-stroke" d="M25 41V31" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-accent-stroke" d="M34 41V23" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-main-stroke" d="M43 41V27" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-accent-stroke" d="M23 28L31 22L39 25L47 17" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </span>
-        <span class="bankenv-brand-name">BankEnv</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+if "explorer_focus_country" not in st.session_state:
+    st.session_state["explorer_focus_country"] = _requested_explorer_country
 
 # ==============================================================================
-# MAIN NAVIGATION: Tabs
+# VIEW: Global Summary
 # ==============================================================================
-tab_global, tab_profile, tab_explorer, tab_methodology = st.tabs([
-    "Global", "Country", "Explorer", "Methodology"
-])
-
-# ==============================================================================
-# TAB: Global Summary
-# ==============================================================================
-with tab_global:
+if primary_view == "Global":
     render_global_summary(scores_df, model_features, loader)
 
 # ==============================================================================
-# TAB: Country Profile
+# VIEW: Country Profile
 # ==============================================================================
-with tab_profile:
+if primary_view == "Country":
     selected_country_code = st.selectbox(
         "Country",
         options=available_country_codes,
         format_func=format_country_option,
         key="profile_country_code",
+        on_change=_sync_public_query_state,
         help="This selector controls the Country tab only.",
     )
 
@@ -3986,9 +4045,9 @@ with tab_profile:
             st.caption("Unable to find peer countries.")
 
 # ==============================================================================
-# TAB: Data Explorer
+# VIEW: Data Explorer
 # ==============================================================================
-with tab_explorer:
+if primary_view == "Explorer":
     with st.container(border=True):
         st.markdown("### Explorer Workspace")
         st.caption(
@@ -4003,6 +4062,7 @@ with tab_explorer:
                 options=available_country_codes,
                 format_func=format_country_option,
                 key="explorer_focus_country",
+                on_change=_sync_public_query_state,
                 help=(
                     "Used for source history and to seed comparison "
                     "country defaults."
@@ -4031,12 +4091,22 @@ with tab_explorer:
             else:
                 st.caption("No nearest-neighbor peers are available for this country.")
 
-    tool_tab_compare, tool_tab_calc, tool_tab_inspect = st.tabs([
-        "Compare",
-        "Calculate",
-        "Source Inspector",
-    ])
-    with tool_tab_compare:
+    st.session_state.setdefault(
+        "explorer_tool",
+        {
+            "compare": "Compare",
+            "calculate": "Calculate",
+            "source inspector": "Source Inspector",
+        }.get(_query_param_value("tool", "compare").strip().lower(), "Compare"),
+    )
+    explorer_tool = st.segmented_control(
+        "Explorer task",
+        options=("Compare", "Calculate", "Source Inspector"),
+        key="explorer_tool",
+        on_change=_sync_public_query_state,
+        label_visibility="collapsed",
+    )
+    if explorer_tool == "Compare":
         render_indicator_comparison(
             scores=scores_df,
             selected_country=explorer_focus_country,
@@ -4044,7 +4114,7 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    with tool_tab_calc:
+    elif explorer_tool == "Calculate":
         render_calculated_series_builder(
             scores=scores_df,
             selected_country=explorer_focus_country,
@@ -4052,7 +4122,7 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    with tool_tab_inspect:
+    elif explorer_tool == "Source Inspector":
         render_source_inspector(
             selected_country=explorer_focus_country,
             country_formatter=format_country_option,
@@ -4061,9 +4131,9 @@ with tab_explorer:
 
 
 # ==============================================================================
-# TAB: Methodology
+# VIEW: Methodology
 # ==============================================================================
-with tab_methodology:
+if primary_view == "Methodology":
     render_current_methodology(
         scores=scores_df,
         features=model_features,
