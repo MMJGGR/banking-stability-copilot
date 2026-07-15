@@ -26,12 +26,74 @@ RISK_COLORS = {
 
 STYLES = """
 <style>
-    /* Import premium font */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    /* Apply font globally */
-    html, body, .stApp, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    /*
+     * BankEnv presentation tokens deliberately derive from Streamlit's active
+     * theme variables. This keeps an in-app theme override in sync even when it
+     * differs from the operating-system color preference.
+     */
+    .stApp {
+        --bankenv-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
+            Roboto, Helvetica, Arial, sans-serif;
+        --bankenv-font-mono: ui-monospace, "SFMono-Regular", Consolas,
+            "Liberation Mono", monospace;
+        /*
+         * Streamlit 1.59 no longer publishes the older --text-color and
+         * --background-color custom properties. CSS system colors resolve
+         * against the app's active color-scheme, including an in-app theme
+         * override that differs from the operating system.
+         */
+        --bankenv-background: Canvas;
+        --bankenv-surface: color-mix(in srgb, CanvasText 8%, Canvas);
+        --bankenv-text: CanvasText;
+        --bankenv-primary: #FF4B4B;
+        --bankenv-muted-text: #4B5563;
+        --bankenv-muted-text: color-mix(
+            in srgb,
+            var(--bankenv-text) 72%,
+            var(--bankenv-background)
+        );
+        --bankenv-border: rgba(128, 128, 128, 0.35);
+        --bankenv-border: color-mix(
+            in srgb,
+            var(--bankenv-text) 28%,
+            var(--bankenv-background)
+        );
+        --bankenv-subtle: rgba(128, 128, 128, 0.14);
+        --bankenv-subtle: color-mix(
+            in srgb,
+            var(--bankenv-text) 12%,
+            var(--bankenv-background)
+        );
+        --bankenv-warning-text: #7A4B00;
+        --bankenv-warning-text: color-mix(
+            in srgb,
+            #B45309 66%,
+            var(--bankenv-text)
+        );
+        --bankenv-danger-text: #B42318;
+        --bankenv-danger-text: color-mix(
+            in srgb,
+            #B42318 72%,
+            var(--bankenv-text)
+        );
+        --bankenv-success-text: #147D39;
+        --bankenv-success-text: color-mix(
+            in srgb,
+            #147D39 72%,
+            var(--bankenv-text)
+        );
+        --bankenv-focus-ring: var(--bankenv-primary);
+        --bankenv-radius-sm: 6px;
+        --bankenv-radius-md: 8px;
+        --bankenv-space-1: 0.25rem;
+        --bankenv-space-2: 0.5rem;
+        --bankenv-space-3: 0.75rem;
+        --bankenv-space-4: 1rem;
+        --bankenv-space-5: 1.25rem;
+    }
+
+    html, body, .stApp {
+        font-family: var(--bankenv-font-sans) !important;
     }
     
     /* =========================================
@@ -41,10 +103,13 @@ STYLES = """
         padding-bottom: 0px !important;
         margin-bottom: 0.5rem !important;
         font-weight: 600 !important;
+        line-height: 1.2 !important;
+        overflow-wrap: anywhere;
     }
     
     .block-container {
-        padding-top: 2rem !important;
+        /* Streamlit's fixed 60px toolbar otherwise masks the product mark. */
+        padding-top: 4.5rem !important;
         padding-bottom: 2rem !important;
         max-width: 1180px;
     }
@@ -58,10 +123,16 @@ STYLES = """
     }
 
     .bankenv-brand-mark {
-        --bankenv-tile-bg: #0B1220;
-        --bankenv-main-stroke: #E5E7EB;
-        --bankenv-muted-stroke: #94A3B8;
-        --bankenv-accent-stroke: #38BDF8;
+        /* Follow the active Streamlit theme, not prefers-color-scheme. */
+        --bankenv-tile-bg: var(--bankenv-text);
+        --bankenv-main-stroke: var(--bankenv-background);
+        --bankenv-muted-stroke: #64748B;
+        --bankenv-muted-stroke: color-mix(
+            in srgb,
+            var(--bankenv-background) 68%,
+            var(--bankenv-text)
+        );
+        --bankenv-accent-stroke: #0284C7;
         width: 42px;
         height: 42px;
         border-radius: 12px;
@@ -69,18 +140,8 @@ STYLES = """
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid rgba(226, 232, 240, 0.55);
+        border: 1px solid var(--bankenv-border);
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .bankenv-brand-mark {
-            --bankenv-tile-bg: #F8FAFC;
-            --bankenv-main-stroke: #0B1220;
-            --bankenv-muted-stroke: #475569;
-            --bankenv-accent-stroke: #0284C7;
-            border-color: rgba(148, 163, 184, 0.70);
-        }
     }
 
     .bankenv-brand-mark svg {
@@ -102,44 +163,115 @@ STYLES = """
     }
 
     .bankenv-brand-name {
-        color: var(--text-color);
+        color: var(--bankenv-text);
         font-size: 1.2rem;
-        font-weight: 650;
+        font-weight: 700;
         letter-spacing: -0.01em;
+    }
+
+    /* A visible, wrapping replacement for hover-only title attributes. */
+    .bankenv-full-label {
+        color: var(--bankenv-muted-text);
+        font-size: 0.875rem;
+        line-height: 1.45;
+        margin: -0.2rem 0 0.45rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .bankenv-full-label__prefix {
+        color: var(--bankenv-text);
+        font-weight: 600;
+    }
+
+    /* Strong, consistent keyboard focus without adding focusable elements. */
+    :where(
+        a,
+        button,
+        input,
+        textarea,
+        select,
+        [role="tab"],
+        [role="option"],
+        [role="checkbox"],
+        [role="switch"],
+        [tabindex]:not([tabindex="-1"])
+    ):focus-visible {
+        outline: 3px solid var(--bankenv-focus-ring) !important;
+        outline-offset: 2px !important;
+        border-radius: var(--bankenv-radius-sm);
     }
     
     /* =========================================
        METRICS / KPI CARDS
        ========================================= */
     div[data-testid="stMetricValue"] {
-        font-family: 'Inter', 'Roboto Mono', monospace;
+        font-family: var(--bankenv-font-sans);
         font-weight: 700;
         font-size: 1.42rem !important;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Opt-in primitive for UI-native/custom metric groups. */
+    .bankenv-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: var(--bankenv-space-3);
+        align-items: stretch;
+    }
+
+    .bankenv-kpi-card {
+        min-width: 0;
+        padding: var(--bankenv-space-3);
+        border: 1px solid var(--bankenv-border);
+        border-radius: var(--bankenv-radius-md);
+        background: var(--bankenv-surface);
+    }
+
+    .bankenv-kpi-label {
+        color: var(--bankenv-muted-text);
+        font-size: 0.8125rem;
+        line-height: 1.25;
+    }
+
+    .bankenv-kpi-value {
+        color: var(--bankenv-text);
+        font-size: clamp(1.35rem, 2.4vw, 1.8rem);
+        font-weight: 700;
+        line-height: 1.2;
+        margin-top: var(--bankenv-space-1);
+        overflow-wrap: anywhere;
+    }
+
+    .bankenv-kpi-context {
+        color: var(--bankenv-muted-text);
+        font-size: 0.78rem;
+        line-height: 1.35;
+        margin-top: var(--bankenv-space-1);
     }
     
     /* =========================================
        SUMMARY CARDS
        ========================================= */
     .summary-box {
-        background: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.28);
-        border-radius: 8px;
+        background: var(--bankenv-surface);
+        border: 1px solid var(--bankenv-border);
+        border-radius: var(--bankenv-radius-md);
         padding: 1.25rem;
         margin-bottom: 1rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
     
     .summary-header {
-        color: var(--text-color);
-        opacity: 0.68;
-        font-size: 0.75rem;
+        color: var(--bankenv-muted-text);
+        font-size: 0.8125rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.25rem;
     }
     
     .summary-value {
-        color: var(--text-color);
+        color: var(--bankenv-text);
         font-size: 1.5rem;
         font-weight: 600;
     }
@@ -148,10 +280,12 @@ STYLES = """
        DATA SNAPSHOT TABLE
        ========================================= */
     .snapshot-row {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: var(--bankenv-space-3);
         padding: 0.35rem 0;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+        border-bottom: 1px solid var(--bankenv-border);
     }
     
     .snapshot-row:last-child {
@@ -159,24 +293,25 @@ STYLES = """
     }
     
     .snapshot-label {
-        color: var(--text-color);
-        opacity: 0.68;
-        font-size: 0.85rem;
+        color: var(--bankenv-muted-text);
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
     }
     
     .snapshot-value {
-        color: var(--text-color);
+        color: var(--bankenv-text);
         font-weight: 500;
-        font-family: 'Consolas', 'Roboto Mono', monospace;
+        font-family: var(--bankenv-font-mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
     }
     
     .snapshot-value.missing {
-        color: var(--text-color);
-        opacity: 0.38;
+        color: var(--bankenv-muted-text);
     }
     
     .snapshot-value.imputed {
-        color: #D29922;  /* Amber/warning color for imputed values */
+        color: var(--bankenv-warning-text);
         font-style: italic;
     }
 
@@ -185,17 +320,16 @@ STYLES = """
        PREDICTION CARDS
        ========================================= */
     .prediction-card {
-        background: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.28);
-        border-radius: 8px;
+        background: var(--bankenv-surface);
+        border: 1px solid var(--bankenv-border);
+        border-radius: var(--bankenv-radius-md);
         padding: 1.25rem;
         text-align: center;
     }
     
     .prediction-label {
-        color: var(--text-color);
-        opacity: 0.68;
-        font-size: 0.75rem;
+        color: var(--bankenv-muted-text);
+        font-size: 0.8125rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.5rem;
@@ -204,7 +338,8 @@ STYLES = """
     .prediction-score {
         font-size: 2.5rem;
         font-weight: 700;
-        font-family: 'Consolas', 'Roboto Mono', monospace;
+        font-family: var(--bankenv-font-mono);
+        font-variant-numeric: tabular-nums;
     }
     
     .prediction-tier {
@@ -213,16 +348,31 @@ STYLES = """
     }
     
     .prediction-category {
-        color: var(--text-color);
+        color: var(--bankenv-text);
         font-size: 1rem;
     }
     
     /* =========================================
        TABLES
        ========================================= */
+    div[data-testid="stDataFrame"] {
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+        border-radius: var(--bankenv-radius-sm);
+    }
+
     div[data-testid="stDataFrame"] div[class*="stDataFrame"] {
-        font-size: 0.85rem;
-        font-family: 'Segoe UI', sans-serif;
+        font-size: 0.875rem;
+        font-family: var(--bankenv-font-sans);
+    }
+
+    .bankenv-table-scroll {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: stable;
     }
     
     /* =========================================
@@ -230,15 +380,21 @@ STYLES = """
        ========================================= */
     .stTabs [data-baseweb="tab-list"] {
         gap: 2px;
-        background-color: var(--secondary-background-color);
-        border-radius: 6px;
+        background-color: var(--bankenv-surface);
+        border-radius: var(--bankenv-radius-sm);
         padding: 4px;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
     }
     
     .stTabs [data-baseweb="tab"] {
         padding: 0.65rem 1rem;
         font-weight: 500;
         border-radius: 4px;
+        flex: 0 0 auto;
+        min-height: 44px;
     }
 
     @media (max-width: 640px) {
@@ -268,79 +424,151 @@ STYLES = """
             font-size: 0.92rem;
         }
 
+        /* Streamlit metric rows become a compact two-column grid on mobile. */
+        div[data-testid="stHorizontalBlock"]:has(
+            > div[data-testid="stColumn"] div[data-testid="stMetric"]
+        ) {
+            flex-wrap: wrap !important;
+            gap: var(--bankenv-space-3) !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(
+            > div[data-testid="stColumn"] div[data-testid="stMetric"]
+        ) > div[data-testid="stColumn"] {
+            flex: 1 1 calc(50% - var(--bankenv-space-3)) !important;
+            width: calc(50% - var(--bankenv-space-3)) !important;
+            min-width: 8.5rem !important;
+        }
+
+        .bankenv-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .bankenv-chart-shell {
+            min-height: 18rem;
+        }
+
+        .snapshot-row {
+            gap: var(--bankenv-space-2);
+        }
+
         div[data-testid="stMetricValue"] {
             font-size: 1.32rem !important;
         }
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(128, 128, 128, 0.14);
+        background-color: var(--bankenv-subtle);
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: rgba(128, 128, 128, 0.22) !important;
+        background-color: var(--bankenv-subtle) !important;
     }
     
     /* =========================================
        EXPANDERS
        ========================================= */
     .streamlit-expanderHeader {
-        background-color: var(--secondary-background-color);
-        border-radius: 6px;
+        background-color: var(--bankenv-surface);
+        border-radius: var(--bankenv-radius-sm);
     }
     
     /* =========================================
        INPUTS
        ========================================= */
     .stNumberInput > div > div > input {
-        background-color: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.28);
-        color: var(--text-color);
+        background-color: var(--bankenv-surface);
+        border: 1px solid var(--bankenv-border);
+        color: var(--bankenv-text);
     }
     
     div[data-baseweb="select"] > div,
     div[data-baseweb="select"] input,
     div[data-baseweb="select"] span {
-        background-color: var(--secondary-background-color) !important;
-        color: var(--text-color) !important;
-        -webkit-text-fill-color: var(--text-color) !important;
+        background-color: var(--bankenv-surface) !important;
+        color: var(--bankenv-text) !important;
+        -webkit-text-fill-color: var(--bankenv-text) !important;
     }
 
     div[data-baseweb="select"] > div {
-        border-color: rgba(128, 128, 128, 0.32) !important;
+        border-color: var(--bankenv-border) !important;
     }
 
     div[data-baseweb="popover"],
     ul[data-testid="stVirtualDropdown"],
     div[role="listbox"] {
-        background-color: var(--background-color) !important;
-        color: var(--text-color) !important;
+        background-color: var(--bankenv-background) !important;
+        color: var(--bankenv-text) !important;
     }
 
     li[role="option"],
     div[role="option"] {
-        background-color: var(--background-color) !important;
-        color: var(--text-color) !important;
+        background-color: var(--bankenv-background) !important;
+        color: var(--bankenv-text) !important;
     }
 
     li[role="option"]:hover,
     div[role="option"]:hover {
-        background-color: var(--secondary-background-color) !important;
+        background-color: var(--bankenv-surface) !important;
     }
 
     div[data-baseweb="tag"] {
         background-color: rgba(47, 129, 247, 0.18) !important;
-        color: var(--text-color) !important;
+        color: var(--bankenv-text) !important;
     }
     
     /* =========================================
        CHARTS
        ========================================= */
     .chart-container {
-        background-color: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.28);
-        border-radius: 8px;
+        background-color: var(--bankenv-surface);
+        border: 1px solid var(--bankenv-border);
+        border-radius: var(--bankenv-radius-md);
         padding: 1rem;
+    }
+
+    .bankenv-chart-shell,
+    div[data-testid="stPlotlyChart"] {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    div[data-testid="stPlotlyChart"] .modebar-btn:focus-visible {
+        outline: 3px solid var(--bankenv-focus-ring) !important;
+        outline-offset: 1px;
+    }
+
+    @media (max-width: 380px) {
+        div[data-testid="stHorizontalBlock"]:has(
+            > div[data-testid="stColumn"] div[data-testid="stMetric"]
+        ) > div[data-testid="stColumn"] {
+            min-width: 100% !important;
+            width: 100% !important;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            scroll-behavior: auto !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    @media (forced-colors: active) {
+        :where(a, button, input, textarea, select, [role="tab"]):focus-visible {
+            outline-color: Highlight !important;
+        }
+
+        .bankenv-brand-mark,
+        .bankenv-kpi-card,
+        .summary-box,
+        .prediction-card,
+        .chart-container {
+            border: 1px solid CanvasText;
+        }
     }
 </style>
 """

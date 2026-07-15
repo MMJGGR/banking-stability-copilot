@@ -2,13 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-import time
 import os
 import json
 import re
-import html
+import logging
 from pathlib import Path
+from urllib.parse import urlencode
 
 from src.data_loader import (
     FSIBSISLoader,
@@ -53,20 +52,28 @@ if hasattr(model_store, "load_archived_snapshot"):
 else:
     def load_archived_snapshot(name: str):
         raise FileNotFoundError("Archived snapshots are unavailable in this deployment")
-from src.dashboard.styles import STYLES, score_to_tier
+from src.dashboard.styles import score_to_tier
+from src.dashboard.presentation import (
+    add_time_boundary,
+    accessible_plotly_config,
+    apply_responsive_chart_layout,
+    format_identifier,
+    format_pillar_label,
+    render_dashboard_styles,
+    render_full_label,
+)
 from src.dashboard.components import (
-    render_summary_card,
-    render_data_snapshot,
     render_time_series_deep_dive,
-    WEO_INDICATORS,
-    FSIC_NAME_PATTERNS
 )
 from src.dashboard.calculated_series import (
     available_frequencies,
+    check_cross_sectional_additivity,
+    check_unit_compatibility,
     compute_cross_sectional_share,
     compute_expression_formula,
     compute_ratio,
     compute_temporal_change,
+    diagnose_alignment,
     filter_time_range,
     FormulaValidationError,
     normalize_observation_frame,
@@ -74,26 +81,14 @@ from src.dashboard.calculated_series import (
     validate_formula,
 )
 from src.dashboard.global_view import render_global_summary
+from src.dashboard.evidence import (
+    build_active_feature_registry,
+    build_active_input_inventory,
+)
 from src import utils as dashboard_utils
 
 
-def _render_hover_full_label(label: str, prefix: str = "Selected item") -> None:
-    """Show a compact selected-label preview with the full text on hover."""
-    text = str(label or "").strip()
-    if not text:
-        return
-    safe_text = html.escape(text, quote=True)
-    safe_prefix = html.escape(prefix, quote=True)
-    st.markdown(
-        (
-            f'<div title="{safe_text}" '
-            'style="font-size:0.82rem;color:#6B7280;line-height:1.3;'
-            'margin-top:-0.35rem;margin-bottom:0.35rem;white-space:nowrap;'
-            'overflow:hidden;text-overflow:ellipsis;">'
-            f'<span style="font-weight:600;">{safe_prefix}:</span> {safe_text}</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+LOGGER = logging.getLogger(__name__)
 
 
 def _fallback_driver_metric_value(
@@ -459,67 +454,6 @@ EXTERNAL_FEATURE_LABELS = {
 }
 
 
-def extract_mermaid_code(markdown_text: str) -> str:
-    """Extract mermaid code block from markdown."""
-    import re
-    match = re.search(r'```mermaid\n(.*?)\n```', markdown_text, re.DOTALL)
-    if match:
-        return match.group(1)
-    return None
-
-def render_markdown_with_images(markdown_text: str):
-    """
-    Render markdown text, identifying and displaying local images separately.
-    Standard st.markdown cannot render local file paths provided in ![alt](path).
-    """
-    import re
-    import os
-
-    # Get the directory where app.py is located (project root)
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Pattern to find images: ![alt text](path)
-    # capturing groups: 1=alt, 2=path
-    pattern = r'!\[(.*?)\]\((.*?)\)'
-
-    # Split text by images
-    parts = re.split(pattern, markdown_text)
-
-    # re.split returns [text, alt, path, text, alt, path, ...]
-    # We iterate and render
-
-    i = 0
-    while i < len(parts):
-        text_segment = parts[i]
-        if text_segment.strip():
-            st.markdown(text_segment)
-
-        # If there are more parts, next are alt and path
-        if i + 2 < len(parts):
-            alt_text = parts[i+1]
-            image_path = parts[i+2]
-
-            # Resolve relative paths from app directory
-            if not os.path.isabs(image_path):
-                image_path = os.path.join(app_dir, image_path)
-
-            # Check if file exists to prevent errors
-            if os.path.exists(image_path):
-                try:
-                    # Read image as bytes for reliable Streamlit rendering
-                    with open(image_path, 'rb') as img_file:
-                        st.image(img_file.read(), caption=alt_text)
-                except Exception as e:
-                    st.warning(f"Could not load image: {image_path} - {e}")
-            else:
-                # Image not found - show placeholder message
-                st.info(f"{alt_text} (image will appear after model training)")
-
-            i += 3 # skip (text, alt, path)
-        else:
-            i += 1
-
-
 # Page Config
 st.set_page_config(
     page_title="BankEnv",
@@ -528,8 +462,212 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Apply Custom Styles
-st.markdown(STYLES, unsafe_allow_html=True)
+# Apply the style-only payload without adding a focusable Markdown artifact.
+render_dashboard_styles()
+
+
+PRIMARY_VIEWS = ("Global", "Country", "Explorer", "Methodology")
+EXPLORER_TOOLS = ("Compare", "Calculate", "Source Inspector")
+EXPLORER_TOOL_LOOKUP = {tool.lower(): tool for tool in EXPLORER_TOOLS}
+
+
+def _query_param_value(name: str, default: str = "") -> str:
+    """Return one normalized query-parameter value across Streamlit versions."""
+    try:
+        value = st.query_params.get(name, default)
+    except Exception:
+        return default
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else default
+    return str(value or default)
+
+
+def _sync_public_query_state() -> None:
+    """Keep shareable page/country state in the URL without exposing internals."""
+    try:
+        active_view = str(st.session_state.get("primary_view", "Global"))
+        st.query_params["view"] = active_view.lower()
+        country_code = st.session_state.get("profile_country_code")
+        if country_code:
+            st.query_params["country"] = str(country_code).upper()
+        explorer_country = st.session_state.get("explorer_focus_country")
+        if active_view == "Explorer" and explorer_country:
+            st.query_params["explorer_country"] = str(explorer_country).upper()
+        explorer_tool = st.session_state.get("explorer_tool")
+        if active_view == "Explorer" and explorer_tool:
+            st.query_params["tool"] = str(explorer_tool).lower()
+        if active_view == "Country":
+            peer_country = str(country_code or "").upper()
+        elif active_view == "Explorer":
+            peer_country = str(explorer_country or country_code or "").upper()
+        else:
+            peer_country = ""
+        peer_codes = [
+            str(code).upper()
+            for code in st.session_state.get(
+                f"shared_peer_codes_{peer_country}",
+                [],
+            )
+            if re.fullmatch(r"[A-Z0-9]{3}", str(code).upper())
+        ][:8]
+        if peer_codes:
+            st.query_params["peers"] = ",".join(dict.fromkeys(peer_codes))
+        elif "peers" in st.query_params:
+            del st.query_params["peers"]
+
+        if active_view == "Explorer":
+            source_key = {
+                "Compare": "compare_source",
+                "Calculate": "calc_source",
+                "Source Inspector": "inspect_source",
+            }.get(str(explorer_tool))
+            source_label = st.session_state.get(source_key) if source_key else None
+            source_map = (
+                _explorer_source_options()[1]
+                if "_explorer_source_options" in globals()
+                else {}
+            )
+            source_code = source_map.get(source_label)
+            if source_code:
+                st.query_params["source"] = str(source_code).lower()
+            elif (
+                _query_param_value("source").strip().upper()
+                not in {str(value).upper() for value in source_map.values()}
+                and "source" in st.query_params
+            ):
+                del st.query_params["source"]
+
+            if str(explorer_tool) == "Compare":
+                indicator = (
+                    st.session_state.get(f"compare_indicator_{source_code}")
+                    if source_code
+                    else _query_param_value("indicator")
+                )
+                if indicator is not None and re.fullmatch(
+                    r"[A-Za-z0-9_.:-]{1,120}", str(indicator)
+                ):
+                    st.query_params["indicator"] = str(indicator)
+                elif "indicator" in st.query_params:
+                    del st.query_params["indicator"]
+            elif "indicator" in st.query_params:
+                del st.query_params["indicator"]
+        else:
+            for key in ("explorer_country", "tool", "source", "indicator"):
+                if key in st.query_params:
+                    del st.query_params[key]
+    except Exception:
+        # URL state is a convenience; it must never prevent the app from loading.
+        return
+
+
+def _render_shareable_state_link() -> None:
+    """Expose the current safe public state as a copyable production URL."""
+
+    public_base = os.getenv(
+        "BANKENV_PUBLIC_URL",
+        "https://bankenv.streamlit.app",
+    ).rstrip("/")
+    safe_keys = (
+        "view",
+        "country",
+        "explorer_country",
+        "tool",
+        "peers",
+        "source",
+        "indicator",
+    )
+    params = {
+        key: _query_param_value(key)
+        for key in safe_keys
+        if _query_param_value(key)
+    }
+    url = public_base + "/"
+    if params:
+        url += "?" + urlencode(params)
+    with st.expander("Share current analysis", expanded=False):
+        st.code(url, language=None)
+        st.caption(
+            "The link restores only public navigation, country, peer, source, "
+            "and indicator state; stale values are ignored safely."
+        )
+
+
+def _render_brand_shell() -> None:
+    """Render the compact product identity before expensive data work starts."""
+    st.markdown(
+        """
+        <div class="bankenv-brand" aria-label="BankEnv">
+            <span class="bankenv-brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false">
+                    <path class="bankenv-main-stroke" d="M17 47H48" stroke-width="4" stroke-linecap="round"/>
+                    <path class="bankenv-muted-stroke" d="M17 18V47" stroke-width="4" stroke-linecap="round"/>
+                    <path class="bankenv-main-stroke" d="M25 41V31" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-accent-stroke" d="M34 41V23" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-main-stroke" d="M43 41V27" stroke-width="6" stroke-linecap="round"/>
+                    <path class="bankenv-accent-stroke" d="M23 28L31 22L39 25L47 17" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="bankenv-brand-name">BankEnv</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _segmented_navigation(
+    label: str,
+    options,
+    *,
+    key: str,
+    on_change=None,
+):
+    """Use segmented controls when available with a horizontal-radio fallback."""
+    segmented = getattr(st, "segmented_control", None)
+    if callable(segmented):
+        return segmented(
+            label,
+            options=options,
+            key=key,
+            selection_mode="single",
+            on_change=on_change,
+            label_visibility="collapsed",
+        )
+    return st.radio(
+        label,
+        options=options,
+        key=key,
+        horizontal=True,
+        on_change=on_change,
+        label_visibility="collapsed",
+    )
+
+
+_render_brand_shell()
+_requested_view = _query_param_value("view", "global").strip().lower()
+_view_lookup = {view.lower(): view for view in PRIMARY_VIEWS}
+st.session_state.setdefault(
+    "primary_view",
+    _view_lookup.get(_requested_view, "Global"),
+)
+if st.session_state.get("primary_view") not in PRIMARY_VIEWS:
+    st.session_state["primary_view"] = _view_lookup.get(_requested_view, "Global")
+primary_view = _segmented_navigation(
+    "Primary navigation",
+    options=PRIMARY_VIEWS,
+    key="primary_view",
+    on_change=_sync_public_query_state,
+)
+if primary_view not in PRIMARY_VIEWS:
+    primary_view = "Global"
+st.session_state.setdefault(
+    "explorer_tool",
+    EXPLORER_TOOL_LOOKUP.get(
+        _query_param_value("tool", "compare").strip().lower(),
+        "Compare",
+    ),
+)
+if st.session_state.get("explorer_tool") not in EXPLORER_TOOLS:
+    st.session_state["explorer_tool"] = "Compare"
 
 # ==============================================================================
 # DATA LOADING (Cached)
@@ -581,7 +719,11 @@ def load_all_data(version: str = ""):
         pca_info = dict(model.get('pca_info', {}))
         pca_info.setdefault('training_date', model['training_date'])
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        LOGGER.exception("Active and fallback model loading failed")
+        st.error(
+            "The served model artifact could not be loaded or verified. Retry "
+            "after the deployment finishes; technical details are in application logs."
+        )
         return None, None, None, None, None, {}, {"mode": "error", "active_error": str(e)}
 
     loader = IMFDataLoader()
@@ -589,8 +731,13 @@ def load_all_data(version: str = ""):
     try:
         wgi_loader = WGILoader()
         wgi_data = wgi_loader.load()
-    except Exception as e:
+    except Exception:
+        LOGGER.exception("WGI source loading failed")
         wgi_data = None
+        serving_status = dict(serving_status or {})
+        serving_status.setdefault("source_failures", {})["WGI"] = (
+            "The governance source could not be loaded."
+        )
 
     return (
         scores_df, loader, wgi_data, model_features, pca_info,
@@ -602,6 +749,82 @@ def load_all_data(version: str = ""):
 def load_archived_snapshot_cached(name: str):
     """Checksum-verified, read-only load of one archived snapshot bundle."""
     return load_archived_snapshot(name)
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def find_prior_comparable_score(
+    country_code: str,
+    current_snapshot: str,
+    current_status: str,
+    economic_loadings: tuple[tuple[str, float], ...],
+    banking_loadings: tuple[tuple[str, float], ...],
+    economic_weight: float,
+    banking_weight: float,
+) -> dict:
+    """Return prior score only for approved, exactly compatible model contracts."""
+    if str(current_status).lower() != "approved":
+        return {
+            "available": False,
+            "reason": (
+                "Comparable score movement is withheld because approval is not "
+                "recorded for the current serving artifact."
+            ),
+        }
+    candidates = [
+        name for name in list_archived_snapshots()
+        if "challenger" not in name.lower()
+        and str(name) < str(current_snapshot)
+    ]
+    for name in sorted(candidates, reverse=True):
+        try:
+            artifact, archive_manifest = load_archived_snapshot(name)
+            if str((archive_manifest or {}).get("snapshot_status", "")).lower() != "approved":
+                continue
+            archive_pca = artifact.get("pca_info", {})
+            archive_economic = tuple(
+                sorted(
+                    (str(feature), round(float(loading), 12))
+                    for feature, loading in archive_pca.get(
+                        "economic_loadings", {}
+                    ).items()
+                )
+            )
+            archive_banking = tuple(
+                sorted(
+                    (str(feature), round(float(loading), 12))
+                    for feature, loading in archive_pca.get(
+                        "industry_loadings", {}
+                    ).items()
+                )
+            )
+            compatible = (
+                archive_economic == economic_loadings
+                and archive_banking == banking_loadings
+                and float(archive_pca.get("economic_weight", 0.5)) == float(economic_weight)
+                and float(archive_pca.get("industry_weight", 0.5)) == float(banking_weight)
+            )
+            if not compatible:
+                continue
+            country_scores = artifact.get("country_scores", pd.DataFrame())
+            row = country_scores[
+                country_scores["country_code"].astype(str).str.upper()
+                == str(country_code).upper()
+            ]
+            if row.empty:
+                continue
+            return {
+                "available": True,
+                "snapshot": str(
+                    (archive_manifest or {}).get("snapshot_id") or name
+                ),
+                "risk_score": float(row.iloc[0]["risk_score"]),
+            }
+        except Exception:
+            LOGGER.exception("Could not inspect archived snapshot %s", name)
+    return {
+        "available": False,
+        "reason": "No earlier approved snapshot uses the exact same fitted loading and weighting contract.",
+    }
 
 
 @st.cache_resource(max_entries=8)
@@ -628,6 +851,50 @@ def load_inference_pipeline(snapshot: str, version: str = ""):
     if pipeline is None or not pipeline.fitted_:
         raise ValueError("No fitted pillar pipeline available for this snapshot")
     return pipeline
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def compute_country_score_bridge(
+    snapshot: str,
+    country_code: str,
+    version: str,
+    _features: pd.DataFrame,
+    _pipeline,
+) -> dict:
+    """Recompute the persisted structural score stages for one country.
+
+    Older served artifacts predate the explicit bridge columns. Reusing their
+    checksum-matched fitted pipeline exposes the corrected floor/penalty
+    semantics without changing the served score or rebuilding the snapshot.
+    """
+    del snapshot, version
+    if _features is None or _features.empty:
+        return {}
+    country = _features[
+        _features["country_code"].astype(str).str.upper()
+        == str(country_code).upper()
+    ]
+    if country.empty:
+        return {}
+    result = _pipeline.transform(country)
+    if result.empty:
+        return {}
+    return result.iloc[0].to_dict()
+
+
+@st.cache_data(show_spinner=False)
+def load_imputed_feature_values() -> pd.DataFrame:
+    """Load the score-time values used after model imputation, when packaged."""
+    from src.config import CACHE_DIR
+
+    path = Path(CACHE_DIR) / "imputed_features.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_parquet(path)
+    except Exception:
+        LOGGER.exception("Could not load imputed feature values")
+        return pd.DataFrame()
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -661,12 +928,26 @@ def compute_peer_dominant_drivers(
         payload = report.get("countries", {}).get(country_code, {})
         drivers = payload.get("drivers") or []
         if not drivers:
-            output[country_code] = "—"
+            output[country_code] = "Unavailable"
             continue
-        dominant = max(drivers, key=lambda item: abs(item.get("risk_contribution", 0.0)))
+        risk_raising = [
+            item for item in drivers
+            if float(item.get("risk_contribution", 0.0) or 0.0) > 0
+        ]
+        dominant = max(
+            risk_raising or drivers,
+            key=lambda item: (
+                float(item.get("risk_contribution", 0.0) or 0.0)
+                if risk_raising
+                else abs(float(item.get("risk_contribution", 0.0) or 0.0))
+            ),
+        )
         contribution = dominant.get("risk_contribution")
         direction = "raises risk" if contribution is not None and contribution >= 0 else "lowers risk"
-        output[country_code] = f"{dominant.get('feature', '—')} ({direction})"
+        output[country_code] = (
+            f"{format_identifier(dominant.get('feature', 'Unavailable'))} "
+            f"({direction})"
+        )
     return output
 
 
@@ -704,12 +985,6 @@ def load_candidate_overlay_scores(scenario: str) -> pd.DataFrame:
     frame["country_code"] = frame["country_code"].astype(str).str.upper()
     frame = frame.rename(columns={"risk_score": "candidate_risk_score"})
     return frame.drop_duplicates("country_code")
-
-
-@st.cache_data(show_spinner=False, max_entries=48)
-def load_country_history(country_code: str, dataset: str) -> pd.DataFrame:
-    """Load one selected-country history slice for the Data Explorer."""
-    return IMFDataLoader().get_country_data(country_code, dataset)
 
 
 @st.cache_data(show_spinner=False, max_entries=24)
@@ -874,6 +1149,10 @@ def _append_external_derived_observations(observations: pd.DataFrame) -> pd.Data
             feature_key.replace("_", " ").title(),
         )
         part["indicator_name"] = part["feature_label"]
+        part["source"] = "World Bank inputs / BankEnv derivation"
+        part["quality"] = "derived_series"
+        part["dataset_version"] = "BankEnv external formulas v1"
+        part["observation_status"] = "derived"
         rows.append(part)
 
     if not rows:
@@ -1026,6 +1305,7 @@ def _append_government_derived_observations(observations: pd.DataFrame) -> pd.Da
         series["feature_key"] = feature_key
         series["feature_label"] = GOVT_FEATURE_LABELS.get(feature_key, feature_key)
         series["quality"] = "derived_series"
+        series["dataset_version"] = "BankEnv government formulas v1"
         series["indicator_code"] = feature_key
         series["indicator_name"] = series["feature_label"]
         if "observation_status" in observations.columns:
@@ -1083,15 +1363,6 @@ def _fsibsis_wide_to_long(fsibsis_wide: pd.DataFrame, country_code: str) -> pd.D
     return long_df.dropna(subset=['period'])
 
 
-@st.cache_data(show_spinner=False, max_entries=24)
-def load_fsibsis_country_history(country_code: str) -> pd.DataFrame:
-    """Load one FSIBSIS selected-country history slice on demand."""
-    fsibsis_loader = FSIBSISLoader()
-    fsibsis_loader.load()
-    fsibsis_wide = fsibsis_loader.get_country_data(country_code)
-    return _fsibsis_wide_to_long(fsibsis_wide, country_code)
-
-
 @st.cache_data(show_spinner=False, max_entries=12)
 def load_multi_country_fsibsis_history(country_codes: tuple[str, ...]) -> pd.DataFrame:
     """Load FSIBSIS history slices for selected countries only."""
@@ -1116,8 +1387,6 @@ def render_indicator_comparison(
     wgi_panel: pd.DataFrame | None,
 ):
     """Render one indicator across multiple countries at source periodicity."""
-    st.markdown("### Cross-Country Indicator Comparison")
-
     available_codes = scores.sort_values('country_name')['country_code'].tolist()
     default_countries = []
     for code in [selected_country] + default_peer_codes:
@@ -1125,6 +1394,11 @@ def render_indicator_comparison(
             default_countries.append(code)
     default_countries = default_countries[:5]
     source_options, source_to_dataset = _explorer_source_options()
+    source_kwargs = _source_selectbox_kwargs(
+        "compare_source",
+        source_options,
+        source_to_dataset,
+    )
 
     control_col1, control_col2 = st.columns([1, 3])
     with control_col1:
@@ -1132,6 +1406,7 @@ def render_indicator_comparison(
             "Source",
             source_options,
             key="compare_source",
+            **source_kwargs,
         )
     with control_col2:
         compare_countries = st.multiselect(
@@ -1140,6 +1415,7 @@ def render_indicator_comparison(
             default=default_countries,
             format_func=country_formatter,
             key=f"compare_countries_{selected_country}",
+            max_selections=8,
             help="Compare one indicator across the selected country and peers. Keep the set small for hosted performance.",
         )
 
@@ -1147,16 +1423,12 @@ def render_indicator_comparison(
         st.info("Select at least one country to compare.")
         return
 
-    if len(compare_countries) > 8:
-        st.warning("Showing the first 8 selected countries to keep the hosted app responsive.")
-        compare_countries = compare_countries[:8]
-
     dataset = source_to_dataset[source_choice]
 
     with st.spinner(f"Loading {dataset} history for selected countries..."):
-        source_df = _load_comparison_source(dataset, compare_countries, wgi_panel)
+        source_df = _safe_load_comparison_source(dataset, compare_countries, wgi_panel)
     if source_df is None or len(source_df) == 0:
-        st.info(f"No {dataset} data is available for the selected countries.")
+        _render_source_empty_state(dataset, "the selected countries")
         return
 
     source_df = source_df.copy()
@@ -1197,13 +1469,34 @@ def render_indicator_comparison(
 
     indicator_col1, indicator_col2, indicator_col3 = st.columns([3, 1, 1])
     with indicator_col1:
+        indicator_key = f"compare_indicator_{dataset}"
+        requested_indicator = _query_param_value("indicator").strip()
+        preferred_indicator = next(
+            (
+                candidate
+                for candidate in (
+                    requested_indicator,
+                    "PCPIEPCH",
+                    "PCPIPCH",
+                )
+                if candidate in indicator_options
+            ),
+            indicator_options[0],
+        )
+        indicator_select_kwargs = {}
+        if st.session_state.get(indicator_key) not in indicator_options:
+            st.session_state.pop(indicator_key, None)
+            indicator_select_kwargs["index"] = indicator_options.index(
+                preferred_indicator
+            )
         selected_indicator = st.selectbox(
             "Indicator",
             options=indicator_options,
             format_func=lambda x: display_map[x],
-            key=f"compare_indicator_{dataset}",
+            key=indicator_key,
+            **indicator_select_kwargs,
         )
-        _render_hover_full_label(display_map[selected_indicator])
+        render_full_label(display_map[selected_indicator])
     with indicator_col2:
         time_range = st.selectbox(
             "Range",
@@ -1211,9 +1504,7 @@ def render_indicator_comparison(
             index=1,
             key=f"compare_range_{dataset}",
         )
-    _render_indicator_metadata(
-        [
-            _indicator_metadata_row(
+    comparison_metadata = _indicator_metadata_row(
                 source_df,
                 dataset,
                 source_choice,
@@ -1222,8 +1513,7 @@ def render_indicator_comparison(
                 display_map[selected_indicator],
                 "Compare item",
             )
-        ]
-    )
+    _render_indicator_metadata([comparison_metadata])
 
     chart_df = source_df[source_df[indicator_col] == selected_indicator].copy()
     chart_df['date'] = pd.to_datetime(chart_df['period'].astype(str), errors='coerce')
@@ -1249,6 +1539,31 @@ def render_indicator_comparison(
             if selected_freq:
                 chart_df = chart_df[chart_df['frequency'] == selected_freq]
 
+    comparison_unit = str(comparison_metadata.get("Unit") or "Not specified")
+    comparison_label = display_map[selected_indicator].lower()
+    index_level_series = (
+        "index" in comparison_unit.lower()
+        or (
+            re.search(r"\bindex\b", comparison_label, re.IGNORECASE) is not None
+            and "percent change" not in comparison_label
+            and not str(selected_indicator).upper().endswith("PCH")
+        )
+    )
+    if index_level_series and len(compare_countries) > 1:
+        st.error(
+            "Cross-country comparison is blocked because this source index may "
+            "use country-specific base values. Use Calculate, choose Temporal "
+            "change / index, and rebase each country to 100."
+        )
+        return
+    if not st.button(
+        "Apply Comparison",
+        type="primary",
+        key=f"apply_compare_{dataset}_{selected_indicator}",
+    ):
+        st.caption("Review the source, countries, unit, and range, then press Apply Comparison.")
+        return
+
     if len(chart_df) == 0:
         st.info("No observations found for that indicator/country set.")
         return
@@ -1266,27 +1581,62 @@ def render_indicator_comparison(
         chart_df = chart_df[chart_df['date'] >= max_date - pd.DateOffset(years=20)]
 
     title = display_map[selected_indicator]
+    status_dash = (
+        "observation_status"
+        if "observation_status" in chart_df.columns
+        and chart_df["observation_status"].nunique(dropna=True) > 1
+        else None
+    )
     fig = px.line(
         chart_df,
         x='date',
         y='value',
         color='country_name',
+        line_dash=status_dash,
         markers=True,
         title=title,
+        labels={"country_name": "Country", "value": comparison_unit},
+        hover_data=[
+            column for column in ("period", "observation_status")
+            if column in chart_df.columns
+        ],
+    )
+    apply_responsive_chart_layout(
+        fig,
+        title=title,
+        showlegend=chart_df["country_code"].nunique() > 1 or status_dash is not None,
+        yaxis_title=comparison_unit,
     )
     fig.update_layout(
-        height=420,
-        margin=dict(l=20, r=20, t=48, b=20),
-        xaxis_title=None,
-        yaxis_title=None,
+        height=390,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
+    if "observation_status" in chart_df.columns:
+        projected = chart_df[
+            chart_df["observation_status"].astype(str).str.lower().str.contains(
+                "forecast|projected|projection",
+                regex=True,
+            )
+        ]
+        if not projected.empty:
+            add_time_boundary(
+                fig,
+                projected["date"].min(),
+                label="Projection begins",
+            )
+    focus_label = country_formatter(selected_country)
+    for trace in fig.data:
+        if str(trace.name).split(",")[0].strip() == focus_label:
+            trace.update(line={"width": 4})
+        else:
+            trace.update(line={"width": 2}, opacity=0.75)
     st.plotly_chart(
         fig,
         use_container_width=True,
         theme="streamlit",
         key=f"compare_chart_{dataset}_{selected_indicator}",
+        config=accessible_plotly_config(),
     )
 
     latest_table = (
@@ -1303,6 +1653,28 @@ def render_indicator_comparison(
         use_container_width=True,
         hide_index=True,
     )
+    with st.expander("View Full Comparison Data", expanded=False):
+        export_columns = [
+            column for column in (
+                "country_code", "country_name", "date", "frequency", "value",
+                "observation_status", "indicator_code", "indicator_name", "unit",
+                "source", "dataset_version",
+            )
+            if column in chart_df.columns
+        ]
+        export_df = chart_df[export_columns].copy()
+        export_df["date"] = pd.to_datetime(
+            export_df["date"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
+        st.dataframe(export_df, use_container_width=True, hide_index=True)
+        safe_indicator = re.sub(r"[^A-Za-z0-9_-]+", "_", str(selected_indicator))
+        st.download_button(
+            "Download Full Comparison",
+            data=export_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"bankenv_{dataset.lower()}_{safe_indicator}.csv",
+            mime="text/csv",
+            key=f"download_compare_{dataset}_{safe_indicator}",
+        )
 
 
 def _load_comparison_source(
@@ -1351,27 +1723,94 @@ def _load_comparison_source(
     return load_multi_country_history(tuple(countries), dataset)
 
 
+def _render_source_empty_state(dataset: str, context: str) -> None:
+    """Distinguish source failure, missing package, and no matching observations."""
+    failures = dict(
+        (globals().get("serving_status") or {}).get("source_failures", {})
+    )
+    failures.update(st.session_state.get("_runtime_source_failures", {}))
+    if dataset in failures:
+        st.error(
+            f"{dataset} failed to load, so {context} cannot be displayed. "
+            "Retry this view after the source cache is available."
+        )
+    elif dataset in {"EXTERNAL", "GOVT"}:
+        st.info(
+            f"The {dataset} derived feature series is not packaged for {context}. "
+            "The served score remains available from its verified artifact."
+        )
+    else:
+        st.info(
+            f"No {dataset} observations match {context}. Try another country, "
+            "indicator, frequency, or range."
+        )
+
+
+def _safe_load_comparison_source(
+    dataset: str,
+    countries: list[str],
+    wgi_panel: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """Load an Explorer source without exposing technical exceptions to users."""
+    try:
+        frame = _load_comparison_source(dataset, countries, wgi_panel)
+        st.session_state.setdefault("_runtime_source_failures", {}).pop(
+            dataset,
+            None,
+        )
+        return frame
+    except Exception:
+        LOGGER.exception(
+            "Explorer source load failed for %s (%s)",
+            dataset,
+            ",".join(countries),
+        )
+        st.session_state.setdefault("_runtime_source_failures", {})[dataset] = True
+        return pd.DataFrame()
+
+
 def _explorer_source_options() -> tuple[list[str], dict[str, str]]:
     """Return the canonical Data Explorer source choices."""
     source_options = [
-        "Economic (WEO)",
-        "Banking ratios (FSIC)",
-        "Bank balance sheet (FSIBSIS)",
-        "Monetary (MFS)",
-        "Governance (WGI)",
-        EXTERNAL_SOURCE_LABEL,
-        GOVT_SOURCE_LABEL,
+        "Official · Economic (WEO)",
+        "Official · Banking ratios (FSIC)",
+        "Official · Bank balance sheet (FSIBSIS)",
+        "Official · Monetary (MFS)",
+        "Official · Governance (WGI)",
+        f"BankEnv · {EXTERNAL_SOURCE_LABEL}",
+        f"BankEnv · {GOVT_SOURCE_LABEL}",
     ]
     source_to_dataset = {
-        "Economic (WEO)": "WEO",
-        "Banking ratios (FSIC)": "FSIC",
-        "Bank balance sheet (FSIBSIS)": "FSIBSIS",
-        "Monetary (MFS)": "MFS",
-        "Governance (WGI)": "WGI",
-        EXTERNAL_SOURCE_LABEL: "EXTERNAL",
-        GOVT_SOURCE_LABEL: "GOVT",
+        "Official · Economic (WEO)": "WEO",
+        "Official · Banking ratios (FSIC)": "FSIC",
+        "Official · Bank balance sheet (FSIBSIS)": "FSIBSIS",
+        "Official · Monetary (MFS)": "MFS",
+        "Official · Governance (WGI)": "WGI",
+        f"BankEnv · {EXTERNAL_SOURCE_LABEL}": "EXTERNAL",
+        f"BankEnv · {GOVT_SOURCE_LABEL}": "GOVT",
     }
     return source_options, source_to_dataset
+
+
+def _source_selectbox_kwargs(
+    key: str,
+    source_options: list[str],
+    source_to_dataset: dict[str, str],
+) -> dict:
+    """Return a safe initial index for URL-restored source state."""
+
+    requested_code = _query_param_value("source").strip().upper()
+    reverse_map = {
+        str(dataset).upper(): label
+        for label, dataset in source_to_dataset.items()
+    }
+    requested_label = reverse_map.get(requested_code)
+    current = st.session_state.get(key)
+    if current in source_options:
+        return {}
+    st.session_state.pop(key, None)
+    desired = requested_label if requested_label in source_options else source_options[0]
+    return {"index": source_options.index(desired)}
 
 
 def render_source_inspector(
@@ -1380,38 +1819,50 @@ def render_source_inspector(
     wgi_panel: pd.DataFrame | None,
 ):
     """Render one-country source inspection using the shared Explorer sources."""
-    st.markdown("### Source Inspector")
     st.caption(
         "Inspect one source for the focus country. This uses the same source "
         "choices as Compare and Calculate."
     )
 
     source_options, source_to_dataset = _explorer_source_options()
+    source_kwargs = _source_selectbox_kwargs(
+        "inspect_source",
+        source_options,
+        source_to_dataset,
+    )
     source_col, action_col = st.columns([2, 3])
     with source_col:
         source_choice = st.selectbox(
             "Source",
             source_options,
             key="inspect_source",
+            **source_kwargs,
         )
     dataset = source_to_dataset[source_choice]
+    inspection_key = f"{dataset}:{str(selected_country).upper()}"
     with action_col:
-        load_source = st.checkbox(
-            f"Load {source_choice} for {country_formatter(selected_country)}",
-            value=False,
+        load_source = st.button(
+            "Load Source",
             key=f"inspect_load_{dataset}_{selected_country}",
             help="Loads only this selected source for the focus country.",
+            type="primary",
+            use_container_width=True,
         )
+    if load_source:
+        st.session_state["loaded_source_inspection"] = inspection_key
 
-    if not load_source:
-        st.info("Select a source and enable loading to inspect single-country history.")
+    if st.session_state.get("loaded_source_inspection") != inspection_key:
+        st.caption("Select a source and press Load Source to inspect its history.")
         return
 
     with st.spinner(f"Loading {dataset} history for {selected_country}..."):
-        source_df = _load_comparison_source(dataset, [selected_country], wgi_panel)
+        source_df = _safe_load_comparison_source(dataset, [selected_country], wgi_panel)
 
     if source_df is None or len(source_df) == 0:
-        st.info(f"No {dataset} data is available for {country_formatter(selected_country)}.")
+        _render_source_empty_state(
+            dataset,
+            country_formatter(selected_country),
+        )
         return
 
     indicator_options, _, _ = _indicator_selector_metadata(source_df, dataset)
@@ -1421,8 +1872,16 @@ def render_source_inspector(
     )
     try:
         render_time_series_deep_dive(source_df, dataset, selected_country)
-    except Exception as exc:
-        st.error(f"Chart error: {exc}")
+    except Exception:
+        LOGGER.exception(
+            "Source Inspector chart failed for %s/%s",
+            dataset,
+            selected_country,
+        )
+        st.error(
+            "This source loaded but its chart could not be rendered. Retry the "
+            "source; technical details are available in application logs."
+        )
 
 
 def _indicator_selector_metadata(source_df: pd.DataFrame, dataset: str):
@@ -1498,14 +1957,14 @@ SOURCE_CONTEXT = {
         "caution": "Governance scores are not balance-sheet values and should not be mixed with monetary levels.",
     },
     "EXTERNAL": {
-        "dataflow": "Derived external-liquidity reference observations",
-        "scope": "Staged external-sector and liquidity indicators assembled for BankEnv insights.",
-        "caution": "Derived series should be interpreted with the feature metadata and source report.",
+        "dataflow": "BankEnv-derived external-liquidity feature series",
+        "scope": "Derived external-sector and liquidity indicators assembled from official upstream sources.",
+        "caution": "Review formula, upstream source, vintage, and coverage before treating a derived ratio as observed data.",
     },
     "GOVT": {
-        "dataflow": "Derived government-liquidity reference observations",
-        "scope": "Staged fiscal and government-liquidity indicators assembled for BankEnv insights.",
-        "caution": "Derived fiscal ratios depend on aligned source observations and available coverage.",
+        "dataflow": "BankEnv-derived government-liquidity feature series",
+        "scope": "Derived fiscal and government-liquidity indicators assembled from official upstream sources.",
+        "caution": "Implied ratios inherit upstream estimate/projection status and are not reported government cash data.",
     },
 }
 
@@ -1653,6 +2112,8 @@ def _indicator_metadata_row(
         return {
             "Role": role,
             "Source": source_label,
+            "Upstream source": "Not specified",
+            "Dataset version": "Not specified",
             "Dataflow": context["dataflow"],
             "Source scope": context["scope"],
             "Code": str(indicator_value),
@@ -1664,6 +2125,7 @@ def _indicator_metadata_row(
             "Unit": "Not specified",
             "Frequency": "Not specified",
             "Observation status": "Not specified",
+            "Quality / lineage": "Not specified",
             "Latest actual year": "Not specified",
             "Coverage": "No selected-country observations",
             "Plain-language note": _indicator_plain_language_note(dataset, display_label),
@@ -1715,6 +2177,18 @@ def _indicator_metadata_row(
         if "latest_actual_year" in subset.columns
         else "Not specified"
     )
+    upstream_source = (
+        _join_distinct(subset["source"].dropna().astype(str).unique(), limit=4)
+        if "source" in subset.columns else "Not specified"
+    )
+    dataset_version = (
+        _join_distinct(subset["dataset_version"].dropna().astype(str).unique(), limit=4)
+        if "dataset_version" in subset.columns else "Not specified"
+    )
+    quality_lineage = (
+        _join_distinct(subset["quality"].dropna().astype(str).unique(), limit=4)
+        if "quality" in subset.columns else "Not specified"
+    )
 
     period = pd.to_datetime(subset.get("period"), errors="coerce")
     valid_period = period.dropna()
@@ -1729,6 +2203,8 @@ def _indicator_metadata_row(
     return {
         "Role": role,
         "Source": source_label,
+        "Upstream source": upstream_source,
+        "Dataset version": dataset_version,
         "Dataflow": context["dataflow"],
         "Source scope": context["scope"],
         "Code": code,
@@ -1740,6 +2216,7 @@ def _indicator_metadata_row(
         "Unit": unit,
         "Frequency": frequency,
         "Observation status": observation_status,
+        "Quality / lineage": quality_lineage,
         "Latest actual year": latest_actual_year,
         "Coverage": coverage,
         "Plain-language note": _indicator_plain_language_note(dataset, source_name),
@@ -1775,27 +2252,52 @@ def _render_calculated_chart(
     chart_df = chart_df.copy()
     chart_df['country_name'] = chart_df['country_code'].map(country_formatter)
     chart_df = chart_df.sort_values('date')
+    status_dash = (
+        "observation_status"
+        if "observation_status" in chart_df.columns
+        and chart_df["observation_status"].nunique(dropna=True) > 1
+        else None
+    )
     fig = px.line(
         chart_df,
         x='date',
         y='value',
         color='country_name',
+        line_dash=status_dash,
         markers=True,
         title=title,
+        hover_data=["period"] if "period" in chart_df.columns else None,
+    )
+    apply_responsive_chart_layout(
+        fig,
+        title=title,
+        showlegend=chart_df["country_code"].nunique() > 1 or status_dash is not None,
+        yaxis_title=y_title or "Source-defined value",
     )
     fig.update_layout(
-        height=420,
-        margin=dict(l=20, r=20, t=48, b=20),
-        xaxis_title=None,
-        yaxis_title=y_title,
+        height=390,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
     )
+    if "observation_status" in chart_df.columns:
+        projected = chart_df[
+            chart_df["observation_status"].astype(str).str.lower().str.contains(
+                "forecast|projected|projection",
+                regex=True,
+            )
+        ]
+        if not projected.empty:
+            add_time_boundary(
+                fig,
+                projected["date"].min(),
+                label="Projection begins",
+            )
     st.plotly_chart(
         fig,
         use_container_width=True,
         theme="streamlit",
         key=chart_key,
+        config=accessible_plotly_config(),
     )
 
     latest = (
@@ -1812,6 +2314,33 @@ def _render_calculated_chart(
         use_container_width=True,
         hide_index=True,
     )
+    if "observation_status" in chart_df.columns:
+        statuses = sorted(
+            chart_df["observation_status"].dropna().astype(str).unique()
+        )
+        if statuses:
+            st.caption("Observation status: " + ", ".join(statuses) + ".")
+    with st.expander("View Full Chart Data", expanded=False):
+        export_columns = [
+            column for column in (
+                "country_code", "country_name", "date", "frequency", "value",
+                "indicator_label", "observation_status",
+            )
+            if column in chart_df.columns
+        ]
+        full_data = chart_df[export_columns].copy()
+        full_data["date"] = pd.to_datetime(
+            full_data["date"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
+        st.dataframe(full_data, use_container_width=True, hide_index=True)
+        safe_key = re.sub(r"[^A-Za-z0-9_-]+", "_", chart_key or "calculated_series")
+        st.download_button(
+            "Download Full History",
+            data=full_data.to_csv(index=False).encode("utf-8"),
+            file_name=f"bankenv_{safe_key}.csv",
+            mime="text/csv",
+            key=f"download_{safe_key}",
+        )
 
 
 def _render_custom_formula_builder(
@@ -1829,18 +2358,14 @@ def _render_custom_formula_builder(
             "Operands",
             min_value=2,
             max_value=12,
-            value=4,
+            value=2,
             step=1,
             key="calc_formula_operand_count",
             help="Creates operand slots A, B, C... dynamically.",
         )
     allowed_operands = [chr(ord("A") + idx) for idx in range(int(operand_count))]
     with formula_col:
-        default_formula = (
-            "(A - B) / (B - D)"
-            if "D" in allowed_operands
-            else ("(A - B) / C" if "C" in allowed_operands else "A / B")
-        )
+        default_formula = "A / B"
         formula_text = st.text_input(
             "Formula",
             value=default_formula,
@@ -1881,7 +2406,7 @@ def _render_custom_formula_builder(
         source_dataset = source_to_dataset[source_label]
         if source_dataset not in loaded_sources:
             with st.spinner(f"Loading {source_dataset} formula history..."):
-                frame = _load_comparison_source(source_dataset, calc_countries, wgi_panel)
+                frame = _safe_load_comparison_source(source_dataset, calc_countries, wgi_panel)
             if frame is None or len(frame) == 0:
                 return source_dataset, pd.DataFrame(), [], {}, "indicator_code"
             options, labels, key_col = _indicator_selector_metadata(frame, source_dataset)
@@ -1910,7 +2435,7 @@ def _render_custom_formula_builder(
                 format_func=lambda value, label_map=labels: label_map[value],
                 key=f"calc_formula_{operand.lower()}_item_{operand_dataset}",
             )
-            _render_hover_full_label(labels[operand_keys[operand]], f"{operand} item")
+            render_full_label(labels[operand_keys[operand]], f"{operand} item")
 
     metadata_rows = []
     operand_frames = {}
@@ -1938,7 +2463,7 @@ def _render_custom_formula_builder(
         )
     _render_indicator_metadata(metadata_rows)
 
-    with st.expander("Formula audit", expanded=True):
+    with st.expander("Formula Audit", expanded=False):
         st.dataframe(
             pd.DataFrame(
                 [
@@ -1985,6 +2510,13 @@ def _render_custom_formula_builder(
         operand: restrict_frequency(frame, selected_freq)
         for operand, frame in operand_frames.items()
     }
+    if not st.button(
+        "Apply Custom Formula",
+        type="primary",
+        key=f"apply_formula_{formula_plan.normalized_formula}",
+    ):
+        st.caption("Review the operands and formula, then press Apply Custom Formula.")
+        return
     formula, formula_plan = compute_expression_formula(
         formula_text,
         restricted_operands,
@@ -2016,7 +2548,6 @@ def render_calculated_series_builder(
     wgi_panel: pd.DataFrame | None,
 ):
     """Render bounded multi-indicator, ratio, share and temporal calculations."""
-    st.markdown("### Calculated Series")
     st.caption(
         "Build lightweight exploratory calculations from source histories. "
         "Calculations align observations by country, date, and reporting frequency."
@@ -2051,7 +2582,8 @@ def render_calculated_series_builder(
             default=default_countries,
             format_func=country_formatter,
             key=f"calc_countries_{selected_country}",
-            help="Selected countries are capped at 8 for hosted performance.",
+            max_selections=8,
+            help="Choose up to eight countries for hosted performance.",
         )
     with range_col:
         time_range = st.selectbox(
@@ -2063,10 +2595,6 @@ def render_calculated_series_builder(
     if not calc_countries:
         st.info("Select at least one country.")
         return
-    if len(calc_countries) > 8:
-        st.warning("Using the first 8 selected countries to keep the hosted app responsive.")
-        calc_countries = calc_countries[:8]
-
     if calc_mode == "Custom formula":
         _render_custom_formula_builder(
             source_options=source_options,
@@ -2078,17 +2606,23 @@ def render_calculated_series_builder(
         )
         return
 
+    calc_source_kwargs = _source_selectbox_kwargs(
+        "calc_source",
+        source_options,
+        source_to_dataset,
+    )
     source_choice = st.selectbox(
         "Source",
         source_options,
         key="calc_source",
+        **calc_source_kwargs,
     )
     dataset = source_to_dataset[source_choice]
 
     with st.spinner(f"Loading {dataset} history for calculated series..."):
-        source_df = _load_comparison_source(dataset, calc_countries, wgi_panel)
+        source_df = _safe_load_comparison_source(dataset, calc_countries, wgi_panel)
     if source_df is None or len(source_df) == 0:
-        st.info(f"No {dataset} data is available for the selected countries.")
+        _render_source_empty_state(dataset, "the selected calculation countries")
         return
 
     indicator_options, display_map, indicator_col = _indicator_selector_metadata(source_df, dataset)
@@ -2100,13 +2634,13 @@ def render_calculated_series_builder(
         selected_indicators = st.multiselect(
             "Indicators",
             options=indicator_options,
-            default=indicator_options[: min(3, len(indicator_options))],
+            default=[],
             format_func=lambda x: display_map[x],
             key=f"calc_raw_indicators_{dataset}",
-            help="Shows up to 5 indicators as separate panels to avoid mixing units.",
+            max_selections=5,
+            help="Choose up to five indicators; each renders separately to preserve units.",
         )
-        selected_indicators = selected_indicators[:5]
-        _render_hover_full_label(
+        render_full_label(
             "; ".join(display_map[indicator] for indicator in selected_indicators),
             "Selected indicators",
         )
@@ -2138,6 +2672,13 @@ def render_calculated_series_builder(
             )
         elif freq_options:
             selected_freq = freq_options[0]
+        if not st.button(
+            "Apply Indicator Panels",
+            type="primary",
+            key=f"apply_raw_panels_{dataset}",
+        ):
+            st.caption("Press Apply Indicator Panels to render the selected histories.")
+            return
         for idx, indicator in enumerate(selected_indicators):
             panel = normalize_observation_frame(
                 source_df,
@@ -2176,7 +2717,7 @@ def render_calculated_series_builder(
             denominator_source_df = source_df
         else:
             with st.spinner(f"Loading {denominator_dataset} denominator history..."):
-                denominator_source_df = _load_comparison_source(
+                denominator_source_df = _safe_load_comparison_source(
                     denominator_dataset,
                     calc_countries,
                     wgi_panel,
@@ -2201,7 +2742,7 @@ def render_calculated_series_builder(
                 format_func=lambda x: display_map[x],
                 key=f"calc_ratio_num_{dataset}",
             )
-            _render_hover_full_label(display_map[numerator_key], "Numerator")
+            render_full_label(display_map[numerator_key], "Numerator")
         with den_col:
             denominator_key = st.selectbox(
                 "Denominator item",
@@ -2209,9 +2750,8 @@ def render_calculated_series_builder(
                 format_func=lambda x: denominator_display[x],
                 key=f"calc_ratio_den_{denominator_dataset}",
             )
-            _render_hover_full_label(denominator_display[denominator_key], "Denominator")
-        _render_indicator_metadata(
-            [
+            render_full_label(denominator_display[denominator_key], "Denominator")
+        ratio_metadata = [
                 _indicator_metadata_row(
                     source_df,
                     dataset,
@@ -2230,8 +2770,8 @@ def render_calculated_series_builder(
                     denominator_display[denominator_key],
                     "Denominator",
                 ),
-            ],
-        )
+            ]
+        _render_indicator_metadata(ratio_metadata)
         scale = 100.0 if scale_label == "Percent" else 1.0
         numerator = normalize_observation_frame(
             source_df,
@@ -2262,10 +2802,35 @@ def render_calculated_series_builder(
             )
         elif common_freqs:
             selected_freq = common_freqs[0]
+        unit_check = check_unit_compatibility(
+            "ratio",
+            [ratio_metadata[0].get("Unit"), ratio_metadata[1].get("Unit")],
+        )
+        if not unit_check.valid:
+            st.error(f"Ratio blocked: {unit_check.reason}")
+            return
+        for unit_warning in unit_check.warnings:
+            st.warning(unit_warning)
+        if not st.button(
+            "Apply Ratio",
+            type="primary",
+            key=(
+                f"apply_ratio_{dataset}_{denominator_dataset}_"
+                f"{numerator_key}_{denominator_key}"
+            ),
+        ):
+            st.caption("Review the selected units and press Apply Ratio to calculate.")
+            return
+        numerator_aligned = restrict_frequency(numerator, selected_freq)
+        denominator_aligned = restrict_frequency(denominator, selected_freq)
         ratio = compute_ratio(
-            restrict_frequency(numerator, selected_freq),
-            restrict_frequency(denominator, selected_freq),
+            numerator_aligned,
+            denominator_aligned,
             scale=scale,
+        )
+        alignment = diagnose_alignment(
+            {"Numerator": numerator_aligned, "Denominator": denominator_aligned},
+            result=ratio,
         )
         ratio = filter_time_range(ratio, time_range)
         numerator_label = f"{display_map[numerator_key]} [{dataset}]"
@@ -2282,6 +2847,11 @@ def render_calculated_series_builder(
             f"{' × 100' if scale_label == 'Percent' else ''}. "
             "Only exact country/date/frequency matches are used; zero denominators are excluded."
         )
+        st.caption(
+            f"Alignment: {alignment.matched_observations:,} exact matches; "
+            f"{alignment.dropped_after_calculation or 0:,} dropped after division; "
+            f"{alignment.matched_countries:,} countries."
+        )
         return
 
     if calc_mode == "Cross-sectional share":
@@ -2291,20 +2861,17 @@ def render_calculated_series_builder(
             format_func=lambda x: display_map[x],
             key=f"calc_share_indicator_{dataset}",
         )
-        _render_hover_full_label(display_map[indicator_key])
-        _render_indicator_metadata(
-            [
-                _indicator_metadata_row(
-                    source_df,
-                    dataset,
-                    source_choice,
-                    indicator_key,
-                    indicator_col,
-                    display_map[indicator_key],
-                    "Share item",
-                )
-            ],
+        render_full_label(display_map[indicator_key])
+        share_metadata = _indicator_metadata_row(
+            source_df,
+            dataset,
+            source_choice,
+            indicator_key,
+            indicator_col,
+            display_map[indicator_key],
+            "Share item",
         )
+        _render_indicator_metadata([share_metadata])
         base = normalize_observation_frame(
             source_df,
             indicator_key,
@@ -2322,6 +2889,22 @@ def render_calculated_series_builder(
             )
         elif freq_options:
             selected_freq = freq_options[0]
+        additivity_check = check_cross_sectional_additivity(
+            share_metadata.get("Unit")
+        )
+        if not additivity_check.valid:
+            st.error(f"Share blocked: {additivity_check.reason}")
+            return
+        if not st.button(
+            "Apply Cross-Sectional Share",
+            type="primary",
+            key=f"apply_share_{dataset}_{indicator_key}",
+        ):
+            st.caption(
+                "Confirm the selected countries define the intended denominator, "
+                "then press Apply Cross-Sectional Share."
+            )
+            return
         share = compute_cross_sectional_share(restrict_frequency(base, selected_freq))
         share = filter_time_range(share, time_range)
         _render_calculated_chart(
@@ -2343,7 +2926,7 @@ def render_calculated_series_builder(
         format_func=lambda x: display_map[x],
         key=f"calc_temporal_indicator_{dataset}",
     )
-    _render_hover_full_label(display_map[indicator_key])
+    render_full_label(display_map[indicator_key])
     _render_indicator_metadata(
         [
             _indicator_metadata_row(
@@ -2385,6 +2968,13 @@ def render_calculated_series_builder(
         )
     elif freq_options:
         selected_freq = freq_options[0]
+    if not st.button(
+        "Apply Temporal Calculation",
+        type="primary",
+        key=f"apply_temporal_{dataset}_{indicator_key}_{temporal_mode}",
+    ):
+        st.caption("Review the range and periodicity, then press Apply Temporal Calculation.")
+        return
     ranged = filter_time_range(restrict_frequency(base, selected_freq), time_range)
     temporal = compute_temporal_change(ranged, temporal_mode)
     _render_calculated_chart(
@@ -2397,281 +2987,6 @@ def render_calculated_series_builder(
     st.caption(
         "Formula: period change, first-period change, or rebased index calculated "
         "separately for each country after frequency and time-range selection."
-    )
-
-
-def _staged_feature_columns(features: pd.DataFrame, count_col: str) -> list[str]:
-    if features is None or features.empty:
-        return []
-    return [
-        column for column in features.columns
-        if column != "country_code"
-        and not column.endswith("_period")
-        and column != count_col
-    ]
-
-
-def _external_feature_columns(features: pd.DataFrame) -> list[str]:
-    return _staged_feature_columns(features, EXTERNAL_FEATURE_COUNT_COL)
-
-
-def _format_numeric(value) -> str:
-    try:
-        if pd.isna(value):
-            return "—"
-        return f"{float(value):,.2f}"
-    except Exception:
-        return "—"
-
-
-def _format_model_input(column: str, value) -> tuple[str, str]:
-    """Return a (display label, display value) pair, humanizing select ratios.
-
-    ``reserves_to_goods_services_imports`` is stored as a percent of annual
-    imports; reserve adequacy reads far more naturally in months of imports, so
-    it is converted for display (the model still uses the underlying ratio).
-    """
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        numeric = None
-    if column == "reserves_to_goods_services_imports":
-        if numeric is None or pd.isna(numeric):
-            return "Reserves coverage (months of imports)", "—"
-        return "Reserves coverage (months of imports)", f"{numeric * 12 / 100:,.1f} months"
-    label = EXTERNAL_FEATURE_LABELS.get(
-        column, GOVT_FEATURE_LABELS.get(column, column.replace("_", " ").title())
-    )
-    return label, _format_numeric(value)
-
-
-def render_liquidity_model_inputs(
-    selected_country: str,
-    model_features: pd.DataFrame | None,
-):
-    """Unified Liquidity section: external + government fields used in scoring."""
-    if model_features is None or model_features.empty:
-        return
-
-    external_features, _, _ = load_external_insight_data()
-    government_features, _, _ = load_government_insight_data()
-
-    groups = []  # (group label, feature columns)
-    if not external_features.empty:
-        groups.append((
-            "External",
-            [c for c in _external_feature_columns(external_features)
-             if c in model_features.columns],
-        ))
-    if not government_features.empty:
-        groups.append((
-            "Government",
-            [c for c in _staged_feature_columns(government_features, GOVT_FEATURE_COUNT_COL)
-             if c in model_features.columns],
-        ))
-    if not any(cols for _, cols in groups):
-        return
-
-    country_row = model_features[
-        model_features["country_code"].astype(str).str.upper() == selected_country
-    ]
-    if country_row.empty:
-        return
-    row = country_row.iloc[0]
-
-    rows = []
-    for group_label, columns in groups:
-        for column in columns:
-            label, display = _format_model_input(column, row.get(column))
-            rows.append({"Category": group_label, "Model Input": label, "Value": display})
-    if not rows:
-        return
-
-    st.markdown("#### Liquidity Inputs Used In Score")
-    st.caption(
-        "Sovereign (government) and external liquidity fields the active model "
-        "uses when scoring this country."
-    )
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-def render_staged_insight_panel(
-    scores: pd.DataFrame,
-    selected_country: str,
-    default_peer_codes: list[str],
-    country_formatter,
-    model_features: pd.DataFrame | None,
-    *,
-    features: pd.DataFrame,
-    report: dict,
-    label_map: dict,
-    count_col: str,
-    key_prefix: str,
-    empty_msg: str,
-):
-    """Render a compact staged feature block (external or government liquidity)."""
-    if features.empty:
-        st.info(empty_msg)
-        return
-
-    feature_cols = _staged_feature_columns(features, count_col)
-    model_cols = set(model_features.columns) if model_features is not None else set()
-    used_cols = [column for column in feature_cols if column in model_cols]
-    coverage = report.get("feature_coverage", {}) if isinstance(report, dict) else {}
-
-    if count_col in features.columns:
-        countries_with_staged_data = int(
-            (pd.to_numeric(features[count_col], errors="coerce").fillna(0) > 0).sum()
-        )
-    else:
-        countries_with_staged_data = int(
-            features[feature_cols].notna().any(axis=1).sum()
-        )
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Countries With Data", f"{countries_with_staged_data:,}")
-    m2.metric("Features", f"{len(feature_cols):,}")
-    m3.metric("Used In Active Score", f"{len(used_cols):,}")
-    if used_cols:
-        st.caption(
-            "Fields marked Active model input are included in the current production score; "
-            "the remaining fields are shown for analysis only."
-        )
-    else:
-        st.caption(
-            "These fields are available for analysis only and are not included in the "
-            "current production score."
-        )
-
-    country_row = features[features["country_code"] == selected_country]
-    if not country_row.empty:
-        rows = []
-        for column in feature_cols:
-            rows.append({
-                "Feature": label_map.get(column, column.replace("_", " ").title()),
-                "Value": _format_numeric(country_row.iloc[0].get(column)),
-                "Coverage": (
-                    f"{coverage.get(column, {}).get('pct_model_countries', 0):.1f}%"
-                    if column in coverage else "—"
-                ),
-                "Score Role": "Active model input" if column in used_cols else "Insight only",
-            })
-        country_table = (
-            pd.DataFrame(rows)
-            .sort_values(["Score Role", "Feature"], ascending=[True, True])
-        )
-        st.markdown(f"#### Latest Features: {country_formatter(selected_country)}")
-        st.dataframe(country_table, use_container_width=True, hide_index=True)
-
-    available_codes = scores.sort_values("country_name")["country_code"].tolist()
-    default_countries = []
-    for code in [selected_country] + default_peer_codes:
-        if code in available_codes and code not in default_countries:
-            default_countries.append(code)
-    default_countries = default_countries[:5]
-
-    compare_col1, compare_col2 = st.columns([2, 3])
-    with compare_col1:
-        selected_feature = st.selectbox(
-            "Compare feature",
-            options=feature_cols,
-            format_func=lambda x: label_map.get(x, x.replace("_", " ").title()),
-            key=f"{key_prefix}_feature_compare",
-        )
-    with compare_col2:
-        compare_countries = st.multiselect(
-            "Countries",
-            options=available_codes,
-            default=default_countries,
-            format_func=country_formatter,
-            key=f"{key_prefix}_feature_countries_{selected_country}",
-        )
-
-    if not compare_countries:
-        return
-    if len(compare_countries) > 12:
-        st.warning("Showing the first 12 selected countries.")
-        compare_countries = compare_countries[:12]
-
-    chart_df = features[
-        features["country_code"].isin(compare_countries)
-    ][["country_code", selected_feature]].copy()
-    chart_df["value"] = pd.to_numeric(chart_df[selected_feature], errors="coerce")
-    chart_df = chart_df.dropna(subset=["value"])
-    if chart_df.empty:
-        st.info("No values are available for that feature and country set.")
-        return
-    chart_df["country_name"] = chart_df["country_code"].map(country_formatter)
-    chart_df = chart_df.sort_values("value", ascending=False)
-
-    fig = px.bar(
-        chart_df,
-        x="country_name",
-        y="value",
-        title=label_map.get(selected_feature, selected_feature.replace("_", " ").title()),
-    )
-    fig.update_layout(
-        height=380,
-        margin=dict(l=20, r=20, t=48, b=60),
-        xaxis_title=None,
-        yaxis_title=None,
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        showlegend=False,
-    )
-    st.plotly_chart(
-        fig,
-        use_container_width=True,
-        theme="streamlit",
-        key=f"{key_prefix}_feature_chart_{selected_feature}",
-    )
-
-
-def render_external_insight_panel(
-    scores: pd.DataFrame,
-    selected_country: str,
-    default_peer_codes: list[str],
-    country_formatter,
-    model_features: pd.DataFrame | None,
-):
-    """Render compact staged external-liquidity features for exploration."""
-    features, _, report = load_external_insight_data()
-    render_staged_insight_panel(
-        scores=scores,
-        selected_country=selected_country,
-        default_peer_codes=default_peer_codes,
-        country_formatter=country_formatter,
-        model_features=model_features,
-        features=features,
-        report=report,
-        label_map=EXTERNAL_FEATURE_LABELS,
-        count_col=EXTERNAL_FEATURE_COUNT_COL,
-        key_prefix="external",
-        empty_msg="No staged external-liquidity feature dataset is packaged with this deployment.",
-    )
-
-
-def render_government_insight_panel(
-    scores: pd.DataFrame,
-    selected_country: str,
-    default_peer_codes: list[str],
-    country_formatter,
-    model_features: pd.DataFrame | None,
-):
-    """Render compact staged general-government (fiscal) liquidity features."""
-    features, _, report = load_government_insight_data()
-    render_staged_insight_panel(
-        scores=scores,
-        selected_country=selected_country,
-        default_peer_codes=default_peer_codes,
-        country_formatter=country_formatter,
-        model_features=model_features,
-        features=features,
-        report=report,
-        label_map=GOVT_FEATURE_LABELS,
-        count_col=GOVT_FEATURE_COUNT_COL,
-        key_prefix="government",
-        empty_msg="No staged government-liquidity feature dataset is packaged with this deployment.",
     )
 
 
@@ -2698,6 +3013,19 @@ def render_candidate_country_evidence(
         ]
     if not candidate_features:
         return
+
+    if not overlay_enabled:
+        show_additional_evidence = st.checkbox(
+            "Show additional insight-only evidence",
+            value=False,
+            key=f"show_additional_evidence_{country_code}",
+            help=(
+                "Loads candidate fields that are available for analysis but are "
+                "not included in the served score."
+            ),
+        )
+        if not show_additional_evidence:
+            return
 
     external_features, _, external_report = load_external_insight_data()
     government_features, _, government_report = load_government_insight_data()
@@ -2762,88 +3090,22 @@ def render_candidate_country_evidence(
         return
 
     if overlay_enabled:
-        st.markdown("#### Additional candidate evidence")
+        st.markdown("### Scenario Evidence")
         st.caption(
             "These fields are packaged for review and analysis. Commodity exposure is "
             "an external vulnerability factor, not a liquidity metric. They do not explain "
-            "the current live score unless marked as active score inputs."
+            "the served score unless marked as active score inputs."
         )
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
         return
 
-    with st.expander("Additional candidate evidence", expanded=False):
-        st.caption(
-            "These fields are packaged for review and analysis. Commodity exposure is "
-            "an external vulnerability factor, not a liquidity metric. They do not explain "
-            "the current live score unless marked as active score inputs."
-        )
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-def render_staged_methodology_summary(
-    features: pd.DataFrame,
-    observations: pd.DataFrame,
-    report: dict,
-    model_features: pd.DataFrame | None,
-    *,
-    label_map: dict,
-    count_col: str,
-    empty_msg: str,
-):
-    if features.empty:
-        st.info(empty_msg)
-        return
-
-    feature_cols = _staged_feature_columns(features, count_col)
-    model_cols = set(model_features.columns) if model_features is not None else set()
-    used_cols = [column for column in feature_cols if column in model_cols]
-    coverage = report.get("feature_coverage", {}) if isinstance(report, dict) else {}
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Features", f"{len(feature_cols):,}")
-    c2.metric("Observation Rows", f"{len(observations):,}")
-    c3.metric("Countries", f"{features['country_code'].nunique():,}")
-    c4.metric("Used In Active Score", f"{len(used_cols):,}")
-
-    rows = []
-    for column in feature_cols:
-        rows.append({
-            "Feature": label_map.get(column, column.replace("_", " ").title()),
-            "Coverage": (
-                f"{coverage.get(column, {}).get('pct_model_countries', 0):.1f}%"
-                if column in coverage else f"{features[column].notna().mean():.1%}"
-            ),
-            "Countries": (
-                coverage.get(column, {}).get("countries")
-                if column in coverage else int(features[column].notna().sum())
-            ),
-            "Score Role": "Active model input" if column in used_cols else "Insight only",
-        })
+    st.markdown("### Additional Insight-Only Evidence")
+    st.caption(
+        "These fields are packaged for review and analysis. Commodity exposure is "
+        "an external vulnerability factor, not a liquidity metric. They do not explain "
+        "the served score unless marked as active score inputs."
+    )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-    notes = report.get("notes", []) if isinstance(report, dict) else []
-    if notes:
-        st.caption(" ".join(str(note) for note in notes[:3]))
-
-
-def render_external_methodology_summary(model_features: pd.DataFrame | None):
-    features, observations, report = load_external_insight_data()
-    render_staged_methodology_summary(
-        features, observations, report, model_features,
-        label_map=EXTERNAL_FEATURE_LABELS,
-        count_col=EXTERNAL_FEATURE_COUNT_COL,
-        empty_msg="No staged external-liquidity feature package is available in this deployment.",
-    )
-
-
-def render_government_methodology_summary(model_features: pd.DataFrame | None):
-    features, observations, report = load_government_insight_data()
-    render_staged_methodology_summary(
-        features, observations, report, model_features,
-        label_map=GOVT_FEATURE_LABELS,
-        count_col=GOVT_FEATURE_COUNT_COL,
-        empty_msg="No staged government-liquidity feature package is available in this deployment.",
-    )
 
 
 def _display_value(value, integer: bool = False) -> str:
@@ -2957,18 +3219,17 @@ def _liquidity_feature_status_rows(
 
 def render_model_monitoring_summary(pca_info: dict | None = None):
     report = _load_first_json(MODEL_MONITORING_REPORT_PATHS)
-    validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
     active_features = active_model_feature_codes(pca_info)
 
     st.markdown("#### Model Monitoring")
     st.caption(
         "Candidate features are reviewed through score movement before they are "
-        "promoted into the active serving artifact."
+        "approved for inclusion in the served score."
     )
     st.caption(
         "The Country Profile can optionally display saved candidate risk overlays. "
         "Liquidity and commodity overlays are independent; selecting both uses the "
-        "combined scenario. Overlays are analytical only and do not change the live "
+        "combined scenario. Overlays are analytical only and do not change the served "
         "score, ranking, or score drivers."
     )
 
@@ -2990,7 +3251,7 @@ def render_model_monitoring_summary(pca_info: dict | None = None):
         )
 
         review_basis = str(report.get("review_basis") or "candidate comparison").replace("_", " ")
-        st.caption(f"Review basis: {review_basis}. Active serving scores are unchanged by this report.")
+        st.caption(f"Review basis: {review_basis}. Served scores are unchanged by this report.")
 
         status_rows = _liquidity_feature_status_rows(
             report,
@@ -3023,363 +3284,331 @@ def render_model_monitoring_summary(pca_info: dict | None = None):
 
         if report.get("promotion_requires_owner_review"):
             st.warning(
-                "Monitoring only: candidate promotion requires owner review under the "
-                "score-movement gate."
+                "Monitoring only: inclusion in the served score requires owner review "
+                "under the score-movement gate."
             )
         else:
             st.success("Candidate score movement is within the configured review gate.")
     else:
         st.info("No liquidity candidate score-movement report is packaged with this deployment.")
 
-    validation_state = crisis_validation_display_state(validation)
-    with st.expander("Crisis classifier validation status", expanded=False):
-        if not validation:
-            st.info(str(validation_state["reason"]))
-        elif validation_state["display_metrics"]:
-            metric_rows = [
-                {
-                    "Metric": str(key).replace("_", " ").title(),
-                    "Value": _display_value(value),
-                }
-                for key, value in validation.items()
-                if key not in {
-                    "clean_validation",
-                    "confusion_matrix",
-                    "display_metrics",
-                    "notes",
-                    "status_reason",
-                    "validation_status",
-                }
-            ]
-            if metric_rows:
-                st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
-            if isinstance(validation.get("confusion_matrix"), dict):
-                matrix = pd.DataFrame(validation["confusion_matrix"])
-                st.dataframe(matrix, use_container_width=True)
-            if validation.get("notes"):
-                for note in validation["notes"]:
-                    st.caption(str(note))
-        else:
-            st.warning("Legacy crisis-classifier metrics are withheld from the Methodology tab.")
-            st.caption(str(validation_state["reason"]))
-            st.caption(
-                "The packaged summary and image remain in the repository for audit history, "
-                "but they are not clean external-test evidence and must not be used to assess "
-                "current model quality."
-            )
-
-        if validation_state["display_metrics"]:
-            confusion_matrix_path = validated_confusion_matrix_path(
-                validation,
-                BASE_DIR,
-            )
-            if confusion_matrix_path is not None:
-                st.image(
-                    str(confusion_matrix_path),
-                    caption="Crisis classifier confusion matrix",
-                )
-            else:
-                st.caption(
-                    "No schema-versioned, checksum-linked confusion matrix is "
-                    "approved for this validation report."
-                )
-
-
-def render_model_card_summary(
+def render_methodology_workspace(
     scores: pd.DataFrame,
     features: pd.DataFrame | None,
     manifest: dict,
     pca: dict | None,
-):
-    """Render a UI-native model card instead of dumping repository Markdown."""
-    snapshot_id = manifest.get("snapshot_id", "unversioned")
-    status = str(manifest.get("snapshot_status", "not recorded")).replace("_", " ").title()
-    training_date = (pca or {}).get("training_date") or manifest.get("model", {}).get("training_date")
-
-    st.markdown("### Model Card")
-    st.caption("Plain-English summary of the active scoring artifact shown in this app.")
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Score Scale", "1–10", help="1 is lower relative risk; 10 is higher relative risk.")
-    c2.metric("Countries Scored", f"{len(scores):,}")
-    c3.metric("Snapshot", _display_value(snapshot_id))
-    c4.metric("Status", status)
-    st.caption(f"Training timestamp: {_display_value(training_date)}")
-
-    st.markdown("#### Intended Use")
-    use_col, no_use_col = st.columns(2)
-    with use_col:
-        st.markdown(
-            """
-Good uses:
-
-- Cross-country banking-system risk screening.
-- Peer comparison and watchlist prioritization.
-- Finding data gaps and countries needing analyst review.
-"""
+) -> None:
+    """Render the single authoritative methodology, data, and release view."""
+    st.markdown("# Methodology")
+    snapshot_id = str(manifest.get("snapshot_id") or "Unversioned")
+    snapshot_status = str(manifest.get("snapshot_status") or "Not recorded")
+    integrity_verified = snapshot_status.lower() == "verified"
+    registry = build_active_feature_registry(pca)
+    operating_count = int((registry["pillar"] == "economic").sum()) if not registry.empty else 0
+    banking_count = int((registry["pillar"] == "industry").sum()) if not registry.empty else 0
+    st.caption(
+        f"Snapshot {snapshot_id} · {len(scores):,} countries · "
+        + (
+            "Artifact integrity verified; model approval not recorded."
+            if integrity_verified
+            else "Artifact integrity is not verified."
         )
-    with no_use_col:
-        st.markdown(
-            """
-Do not use for:
-
-- Automatic investment, lending, or supervisory decisions.
-- Institution-level solvency calls.
-- Precise crisis timing or causal claims.
-"""
-        )
-
-    st.markdown("#### Current Score Construction")
-    structure_rows = [
-        {
-            "Component": "Economic pillar",
-            "Current role": "50% of pillar score",
-            "What it captures": "Macro conditions, fiscal position, monetary/reserve proxies and governance inputs.",
-        },
-        {
-            "Component": "Banking / industry pillar",
-            "Current role": "50% of pillar score",
-            "What it captures": "Capital, asset quality, liquidity, profitability, concentration and sovereign-bank nexus inputs.",
-        },
-        {
-            "Component": "Crisis classifier",
-            "Current role": "Upward-only 10% overlay (legacy)",
-            "What it captures": "A three-year crisis signal whose historical validation is superseded and withheld pending a clean replacement.",
-        },
-        {
-            "Component": "Coverage policy",
-            "Current role": "Confidence weighting and floors",
-            "What it captures": "Limits overconfidence where inputs are sparse or heavily imputed.",
-        },
-    ]
-    st.dataframe(pd.DataFrame(structure_rows), use_container_width=True, hide_index=True)
-
-    with st.expander("Model limitations and review flags", expanded=True):
-        limitations = [
-            {
-                "Issue": "Relative ranking",
-                "Why it matters": "Pillar scores are percentiles within the current country universe, so rankings can move when the universe or source coverage changes.",
-                "Status": "Disclose in app",
-            },
-            {
-                "Issue": "PCA orientation",
-                "Why it matters": "Unsupervised PCA can learn statistically strong but economically weak signs for some variables.",
-                "Status": "Needs constrained/directional scoring review",
-            },
-            {
-                "Issue": "Crisis overlay",
-                "Why it matters": "The served legacy classifier predates the exact WP/26/94 label artifact, and its old threshold metrics are not clean external-test evidence.",
-                "Status": "Metrics withheld; replacement blocked by forward validation",
-            },
-            {
-                "Issue": "External liquidity gap",
-                "Why it matters": "Debt-service, reserves, current-account, portfolio and commodity-exposure fields have uneven official-source coverage.",
-                "Status": "Core fields active; lower-coverage fields monitored as candidates",
-            },
-            {
-                "Issue": "Imputation sensitivity",
-                "Why it matters": "Countries with missing banking or external data can be materially affected by KNN imputation.",
-                "Status": "Show coverage and missing fields",
-            },
-        ]
-        st.dataframe(pd.DataFrame(limitations), use_container_width=True, hide_index=True)
-
-    st.markdown("#### Release Governance")
-    st.info(
-        "The artifact is manifest-verified for serving. Formal production approval still requires "
-        "grouped/out-of-time validation, material score-movement review, challenger comparison, "
-        "and named approval with rollback artifacts."
     )
-    render_model_monitoring_summary(pca)
+    methodology_sections = (
+        "How the Score Works",
+        "Data and Coverage",
+        "Validation and Release",
+    )
+    if st.session_state.get("methodology_section") not in methodology_sections:
+        st.session_state["methodology_section"] = methodology_sections[0]
+    section = _segmented_navigation(
+        "Methodology section",
+        options=methodology_sections,
+        key="methodology_section",
+    )
 
-
-def render_data_card_summary(features: pd.DataFrame | None, manifest: dict):
-    """Render a UI-native data card focused on source quality and model gaps."""
-    st.markdown("### Data Card")
-    st.caption("Current source inventory, freshness, coverage, and priority data gaps.")
-
-    source_mode = str(manifest.get("source_mode", "not recorded")).replace("_", " ")
-    sources = manifest.get("sources", {})
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Source Mode", source_mode)
-    c2.metric("Snapshot Sources", f"{len(sources):,}")
-    c3.metric("Snapshot Cutoff", _display_value(manifest.get("as_of_date") or manifest.get("snapshot_id")))
-
-    source_rows = []
-    for source_name, details in sorted(sources.items()):
-        source_rows.append(
-            {
-                "Source": source_name,
-                "Role": _source_role(source_name),
-                "Rows": _display_value(details.get("rows"), integer=True),
-                "Countries": _display_value(details.get("countries"), integer=True),
-                "Indicators / Measures": _display_value(details.get("indicators"), integer=True),
-                "Latest Observation": _display_value(details.get("latest_observation")),
-                "Count Basis": details.get("indicator_basis", "unique indicator codes"),
-            }
-        )
-    if source_rows:
-        st.markdown("#### Snapshot Sources")
+    if section == "How the Score Works":
+        st.markdown("## Model Card")
         st.caption(
-            "Manifest-backed sources used to build the active snapshot. "
-            "Derived feature packages, including liquidity coverage, are shown below."
+            "BankEnv is a country-level banking-system risk screener for analyst "
+            "triage and peer comparison. It is not a bank rating, crisis-timing "
+            "forecast, or automated lending decision."
         )
-        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
-
-    st.markdown("#### Snapshot Rules")
-    st.markdown(
-        """
-- The model scores one country-level cross-section per snapshot.
-- For each country and indicator, feature engineering uses the latest observation allowed by the cutoff.
-- Historical monthly, quarterly and annual histories remain available in the Data Explorer.
-- Estimates, projections, carried-forward values and imputations must not be silently presented as actuals.
-"""
-    )
-
-    st.markdown("#### Coverage Watchlist")
-    if features is not None and len(features) > 0:
-        feature_cols = [
-            c for c in features.columns
-            if c != "country_code"
-            and not c.endswith("_year")
-            and not c.endswith("_period")
-            and c != "crisis_prob"
-        ]
-        coverage = []
-        for column in feature_cols:
-            coverage.append(
-                {
-                    "Feature": column,
-                    "Direct Coverage": f"{features[column].notna().mean():.0%}",
-                    "Countries": int(features[column].notna().sum()),
-                }
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Scale", "1–10", help="1 lower relative risk; 10 higher relative risk")
+        m2.metric("Operating Inputs", f"{operating_count}")
+        m3.metric("Banking Inputs", f"{banking_count}")
+        m4.metric("Served Countries", f"{len(scores):,}")
+        score_flow = pd.DataFrame(
+            [
+                ("1. Active inputs", "Dated macro, fiscal, governance, external, liquidity, and banking evidence.", "Country evidence shows value, unit, source, period, and status."),
+                ("2. Two fitted pillars", "Operating Environment and Banking System components are estimated separately.", "Both are displayed in risk orientation: 1 lower; 10 higher."),
+                ("3. Coverage policy", "Confidence adjustment and a minimum risk floor limit false precision.", "Any floor effect is a separate Country score-bridge step."),
+                ("4. Critical-data penalty", "A bounded penalty applies when defined core banking fields are imputed.", "Country view names the exact fields and penalty."),
+                ("5. Legacy crisis adjustment", "An upward-only overlay remains in the served artifact.", "It is not presented as a validated crisis probability."),
+                ("6. Served score", "Rounded 1–10 relative-risk output for the active snapshot.", "The Country Score Bridge reconciles every adjustment."),
+            ],
+            columns=["Stage", "Purpose", "Public Interpretation"],
+        )
+        st.dataframe(score_flow, use_container_width=True, hide_index=True)
+        use_col, limit_col = st.columns(2)
+        with use_col:
+            st.markdown("### Appropriate Uses")
+            st.markdown(
+                "- Cross-country screening and watchlist prioritization.\n"
+                "- Peer comparison and evidence-gap review.\n"
+                "- Structured input to analyst judgment."
             )
-        coverage_df = (
-            pd.DataFrame(coverage)
-            .assign(_coverage=lambda df: df["Direct Coverage"].str.rstrip("%").astype(int))
-            .sort_values(["_coverage", "Feature"])
-            .drop(columns="_coverage")
-            .head(12)
+        with limit_col:
+            st.markdown("### Important Limits")
+            st.markdown(
+                "- Relative scores can move with the country universe or coverage.\n"
+                "- Public-source lags and imputation can be material.\n"
+                "- The legacy crisis overlay is not decision-grade on its own."
+            )
+        with st.expander("Technical Diagnostics", expanded=False):
+            st.info(
+                "Combined Pillar is a separate PCA diagnostic and is not the "
+                "arithmetic precursor to the served score. It is excluded from "
+                "the public Country score block."
+            )
+            if not registry.empty:
+                technical = registry[
+                    ["label", "feature", "pillar_label", "loading", "unit", "source_family"]
+                ].rename(columns={
+                    "label": "Input", "feature": "Technical Code",
+                    "pillar_label": "Pillar", "loading": "Loading",
+                    "unit": "Unit", "source_family": "Source / Lineage",
+                })
+                st.dataframe(
+                    technical,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={"Loading": st.column_config.NumberColumn(format="%+.4f")},
+                )
+
+    elif section == "Data and Coverage":
+        st.markdown("## Data Card")
+        st.caption(
+            "Official upstream sources are separated from BankEnv-derived feature "
+            "packages. Active membership always comes from fitted loading maps."
         )
-        st.dataframe(coverage_df, use_container_width=True, hide_index=True)
-        st.caption("Lowest direct-coverage model/input features. Imputed values may still exist downstream.")
-    else:
-        st.info("Feature artifact is unavailable, so coverage cannot be summarized.")
+        source_rows: list[dict] = []
+        for source_name, details in sorted((manifest.get("sources") or {}).items()):
+            source_rows.append({
+                "Dataset": source_name,
+                "Type": "Official upstream source",
+                "Countries": _display_value(details.get("countries"), integer=True),
+                "Latest Observation": _display_value(details.get("latest_observation")),
+                "Role": _source_role(source_name),
+                "Availability": "Active source family",
+            })
+        external_features, external_observations, external_report = load_external_insight_data()
+        government_features, government_observations, government_report = load_government_insight_data()
+        for label, package, observations, report in (
+            ("External liquidity", external_features, external_observations, external_report),
+            ("Government liquidity", government_features, government_observations, government_report),
+        ):
+            active_in_package = [
+                feature for feature in registry["feature"].tolist()
+                if feature in package.columns
+            ] if not registry.empty and not package.empty else []
+            source_rows.append({
+                "Dataset": label,
+                "Type": "BankEnv-derived feature package",
+                "Countries": _display_value(
+                    int(package["country_code"].nunique())
+                    if not package.empty and "country_code" in package
+                    else 0,
+                    integer=True,
+                ),
+                "Latest Observation": _display_value(report.get("cutoff") or report.get("as_of_date")),
+                "Role": f"{len(active_in_package)} active inputs; remaining fields insight-only",
+                "Availability": "Available" if not observations.empty else "Not packaged",
+            })
+        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
+        if features is None or features.empty or registry.empty:
+            st.info(
+                "Feature-level coverage is unavailable because the served feature "
+                "artifact or loading maps are not packaged."
+            )
+        else:
+            country_total = int(features["country_code"].nunique())
+            coverage_rows = []
+            for item in registry.to_dict(orient="records"):
+                feature = item["feature"]
+                direct = int(features[feature].notna().sum()) if feature in features else 0
+                coverage_rows.append({
+                    "Input": item["label"],
+                    "Pillar": item["pillar_label"],
+                    "Direct Countries": direct,
+                    "Direct Coverage": direct / country_total if country_total else np.nan,
+                    "Source / Lineage": item["source_family"],
+                    "Role": item["model_role"],
+                })
+            coverage_table = pd.DataFrame(coverage_rows).sort_values(["Direct Coverage", "Input"])
+            st.markdown("### Active-Input Coverage")
+            filter_a, filter_b, filter_c, filter_d, filter_e = st.columns(
+                [2, 1, 1, 1, 1]
+            )
+            with filter_a:
+                coverage_search = st.text_input(
+                    "Search active inputs",
+                    key="methodology_coverage_search",
+                    placeholder="Input, source, or role",
+                )
+            with filter_b:
+                coverage_pillar = st.selectbox(
+                    "Pillar",
+                    ["All", *sorted(coverage_table["Pillar"].dropna().unique())],
+                    key="methodology_coverage_pillar",
+                )
+            with filter_c:
+                coverage_source = st.selectbox(
+                    "Source",
+                    ["All", *sorted(coverage_table["Source / Lineage"].dropna().unique())],
+                    key="methodology_coverage_source",
+                )
+            with filter_d:
+                coverage_role = st.selectbox(
+                    "Role",
+                    ["All", *sorted(coverage_table["Role"].dropna().unique())],
+                    key="methodology_coverage_role",
+                )
+            with filter_e:
+                coverage_band = st.selectbox(
+                    "Coverage",
+                    [
+                        "All",
+                        "Complete",
+                        "High (90%+)",
+                        "Partial (<90%)",
+                        "Unavailable",
+                    ],
+                    key="methodology_coverage_band",
+                )
+            filtered_coverage = coverage_table.copy()
+            if coverage_search.strip():
+                needle = coverage_search.strip().lower()
+                search_mask = pd.Series(False, index=filtered_coverage.index)
+                for column in ("Input", "Source / Lineage", "Role"):
+                    search_mask |= filtered_coverage[column].astype(str).str.lower().str.contains(
+                        needle,
+                        regex=False,
+                    )
+                filtered_coverage = filtered_coverage.loc[search_mask]
+            if coverage_pillar != "All":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Pillar"] == coverage_pillar
+                ]
+            if coverage_source != "All":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Source / Lineage"] == coverage_source
+                ]
+            if coverage_role != "All":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Role"] == coverage_role
+                ]
+            if coverage_band == "Complete":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Direct Coverage"] >= 1.0
+                ]
+            elif coverage_band == "High (90%+)":
+                filtered_coverage = filtered_coverage[
+                    (filtered_coverage["Direct Coverage"] >= 0.9)
+                    & (filtered_coverage["Direct Coverage"] < 1.0)
+                ]
+            elif coverage_band == "Partial (<90%)":
+                filtered_coverage = filtered_coverage[
+                    (filtered_coverage["Direct Coverage"] > 0.0)
+                    & (filtered_coverage["Direct Coverage"] < 0.9)
+                ]
+            elif coverage_band == "Unavailable":
+                filtered_coverage = filtered_coverage[
+                    filtered_coverage["Direct Coverage"] <= 0.0
+                ]
+            st.dataframe(
+                filtered_coverage,
+                use_container_width=True,
+                hide_index=True,
+                column_config={"Direct Coverage": st.column_config.NumberColumn(format="percent")},
+            )
+            st.download_button(
+                "Download Data Card Inventory",
+                data=coverage_table.to_csv(index=False).encode("utf-8"),
+                file_name=f"bankenv_data_card_{snapshot_id}.csv",
+                mime="text/csv",
+                key="download_data_card_inventory",
+            )
+        st.caption(
+            "Explorer preserves source-native periodicity. The served model uses "
+            "one latest-allowed country cross-section at the snapshot cutoff."
+        )
 
-    st.markdown("#### Liquidity Feature Coverage")
-    liq_tab_external, liq_tab_government = st.tabs(["External", "Government"])
-    with liq_tab_external:
-        render_external_methodology_summary(features)
-    with liq_tab_government:
-        render_government_methodology_summary(features)
-
-    st.markdown("#### Priority Missing Data Families")
-    gap_rows = [
-        {
-            "Gap": "Sovereign fiscal liquidity / debt affordability",
-            "Why it matters": "Interest-to-revenue and debt-to-revenue drive rating-agency sovereign risk.",
-            "Likely source": "IMF WEO general government; GFN needs Fiscal Monitor/GFS",
-            "Current status": "Interest/revenue and debt/revenue are production-scored",
-        },
-        {
-            "Gap": "Debt service burden",
-            "Why it matters": "Debt affordability and refinancing stress.",
-            "Likely source": "IMF BOP / World Bank IDS / QEDS / GFS",
-            "Current status": "Partially available; selected liquidity fields are production-scored",
-        },
-        {
-            "Gap": "Gross external financing needs",
-            "Why it matters": "Core external-liquidity pressure measure.",
-            "Likely source": "BOP + IIP/external debt + reserves",
-            "Current status": "Proxy is production-scored; amortization/rollover data remains open",
-        },
-        {
-            "Gap": "Current account receipts and payments",
-            "Why it matters": "Denominator for external debt-service and financing-need ratios.",
-            "Likely source": "IMF BOP",
-            "Current status": "Available for insights; used indirectly through derived liquidity ratios",
-        },
-        {
-            "Gap": "International reserves adequacy",
-            "Why it matters": "Shock buffer against FX liquidity stress.",
-            "Likely source": "IMF IRFCL / MFS / BOP",
-            "Current status": "Reserve/imports proxy is production-scored; adequacy benchmark open",
-        },
-        {
-            "Gap": "Portfolio flows and external liabilities",
-            "Why it matters": "Market-access and fickle-capital risk.",
-            "Likely source": "IMF BOP, IIP, PIP/CPIS",
-            "Current status": "External liabilities and net IIP are production-scored; CPIS/CDIS open",
-        },
-    ]
-    st.dataframe(pd.DataFrame(gap_rows), use_container_width=True, hide_index=True)
-
-
-def render_current_methodology(
-    scores: pd.DataFrame,
-    features: pd.DataFrame | None,
-    manifest: dict,
-    pca: dict | None,
-):
-    """Render current, manifest-backed methodology instead of stale README text."""
-    st.markdown("## Methodology")
-
-    snapshot_id = manifest.get('snapshot_id', 'unversioned')
-    snapshot_status = manifest.get('snapshot_status', 'manifest unavailable')
-    source_mode = manifest.get('source_mode', 'not recorded')
-    training_date = (pca or {}).get('training_date', 'not recorded')
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Snapshot", snapshot_id)
-    with c2:
-        st.metric("Status", str(snapshot_status).replace('_', ' ').title())
-    with c3:
-        st.metric("Countries", f"{len(scores):,}")
-    with c4:
-        st.metric("Source Mode", str(source_mode).replace('_', ' '))
-
-    st.caption(f"Model training timestamp: {training_date}")
-
-    st.markdown("### Current Model Logic")
-    st.markdown(
-        """
-The app serves a dated country-level snapshot. Source observations are filtered
-to the active cutoff, then each feature uses the latest allowed observation
-available for each country and indicator. Monthly, quarterly, and annual source
-data are preserved in the Data Explorer, but the risk model scores one
-cross-section per snapshot.
-
-The final score is the two-pillar PCA score plus an upward-only crisis
-overlay. Each pillar is a constrained principal component: every feature has a
-declared credit-risk direction (for example, higher NPL ratios can only raise
-risk), so the score cannot learn economically counterintuitive signs from
-covariance alone. Countries missing critical banking soundness fields receive
-a bounded risk penalty instead of relying on imputed values.
-
-The supervised systemic-crisis classifier adds
-`max(0, 0.1 x ((1 + 9 x P(crisis)) - pillar score))`: it is monotone in the
-crisis probability and can never lower a high pillar-based risk score. The
-served classifier produces a forward-looking three-year signal, not a monthly
-or quarterly crisis probability. It predates the exact IMF WP/26/94 episode
-artifact and clean nested validation foundation. Its historical summary and
-confusion matrix are therefore withheld. Leakage-safe research challengers
-failed the forward holdout and were not promoted, so the served crisis output
-must be treated as a legacy overlay rather than a validated probability.
-
-Liquidity fields are treated as normal model/source features. Active liquidity
-inputs appear in the same country model-input view as other fields, and the
-underlying external and government series are available in the Explorer source
-selectors for comparison and calculations. Fields not included in the promoted
-model artifact remain insight-only.
-"""
-    )
-
-    card_tab_model, card_tab_data = st.tabs(["Model Card", "Data Card"])
-    with card_tab_model:
-        render_model_card_summary(scores, features, manifest, pca)
-    with card_tab_data:
-        render_data_card_summary(features, manifest)
+    elif section == "Validation and Release":
+        st.markdown("## Validation and Release")
+        validation = _load_first_json((CRISIS_VALIDATION_SUMMARY_PATH,))
+        validation_state = crisis_validation_display_state(validation)
+        lifecycle = pd.DataFrame([
+            {
+                "Control": "Artifact integrity",
+                "Status": "Verified" if integrity_verified else "Not verified",
+                "Meaning": "Manifest checks the served bundle; this is not model approval.",
+            },
+            {
+                "Control": "Named model approval",
+                "Status": "Not recorded",
+                "Meaning": "No approval transition is recorded in the served manifest.",
+            },
+            {
+                "Control": "Crisis-classifier validation",
+                "Status": "Displayable" if validation_state["display_metrics"] else "Superseded / withheld",
+                "Meaning": str(validation_state["reason"]),
+            },
+            {
+                "Control": "Rollback",
+                "Status": "Archived snapshots available" if SNAPSHOT_ARCHIVE else "Not recorded",
+                "Meaning": "Fallback is restricted to checksum-verified bundles.",
+            },
+        ])
+        st.dataframe(lifecycle, use_container_width=True, hide_index=True)
+        st.markdown("### Confusion Matrix Status")
+        confusion_matrix_path = validated_confusion_matrix_path(validation, BASE_DIR)
+        if confusion_matrix_path is not None:
+            st.image(
+                str(confusion_matrix_path),
+                caption="Governed crisis-classifier confusion matrix",
+            )
+        else:
+            st.warning(
+                "No schema-versioned, checksum-linked confusion matrix is approved "
+                "for the served classifier. Superseded threshold results are not "
+                "shown as current validation evidence."
+            )
+        st.caption(
+            "The structural country score remains usable as an analyst screener; "
+            "the crisis overlay must not be used as a stand-alone prediction model."
+        )
+        st.markdown("### Release Gate")
+        release_rows = pd.DataFrame([
+            ("Artifact checksums and schema", "Passed for served bundle" if integrity_verified else "Open"),
+            ("Material score-movement review", "Required for every candidate"),
+            ("Out-of-time and grouped validation", "Required before classifier promotion"),
+            ("Named owner approval", "Not recorded"),
+            ("Rollback bundle and smoke test", "Required before promotion"),
+        ], columns=["Requirement", "Current State"])
+        st.dataframe(release_rows, use_container_width=True, hide_index=True)
+        show_candidate_appendix = st.checkbox(
+            "Show candidate monitoring appendix",
+            value=False,
+            key="show_candidate_monitoring_appendix",
+            help=(
+                "Loads archived challenger movement and validation evidence. "
+                "These diagnostics do not change the served score."
+            ),
+        )
+        if show_candidate_appendix:
+            render_model_monitoring_summary(pca)
 
 
 _serving_ver = _serving_version()
@@ -3391,6 +3620,13 @@ _serving_ver = _serving_version()
 # the archived bundle's manifest, not the active one on disk.
 data_manifest = served_manifest or load_data_manifest()
 health_report = build_health_report(data_manifest, serving_status)
+
+if health_report.get("overall") in {"stale", "degraded", "unknown"}:
+    st.warning(
+        "Some serving or source-freshness checks need attention. Scores remain "
+        "available where the verified fallback permits; see Methodology → Data "
+        "and Coverage for source vintages."
+    )
 
 if scores_df is None:
     st.error("Application cannot start without model data.")
@@ -3560,299 +3796,480 @@ if viewing_archived:
     )
 
 default_country_code = 'USA' if 'USA' in available_country_codes else available_country_codes[0]
-if "profile_country_code" not in st.session_state:
-    st.session_state["profile_country_code"] = default_country_code
-if "explorer_focus_country" not in st.session_state:
-    st.session_state["explorer_focus_country"] = st.session_state.get(
+_requested_country = _query_param_value("country", default_country_code).upper()
+if _requested_country not in available_country_codes:
+    _requested_country = default_country_code
+if st.session_state.get("profile_country_code") not in available_country_codes:
+    st.session_state["profile_country_code"] = _requested_country
+_requested_explorer_country = _query_param_value(
+    "explorer_country",
+    st.session_state.get("profile_country_code", default_country_code),
+).upper()
+if _requested_explorer_country not in available_country_codes:
+    _requested_explorer_country = st.session_state.get(
         "profile_country_code",
         default_country_code,
     )
+if st.session_state.get("explorer_focus_country") not in available_country_codes:
+    st.session_state["explorer_focus_country"] = _requested_explorer_country
+_requested_peer_codes = [
+    code.strip().upper()
+    for code in _query_param_value("peers").split(",")
+    if code.strip()
+]
+if _requested_peer_codes:
+    peer_focus = (
+        st.session_state["profile_country_code"]
+        if primary_view == "Country"
+        else st.session_state["explorer_focus_country"]
+    )
+    restored_peers = list(
+        dict.fromkeys(
+            code
+            for code in _requested_peer_codes
+            if code in available_country_codes and code != peer_focus
+        )
+    )[:8]
+    st.session_state[f"shared_peer_codes_{peer_focus}"] = restored_peers
+    if peer_focus == st.session_state["profile_country_code"]:
+        st.session_state[
+            f"custom_peer_codes_{peer_focus}"
+        ] = restored_peers
+_sync_public_query_state()
 
-st.markdown(
-    """
-    <div class="bankenv-brand" aria-label="BankEnv">
-        <span class="bankenv-brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 64 64" focusable="false">
-                <path class="bankenv-main-stroke" d="M17 47H48" stroke-width="4" stroke-linecap="round"/>
-                <path class="bankenv-muted-stroke" d="M17 18V47" stroke-width="4" stroke-linecap="round"/>
-                <path class="bankenv-main-stroke" d="M25 41V31" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-accent-stroke" d="M34 41V23" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-main-stroke" d="M43 41V27" stroke-width="6" stroke-linecap="round"/>
-                <path class="bankenv-accent-stroke" d="M23 28L31 22L39 25L47 17" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </span>
-        <span class="bankenv-brand-name">BankEnv</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
 # ==============================================================================
-# MAIN NAVIGATION: Tabs
+# VIEW: Global Summary
 # ==============================================================================
-tab_global, tab_profile, tab_explorer, tab_methodology = st.tabs([
-    "Global", "Country", "Explorer", "Methodology"
-])
-
-# ==============================================================================
-# TAB: Global Summary
-# ==============================================================================
-with tab_global:
+if primary_view == "Global":
     render_global_summary(scores_df, model_features, loader)
 
 # ==============================================================================
-# TAB: Country Profile
+# VIEW: Country Profile
 # ==============================================================================
-with tab_profile:
+if primary_view == "Country":
+    profile_selector_key = "_profile_country_selector"
+    profile_selector_kwargs = {}
+    if (
+        st.session_state.get(profile_selector_key) not in available_country_codes
+        or st.session_state.get(profile_selector_key)
+        != st.session_state["profile_country_code"]
+    ):
+        st.session_state.pop(profile_selector_key, None)
+        profile_selector_kwargs["index"] = available_country_codes.index(
+            st.session_state["profile_country_code"]
+        )
+
+    def _commit_profile_country_selection() -> None:
+        selected = st.session_state.get(profile_selector_key)
+        if selected in available_country_codes:
+            st.session_state["profile_country_code"] = selected
+        _sync_public_query_state()
+
     selected_country_code = st.selectbox(
         "Country",
         options=available_country_codes,
         format_func=format_country_option,
-        key="profile_country_code",
+        key=profile_selector_key,
+        on_change=_commit_profile_country_selection,
         help="This selector controls the Country tab only.",
+        **profile_selector_kwargs,
     )
+    st.session_state["profile_country_code"] = selected_country_code
 
     country_score_row = scores_df[scores_df['country_code'] == selected_country_code].iloc[0]
     selected_country_name = country_score_row['country_name']
 
-    risk_score = country_score_row['risk_score']
+    risk_score = float(country_score_row['risk_score'])
     tier = score_to_tier(risk_score)
     percentile = (scores_df['risk_score'] < risk_score).mean()
-    overlay_col1, overlay_col2 = st.columns(2)
-    with overlay_col1:
-        show_liquidity_overlay = st.toggle(
-            "Liquidity overlay",
-            value=False,
-            key="profile_liquidity_challenger_overlay",
-            help=(
-                "Monitoring-only overlay for government and external-liquidity "
-                "candidate features. Commodity exposure is excluded."
-            ),
-        )
-    with overlay_col2:
-        show_commodity_overlay = st.toggle(
-            "Commodity overlay",
-            value=False,
-            key="profile_commodity_challenger_overlay",
-            help=(
-                "Monitoring-only overlay for commodity export concentration as "
-                "an external vulnerability factor, not a liquidity metric."
-            ),
-        )
-    overlay_scenario, overlay_label, overlay_groups = candidate_overlay_scenario(
-        show_liquidity_overlay,
-        show_commodity_overlay,
+    imputed_feature_values = load_imputed_feature_values()
+    input_inventory = build_active_input_inventory(
+        selected_country_code,
+        model_features,
+        pca_info,
+        imputed_feature_values,
     )
-    challenger_scores_for_profile = (
-        load_candidate_overlay_scores(overlay_scenario)
-        if overlay_scenario
-        else pd.DataFrame()
+    active_feature_codes = set(input_inventory.rows["feature"].tolist())
+    direct_count = input_inventory.coverage.numerator
+    direct_total = input_inventory.coverage.denominator
+    direct_coverage = input_inventory.coverage.ratio or 0.0
+    prior_score_evidence = find_prior_comparable_score(
+        selected_country_code,
+        str(data_manifest.get("snapshot_id") or ""),
+        str(data_manifest.get("snapshot_status") or ""),
+        tuple(
+            sorted(
+                (str(feature), round(float(loading), 12))
+                for feature, loading in (pca_info or {}).get(
+                    "economic_loadings", {}
+                ).items()
+            )
+        ),
+        tuple(
+            sorted(
+                (str(feature), round(float(loading), 12))
+                for feature, loading in (pca_info or {}).get(
+                    "industry_loadings", {}
+                ).items()
+            )
+        ),
+        float((pca_info or {}).get("economic_weight", 0.5)),
+        float((pca_info or {}).get("industry_weight", 0.5)),
     )
-    challenger_score = None
-    if not challenger_scores_for_profile.empty:
-        challenger_row = challenger_scores_for_profile[
-            challenger_scores_for_profile["country_code"] == selected_country_code
-        ]
-        if not challenger_row.empty:
-            challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
-    show_challenger_overlay = overlay_scenario is not None
 
-    with st.container(border=True):
-        st.markdown(f"## {selected_country_name}")
-        tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
-        metric_columns = st.columns(5 if show_challenger_overlay else 4)
-        m1, m2, m3, m4 = metric_columns[:4]
-        m1.metric("Risk Score", f"{risk_score:.1f}/10")
-        m2.metric("Risk Tier", tier_labels.get(tier, "N/A"))
-        m3.metric("Risk Percentile", f"{percentile:.0%}", help="Share of scored countries with a lower risk score.")
-        coverage = country_score_row.get('data_coverage', 0)
-        m4.metric("Data Coverage", f"{coverage:.0%}")
-        if show_challenger_overlay and challenger_score is not None:
-            m5 = metric_columns[4]
-            m5.metric(
-                f"{overlay_label} Overlay",
-                f"{challenger_score:.1f}/10",
-                delta=f"{challenger_score - risk_score:+.1f} vs live",
-                help="Monitoring-only candidate risk score; not the live score.",
-            )
-        if show_challenger_overlay:
-            st.caption(
-                f"{overlay_label} overlay is analytical only. Score Drivers and "
-                "rankings below remain based on the live production score. "
-                "Liquidity and commodity overlays are independent; combined is "
-                "shown only when both toggles are on."
-            )
-        if country_score_row.get('risk_floor_applied', False):
-            st.warning("Risk score may be capped due to incomplete data. Interpret with caution.")
-
-    with st.container(border=True):
-        st.markdown("### Score Components")
-        bd1, bd2, bd3 = st.columns(3)
-        with bd1:
-            econ_score = country_score_row['economic_pillar']
-            st.metric(
-                "Operating Environment",
-                f"{econ_score:.1f}/10",
-                delta=f"{econ_score - scores_df['economic_pillar'].mean():.1f} vs avg",
-            )
-        with bd2:
-            ind_score = country_score_row['industry_pillar']
-            st.metric(
-                "Banking System",
-                f"{ind_score:.1f}/10",
-                delta=f"{ind_score - scores_df['industry_pillar'].mean():.1f} vs avg",
-            )
-        with bd3:
-            if 'combined_pillar' in country_score_row:
-                comb_score = country_score_row['combined_pillar']
-                st.metric("Combined Pillar", f"{comb_score:.1f}/10")
-
-    with st.expander("Score drivers", expanded=False):
-        try:
-            driver_model = {
-                'country_scores': scores_df,
-                'feature_values': model_features,
-                'training_date': pca_info.get('training_date'),
-                'pca_info': pca_info,
-                'trained': True,
-                'countries_trained': len(scores_df),
-            }
-            driver_version = _serving_ver if selected_snapshot == "Active" else selected_snapshot
-            driver_pipeline = load_inference_pipeline(selected_snapshot, driver_version)
-            payload = compute_country_drivers(
-                selected_snapshot, selected_country_code, driver_version,
-                driver_model, driver_pipeline,
-            )
-            if 'error' in payload:
-                st.info(payload['error'])
-            else:
-                summary = payload.get('summary', {})
-                drivers = payload.get("drivers", [])
-                sc1, sc2 = st.columns(2)
-                crisis_uplift = driver_metric_value(
-                    summary, country_score_row, 'crisis_uplift',
-                    drivers=drivers, pipeline=driver_pipeline,
-                )
-                sc1.metric(
-                    "Crisis Uplift",
-                    "n/a" if crisis_uplift is None else f"+{crisis_uplift:.2f}",
-                    help="Upward-only classifier overlay added to the pillar score.",
-                )
-                critical_missing = driver_metric_value(
-                    summary, country_score_row, 'critical_missing_share',
-                    drivers=drivers, pipeline=driver_pipeline,
-                )
-                critical_penalty = driver_metric_value(
-                    summary, country_score_row, 'critical_penalty',
-                    drivers=drivers, pipeline=driver_pipeline,
-                )
-                imputation_delta = (
-                    None if critical_penalty is None
-                    else f"+{critical_penalty:.2f} score penalty"
-                )
-                sc2.metric(
-                    "Critical Field Imputation",
-                    "n/a" if critical_missing is None else f"{critical_missing:.0%}",
-                    delta=imputation_delta,
-                    help=(
-                        "Share of core banking soundness fields imputed; the "
-                        "delta is the related risk-score penalty."
-                    ),
-                )
-                driver_rows = [
-                    {
-                        "Feature": driver["feature"],
-                        "Pillar": driver["pillar"],
-                        "Raw Value": (
-                            np.nan if driver["raw_value"] is None
-                            else float(driver["raw_value"])
-                        ),
-                        "Value Used": round(driver["used_value"], 3),
-                        "Imputed": "yes" if driver["is_imputed"] else "",
-                        "Critical": "yes" if driver.get("is_critical") else "",
-                        "Risk Contribution": round(driver["risk_contribution"], 4),
-                        "Peer Percentile": (
-                            np.nan if driver["peer_percentile_raw"] is None
-                            else float(driver["peer_percentile_raw"])
-                        ),
-                    }
-                    for driver in drivers
-                ]
-                st.dataframe(
-                    pd.DataFrame(driver_rows),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-                st.caption(
-                    "Positive risk contributions push the country toward higher "
-                    "risk relative to the training mean; contributions sum to the "
-                    "raw pillar components before percentile mapping, confidence "
-                    "weighting, floors, penalties, and the crisis uplift. "
-                    "'Imputed' rows use model-filled values, not reported data."
-                )
-        except Exception as driver_error:
-            st.info(
-                "Feature-level attribution is unavailable for this snapshot: "
-                f"{driver_error}"
-            )
-
-    with st.container(border=True):
-        st.markdown("### Country Evidence")
-        evidence_tab_inputs, evidence_tab_governance = st.tabs([
-            "Model inputs",
-            "Governance",
-        ])
-
-        with evidence_tab_inputs:
-            render_data_snapshot(
-                {},
-                loader=loader,
-                country_code=selected_country_code,
-                wgi_data=wgi_data,
-                model_features=model_features,
-                pca_info=pca_info,
-            )
-
-        with evidence_tab_governance:
-            if wgi_data is not None and len(wgi_data) > 0:
-                country_wgi = wgi_data[wgi_data['country_code'] == selected_country_code]
-                if len(country_wgi) > 0:
-                    latest_wgi = country_wgi.sort_values('year').iloc[-1]
-
-                    wgi_columns = {
-                        'voice_accountability': 'Voice & Accountability',
-                        'political_stability': 'Political Stability',
-                        'govt_effectiveness': 'Govt Effectiveness',
-                        'regulatory_quality': 'Regulatory Quality',
-                        'rule_of_law': 'Rule of Law',
-                        'control_corruption': 'Corruption Control'
-                    }
-
-                    wgi_col1, wgi_col2 = st.columns(2)
-                    items = list(wgi_columns.items())
-                    for i, (col, name) in enumerate(items):
-                        target_col = wgi_col1 if i % 2 == 0 else wgi_col2
-                        with target_col:
-                            if col in latest_wgi.index and pd.notna(latest_wgi[col]):
-                                val = latest_wgi[col]
-                                st.metric(name, f"{val:.0f}/100")
-                            else:
-                                st.metric(name, "--")
-                else:
-                    st.caption("No WGI data for this country.")
-            else:
-                st.caption("WGI data not loaded.")
-
-        render_candidate_country_evidence(
+    driver_version = (
+        _serving_ver if selected_snapshot == ACTIVE_SNAPSHOT_OPTION
+        else selected_snapshot
+    )
+    driver_pipeline_for_profile = None
+    score_bridge: dict = {}
+    try:
+        driver_pipeline_for_profile = load_inference_pipeline(
+            selected_snapshot,
+            driver_version,
+        )
+        score_bridge = compute_country_score_bridge(
+            selected_snapshot,
             selected_country_code,
+            driver_version,
             model_features,
-            overlay_enabled=show_challenger_overlay,
-            selected_groups=overlay_groups if show_challenger_overlay else None,
-            active_features=active_model_feature_codes(pca_info),
+            driver_pipeline_for_profile,
+        )
+    except Exception:
+        LOGGER.exception(
+            "Score bridge unavailable for %s in %s",
+            selected_country_code,
+            selected_snapshot,
+        )
+
+    st.markdown(f"# {selected_country_name}")
+    snapshot_label = str(data_manifest.get("snapshot_id") or "Unversioned")
+    integrity_verified = (
+        str(data_manifest.get("snapshot_status", "")).lower() == "verified"
+    )
+    lifecycle_text = (
+        "Artifact integrity verified; model approval not recorded."
+        if integrity_verified
+        else "Artifact integrity status is not verified; interpret cautiously."
+    )
+    st.caption(f"Snapshot {snapshot_label} · Served score · {lifecycle_text}")
+
+    with st.container(border=True):
+        tier_labels = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(
+            "Risk Score",
+            f"{risk_score:.1f}/10",
+            help="1 is lower relative risk; 10 is higher relative risk.",
+        )
+        m2.metric("Risk Tier", tier_labels.get(tier, "N/A"))
+        m3.metric(
+            "Risk Percentile",
+            f"{percentile:.0%}",
+            help="Share of scored countries with a lower risk score.",
+        )
+        m4.metric(
+            "Direct Coverage",
+            f"{direct_count}/{direct_total}",
+            help=(
+                "Reported or derived values present before scoring imputation, "
+                "divided by all features active in the fitted pillar loadings."
+            ),
+        )
+        st.caption(f"Direct active-input coverage: {direct_coverage:.0%}.")
+        if prior_score_evidence.get("available"):
+            prior_score = float(prior_score_evidence["risk_score"])
+            movement = risk_score - prior_score
+            direction = (
+                "higher relative risk" if movement > 0
+                else "lower relative risk" if movement < 0
+                else "unchanged"
+            )
+            st.caption(
+                f"Comparable score history: {movement:+.1f} points ({direction}) "
+                f"versus {prior_score_evidence['snapshot']}."
+            )
+        else:
+            st.caption(str(prior_score_evidence.get("reason")))
+
+    with st.container(border=True):
+        st.markdown("## Risk Components")
+        st.caption("All values below use the same direction: 1 lower risk; 10 higher risk.")
+        econ_strength = float(country_score_row['economic_pillar'])
+        banking_strength = float(country_score_row['industry_pillar'])
+        econ_risk = 1 + 9 * (1 - econ_strength / 10)
+        banking_risk = 1 + 9 * (1 - banking_strength / 10)
+        bd1, bd2 = st.columns(2)
+        bd1.metric("Operating Environment Risk", f"{econ_risk:.1f}/10")
+        bd2.metric("Banking System Risk", f"{banking_risk:.1f}/10")
+        st.caption(
+            "These are risk-oriented views of the two strength percentiles. "
+            "They are not averaged to produce the served score; the fitted raw "
+            "pillar components are combined before percentile mapping."
         )
 
     with st.container(border=True):
-        st.markdown("### Peer Countries")
+        st.markdown("## Score Bridge")
+        st.caption("Each disclosed adjustment is shown separately and reconciles to the served score.")
+        if score_bridge:
+            pillar_score = float(score_bridge.get("pillar_risk_score", np.nan))
+            confidence_delta = float(score_bridge.get("confidence_adjustment", 0.0))
+            confidence_score = float(
+                score_bridge.get("confidence_adjusted_risk_score", pillar_score)
+            )
+            floor_delta = float(score_bridge.get("risk_floor_delta", 0.0))
+            post_floor = float(score_bridge.get("score_after_risk_floor", confidence_score))
+            penalty = float(score_bridge.get("critical_penalty_applied", 0.0))
+            pre_round = float(
+                score_bridge.get("pre_round_structural_risk_score", post_floor + penalty)
+            )
+            structural = float(score_bridge.get("structural_risk_score", round(pre_round, 1)))
+            crisis_uplift = float(country_score_row.get("crisis_uplift", 0.0) or 0.0)
+            bridge_rows = pd.DataFrame(
+                [
+                    {"Stage": "Pillar-only relative risk", "Change": np.nan, "Result": pillar_score},
+                    {"Stage": "Coverage confidence adjustment", "Change": confidence_delta, "Result": confidence_score},
+                    {"Stage": "Minimum risk floor", "Change": floor_delta, "Result": post_floor},
+                    {"Stage": "Critical-data penalty", "Change": penalty, "Result": pre_round},
+                    {"Stage": "Structural score after rounding", "Change": structural - pre_round, "Result": structural},
+                    {"Stage": "Legacy crisis adjustment", "Change": crisis_uplift, "Result": risk_score},
+                ]
+            )
+            st.dataframe(
+                bridge_rows,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Stage": st.column_config.TextColumn("Stage", width="large"),
+                    "Change": st.column_config.NumberColumn("Change", format="%+.2f"),
+                    "Result": st.column_config.NumberColumn("Result", format="%.2f"),
+                },
+            )
+            missing_fields = tuple(score_bridge.get("critical_missing_fields") or ())
+            if floor_delta > 1e-12:
+                st.warning(
+                    f"Incomplete coverage raised the score by {floor_delta:.2f} "
+                    "to the model's minimum risk floor."
+                )
+            if missing_fields:
+                field_labels = ", ".join(format_identifier(field) for field in missing_fields)
+                st.warning(
+                    f"Critical inputs imputed: {field_labels}. The related risk "
+                    f"penalty added {penalty:.2f} points."
+                )
+            st.caption(
+                "Legacy crisis adjustment is an upward-only served-model overlay; "
+                "it is not presented as a validated crisis probability."
+            )
+        else:
+            st.info(
+                "Score-stage evidence is unavailable for this snapshot. The served "
+                "score remains visible, but its adjustment bridge cannot be verified here."
+            )
+
+    with st.container(border=True):
+        st.markdown("## Score Drivers")
+        driver_state_key = f"score_drivers_loaded_{selected_snapshot}_{selected_country_code}"
+        if not st.session_state.get(driver_state_key, False):
+            st.caption(
+                "Feature attribution is calculated on demand because it is slower "
+                "than loading the served country profile."
+            )
+            if st.button("Load score drivers", key=f"load_{driver_state_key}"):
+                st.session_state[driver_state_key] = True
+                st.rerun()
+        else:
+            try:
+                if driver_pipeline_for_profile is None:
+                    raise ValueError("checksum-matched inference pipeline is unavailable")
+                driver_model = {
+                    'country_scores': scores_df,
+                    'feature_values': model_features,
+                    'training_date': pca_info.get('training_date'),
+                    'pca_info': pca_info,
+                    'trained': True,
+                    'countries_trained': len(scores_df),
+                }
+                payload = compute_country_drivers(
+                    selected_snapshot, selected_country_code, driver_version,
+                    driver_model, driver_pipeline_for_profile,
+                )
+                if 'error' in payload:
+                    st.info(
+                        "Feature attribution is unavailable for this country and snapshot."
+                    )
+                else:
+                    drivers = payload.get("drivers", [])
+                    evidence_by_feature = (
+                        input_inventory.rows.set_index("feature").to_dict(orient="index")
+                        if not input_inventory.rows.empty
+                        else {}
+                    )
+                    driver_rows = [
+                        {
+                            "Feature": format_identifier(driver["feature"]),
+                            "Pillar": format_pillar_label(driver["pillar"]),
+                            "Raw Value": (
+                                np.nan if driver["raw_value"] is None
+                                else float(driver["raw_value"])
+                            ),
+                            "Value Used": float(driver["used_value"]),
+                            "Status": (
+                                "Imputed for scoring" if driver["is_imputed"]
+                                else "Reported or derived"
+                            ),
+                            "Evidence Type": evidence_by_feature.get(
+                                driver["feature"], {}
+                            ).get("evidence_type", "Not recorded"),
+                            "Unit": evidence_by_feature.get(
+                                driver["feature"], {}
+                            ).get("unit", "Source-defined"),
+                            "Period": evidence_by_feature.get(
+                                driver["feature"], {}
+                            ).get("period"),
+                            "Source / Lineage": evidence_by_feature.get(
+                                driver["feature"], {}
+                            ).get("source_family", "Not recorded"),
+                            "Risk Contribution": float(driver["risk_contribution"]),
+                            "Peer Percentile": (
+                                np.nan if driver["peer_percentile_raw"] is None
+                                else float(driver["peer_percentile_raw"])
+                            ),
+                        }
+                        for driver in drivers
+                    ]
+                    driver_df = pd.DataFrame(
+                        driver_rows,
+                        columns=[
+                            "Feature", "Pillar", "Raw Value", "Value Used",
+                            "Status", "Evidence Type", "Unit", "Period",
+                            "Source / Lineage", "Risk Contribution",
+                            "Peer Percentile",
+                        ],
+                    )
+                    raising = driver_df[driver_df["Risk Contribution"] > 0].nlargest(
+                        5, "Risk Contribution"
+                    )
+                    mitigating = driver_df[driver_df["Risk Contribution"] < 0].nsmallest(
+                        5, "Risk Contribution"
+                    )
+                    driver_col1, driver_col2 = st.columns(2)
+                    contribution_chart = pd.concat([raising, mitigating]).copy()
+                    if not contribution_chart.empty:
+                        contribution_chart["Direction"] = np.where(
+                            contribution_chart["Risk Contribution"] > 0,
+                            "Raises risk",
+                            "Mitigates risk",
+                        )
+                        contribution_chart = contribution_chart.sort_values(
+                            "Risk Contribution"
+                        )
+                        driver_figure = px.bar(
+                            contribution_chart,
+                            x="Risk Contribution",
+                            y="Feature",
+                            color="Direction",
+                            orientation="h",
+                            color_discrete_map={
+                                "Raises risk": "#C84A50",
+                                "Mitigates risk": "#2F80ED",
+                            },
+                            labels={"Risk Contribution": "Contribution to raw pillar risk"},
+                        )
+                        apply_responsive_chart_layout(
+                            driver_figure,
+                            title="Largest feature contributions",
+                            showlegend=True,
+                            yaxis_title=None,
+                        )
+                        driver_figure.update_layout(
+                            height=max(360, 38 * len(contribution_chart)),
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            legend_title_text=None,
+                        )
+                        st.plotly_chart(
+                            driver_figure,
+                            use_container_width=True,
+                            theme="streamlit",
+                            key=f"driver_contributions_{selected_country_code}",
+                            config=accessible_plotly_config(),
+                        )
+                    with driver_col1:
+                        st.markdown("### Main Risk-Raising Drivers")
+                        st.dataframe(
+                            raising[
+                                [
+                                    "Feature", "Value Used", "Unit", "Period",
+                                    "Source / Lineage", "Risk Contribution", "Status",
+                                ]
+                            ],
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Risk Contribution": st.column_config.NumberColumn(
+                                    "Contribution", format="%+.3f"
+                                )
+                            },
+                        )
+                    with driver_col2:
+                        st.markdown("### Main Risk-Mitigating Drivers")
+                        st.dataframe(
+                            mitigating[
+                                [
+                                    "Feature", "Value Used", "Unit", "Period",
+                                    "Source / Lineage", "Risk Contribution", "Status",
+                                ]
+                            ],
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Risk Contribution": st.column_config.NumberColumn(
+                                    "Contribution", format="%+.3f"
+                                )
+                            },
+                        )
+                    with st.expander("Technical attribution table", expanded=False):
+                        st.dataframe(
+                            driver_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Raw Value": st.column_config.NumberColumn(format="%.3f"),
+                                "Value Used": st.column_config.NumberColumn(format="%.3f"),
+                                "Risk Contribution": st.column_config.NumberColumn(format="%+.4f"),
+                                "Peer Percentile": st.column_config.NumberColumn(format="%.1f"),
+                            },
+                        )
+                        st.download_button(
+                            "Download Attribution Audit",
+                            data=driver_df.to_csv(index=False).encode("utf-8"),
+                            file_name=(
+                                f"bankenv_{selected_country_code.lower()}_"
+                                f"score_attribution_{snapshot_label}.csv"
+                            ),
+                            mime="text/csv",
+                            key=f"download_attribution_{selected_country_code}",
+                        )
+                    st.caption(
+                        "Positive risk contributions push the country toward higher "
+                        "risk relative to the training mean; contributions sum to the "
+                        "raw pillar components before percentile mapping, confidence "
+                        "weighting, floors, penalties, and the legacy crisis adjustment. "
+                        "Imputed rows use model-filled values, not reported data."
+                    )
+            except Exception:
+                LOGGER.exception(
+                    "Feature attribution failed for %s",
+                    selected_country_code,
+                )
+                st.info(
+                    "Feature attribution could not be loaded. Retry this panel; "
+                    "the served score and evidence inventory remain available."
+                )
+
+    with st.container(border=True):
+        st.markdown("## Peer Comparison")
 
         peers_df = safe_find_peers(
             selected_country_code,
@@ -3869,35 +4286,80 @@ with tab_profile:
             code for code in available_country_codes
             if code != selected_country_code
         ]
+        recommended_peer_codes = nearest_peer_codes[:4]
+        peer_widget_key = f"custom_peer_codes_{selected_country_code}"
+        if peer_widget_key in st.session_state:
+            cleaned_peers = list(
+                dict.fromkeys(
+                    code for code in st.session_state.get(peer_widget_key, [])
+                    if code in peer_options
+                )
+            )[:8]
+            if cleaned_peers != list(st.session_state.get(peer_widget_key, [])):
+                st.session_state[peer_widget_key] = cleaned_peers
+
+        def _reset_recommended_peers() -> None:
+            st.session_state[peer_widget_key] = list(recommended_peer_codes)
+
         custom_peer_codes = st.multiselect(
             "Peer set",
             options=peer_options,
-            default=nearest_peer_codes[:4],
+            default=recommended_peer_codes,
             format_func=format_country_option,
-            # Key per country: a static key would persist one country's selection
-            # across country changes, so switching from the US to Kenya would keep
-            # the US peer set instead of re-seeding Kenya's nearest neighbors.
-            key=f"custom_peer_codes_{selected_country_code}",
+            key=peer_widget_key,
+            max_selections=8,
             help=(
                 "Defaults to nearest-neighbor peers from the model feature space. "
-                "Edit this list to compare with a custom peer group."
+                "Choose up to eight countries; the same set carries into Explorer."
             ),
         )
-        peer_codes = custom_peer_codes or nearest_peer_codes[:4]
+        peer_codes = list(custom_peer_codes)
+        peer_mode = (
+            "Recommended peers"
+            if peer_codes == recommended_peer_codes
+            else "Custom peers"
+            if peer_codes
+            else "No peers selected"
+        )
+
+        def _open_peer_set_in_explorer() -> None:
+            st.session_state[f"shared_peer_codes_{selected_country_code}"] = list(
+                peer_codes
+            )
+            st.session_state["explorer_focus_country"] = selected_country_code
+            st.session_state.pop("_explorer_focus_selector", None)
+            st.session_state["explorer_tool"] = "Compare"
+            st.session_state[
+                f"compare_countries_{selected_country_code}"
+            ] = [selected_country_code, *peer_codes][:8]
+            st.session_state["primary_view"] = "Explorer"
+            _sync_public_query_state()
+
+        peer_status_col, peer_reset_col, peer_analyze_col = st.columns([3, 1, 1.25])
+        peer_status_col.caption(
+            f"{peer_mode}. Recommended peers use economic scale, development "
+            "level, banking structure, liquidity, and score proximity."
+        )
+        peer_reset_col.button(
+            "Reset Recommended",
+            key=f"reset_peers_{selected_country_code}",
+            use_container_width=True,
+            on_click=_reset_recommended_peers,
+            disabled=not recommended_peer_codes,
+        )
+        peer_analyze_col.button(
+            "Analyze in Explorer",
+            key=f"analyze_peers_{selected_country_code}",
+            use_container_width=True,
+            on_click=_open_peer_set_in_explorer,
+        )
+        st.session_state[f"shared_peer_codes_{selected_country_code}"] = peer_codes
 
         if peer_codes:
             comparison_cols = [
                 'country_code', 'country_name', 'risk_score',
                 'economic_pillar', 'industry_pillar', 'data_coverage'
             ]
-            display_names = {
-                'country_name': 'Country',
-                'risk_score': 'Risk Score',
-                'economic_pillar': 'Operating Env.',
-                'industry_pillar': 'Banking System',
-                'data_coverage': 'Coverage'
-            }
-
             selected_row = country_score_row[comparison_cols].to_frame().T
             peer_rows = scores_df[scores_df['country_code'].isin(peer_codes)].copy()
             peer_rows['_peer_order'] = pd.Categorical(
@@ -3910,133 +4372,450 @@ with tab_profile:
 
             displayed_codes = tuple(peers_comparison["country_code"].astype(str).str.upper().tolist())
             try:
-                peer_driver_version = _serving_ver if selected_snapshot == "Active" else selected_snapshot
-                peer_driver_pipeline = load_inference_pipeline(selected_snapshot, peer_driver_version)
-                peer_driver_model = (
-                    active_model
-                    if selected_snapshot == "Active"
-                    else load_archived_snapshot_cached(selected_snapshot)[0]
-                )
+                if driver_pipeline_for_profile is None:
+                    raise ValueError("inference pipeline unavailable")
+                peer_driver_model = {
+                    "country_scores": scores_df,
+                    "feature_values": model_features,
+                    "training_date": pca_info.get("training_date"),
+                    "pca_info": pca_info,
+                    "trained": True,
+                    "countries_trained": len(scores_df),
+                }
                 dominant_drivers = compute_peer_dominant_drivers(
                     selected_snapshot,
                     displayed_codes,
-                    peer_driver_version,
+                    driver_version,
                     peer_driver_model,
-                    peer_driver_pipeline,
+                    driver_pipeline_for_profile,
                 )
             except Exception:
-                dominant_drivers = {code: "—" for code in displayed_codes}
+                LOGGER.exception("Peer driver attribution unavailable")
+                dominant_drivers = {code: "Unavailable" for code in displayed_codes}
 
-            peers_comparison["Dominant Driver"] = (
-                peers_comparison["country_code"].astype(str).str.upper().map(dominant_drivers).fillna("—")
+            peers_comparison["Main Risk Driver"] = (
+                peers_comparison["country_code"].astype(str).str.upper()
+                .map(dominant_drivers).fillna("Unavailable")
             )
 
-            if show_challenger_overlay:
-                challenger_scores = load_candidate_overlay_scores(overlay_scenario)
-                if challenger_scores.empty:
-                    st.caption("Candidate risk overlay scores are not packaged with this deployment.")
-                else:
-                    peers_comparison = peers_comparison.merge(
-                        challenger_scores,
-                        on="country_code",
-                        how="left",
-                    )
-                    peers_comparison[f"{overlay_label} Score"] = peers_comparison[
-                        "candidate_risk_score"
-                    ]
-                    peers_comparison["Delta Overlay"] = (
-                        peers_comparison["candidate_risk_score"]
-                        - pd.to_numeric(peers_comparison["risk_score"], errors="coerce")
-                    )
+            peers_comparison["risk_score"] = pd.to_numeric(
+                peers_comparison["risk_score"], errors="coerce"
+            )
+            peers_comparison["Delta vs Focus"] = (
+                peers_comparison["risk_score"] - risk_score
+            )
+            peers_comparison["Tier"] = peers_comparison["risk_score"].map(
+                lambda score: tier_labels.get(score_to_tier(score), "Unavailable")
+                if pd.notna(score) else "Unavailable"
+            )
 
-            peers_comparison = peers_comparison.rename(columns=display_names)
+            def _country_direct_coverage(code: str) -> float:
+                try:
+                    inventory = build_active_input_inventory(
+                        code,
+                        model_features,
+                        pca_info,
+                        imputed_feature_values,
+                    )
+                    return float(inventory.coverage.ratio or 0.0)
+                except Exception:
+                    LOGGER.exception("Coverage inventory unavailable for %s", code)
+                    return np.nan
+
+            peers_comparison["Direct Coverage"] = peers_comparison[
+                "country_code"
+            ].astype(str).str.upper().map(_country_direct_coverage)
+            nearest_metadata = (
+                peers_df.set_index("country_code")
+                if peers_df is not None and not peers_df.empty
+                else pd.DataFrame()
+            )
+            peers_comparison["Peer Distance"] = peers_comparison["country_code"].map(
+                nearest_metadata["distance"]
+                if not nearest_metadata.empty and "distance" in nearest_metadata
+                else {}
+            )
+            peers_comparison["Why This Peer"] = peers_comparison["country_code"].map(
+                nearest_metadata["peer_basis"]
+                if not nearest_metadata.empty and "peer_basis" in nearest_metadata
+                else {}
+            )
+            peers_comparison.loc[
+                peers_comparison["country_code"] == selected_country_code,
+                ["Peer Distance", "Why This Peer"],
+            ] = [0.0, "Focus country"]
+            peers_comparison.loc[
+                peers_comparison["Why This Peer"].isna(),
+                "Why This Peer",
+            ] = "User selected"
+            peers_comparison["Operating Environment Risk"] = 1 + 9 * (
+                1 - pd.to_numeric(
+                    peers_comparison["economic_pillar"], errors="coerce"
+                ) / 10
+            )
+            peers_comparison["Banking System Risk"] = 1 + 9 * (
+                1 - pd.to_numeric(
+                    peers_comparison["industry_pillar"], errors="coerce"
+                ) / 10
+            )
             peers_comparison.insert(
                 0,
                 'Role',
-                ['Selected'] + [
-                    'Nearest' if code in nearest_peer_codes else 'Custom'
+                ['Focus'] + [
+                    'Recommended' if code in recommended_peer_codes else 'Custom'
                     for code in peer_rows['country_code'].tolist()
                 ],
             )
 
-            peers_comparison['Risk Score'] = peers_comparison['Risk Score'].apply(lambda x: f"{x:.1f}")
-            peers_comparison['Operating Env.'] = peers_comparison['Operating Env.'].apply(lambda x: f"{x:.1f}")
-            peers_comparison['Banking System'] = peers_comparison['Banking System'].apply(lambda x: f"{x:.1f}")
-            peers_comparison['Coverage'] = peers_comparison['Coverage'].apply(lambda x: f"{x:.0%}")
-            overlay_score_column = f"{overlay_label} Score"
-            if overlay_score_column in peers_comparison.columns:
-                peers_comparison[overlay_score_column] = peers_comparison[overlay_score_column].apply(
-                    lambda x: "—" if pd.isna(x) else f"{x:.1f}"
+            compact_peer_table = peers_comparison[
+                [
+                    "Role", "country_name", "risk_score", "Delta vs Focus",
+                    "Tier", "Direct Coverage", "Main Risk Driver",
+                ]
+            ].rename(
+                columns={"country_name": "Country", "risk_score": "Risk Score"}
+            )
+            st.dataframe(
+                compact_peer_table,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Country": st.column_config.TextColumn(width="medium"),
+                    "Risk Score": st.column_config.NumberColumn(format="%.1f"),
+                    "Delta vs Focus": st.column_config.NumberColumn(format="%+.1f"),
+                    "Direct Coverage": st.column_config.NumberColumn(format="percent"),
+                    "Main Risk Driver": st.column_config.TextColumn(width="large"),
+                },
+            )
+            with st.expander("Peer Selection Evidence", expanded=False):
+                detailed_peer_table = peers_comparison[
+                    [
+                        "Role", "country_name", "risk_score", "Delta vs Focus",
+                        "Operating Environment Risk", "Banking System Risk",
+                        "Direct Coverage", "Peer Distance", "Why This Peer",
+                        "Main Risk Driver",
+                    ]
+                ].rename(
+                    columns={"country_name": "Country", "risk_score": "Risk Score"}
                 )
-                peers_comparison["Delta Overlay"] = peers_comparison["Delta Overlay"].apply(
-                    lambda x: "—" if pd.isna(x) else f"{x:+.1f}"
+                st.dataframe(
+                    detailed_peer_table,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Risk Score": st.column_config.NumberColumn(format="%.1f"),
+                        "Delta vs Focus": st.column_config.NumberColumn(format="%+.1f"),
+                        "Operating Environment Risk": st.column_config.NumberColumn(format="%.1f"),
+                        "Banking System Risk": st.column_config.NumberColumn(format="%.1f"),
+                        "Direct Coverage": st.column_config.NumberColumn(format="percent"),
+                        "Peer Distance": st.column_config.NumberColumn(format="%.2f"),
+                    },
                 )
-                peers_comparison = peers_comparison.drop(columns=["candidate_risk_score"], errors="ignore")
-            peers_comparison = peers_comparison.drop(columns=["country_code"], errors="ignore")
-
-            st.dataframe(peers_comparison, use_container_width=True, hide_index=True)
-
             st.caption(
-                "Defaults use model score proximity, economic scale, development "
-                "level, banking structure, and liquidity features. Edit the peer "
-                "set above for a custom comparison. Dominant Driver is based on "
-                "the live score attribution; candidate overlay is monitoring-only."
+                "Main Risk Driver is the largest positive feature-level contribution "
+                "to the served score. Peer distance is lower for closer matches."
             )
         else:
-            st.caption("Unable to find peer countries.")
+            st.info(
+                "No peer countries are selected. Choose one or reset to the "
+                "recommended set to restore the comparison."
+            )
+
+    with st.container(border=True):
+        st.markdown("## Model Evidence")
+        st.caption(
+            "The inventory is derived from the fitted loading maps. Every active "
+            "input shows the value used for scoring, unit, source family, period, "
+            "and whether the value was direct or imputed."
+        )
+        inventory_df = input_inventory.rows.copy()
+        if inventory_df.empty:
+            st.info(
+                "The active loading-map inventory is unavailable for this snapshot. "
+                "The served score can be viewed, but its input evidence cannot be listed."
+            )
+        else:
+            strongest = (
+                inventory_df.assign(_importance=inventory_df["loading"].abs())
+                .sort_values(["pillar", "_importance"], ascending=[True, False])
+                .groupby("pillar", sort=False)
+                .head(6)
+                .drop(columns="_importance")
+            )
+            compact = strongest[
+                [
+                    "label", "pillar_label", "value", "unit", "period",
+                    "status", "evidence_type",
+                ]
+            ].rename(
+                columns={
+                    "label": "Input",
+                    "pillar_label": "Pillar",
+                    "value": "Value Used",
+                    "unit": "Unit",
+                    "period": "Period",
+                    "status": "Status",
+                    "evidence_type": "Evidence Type",
+                }
+            )
+            st.markdown("### Key Active Inputs")
+            st.dataframe(
+                compact,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Input": st.column_config.TextColumn(width="large"),
+                    "Value Used": st.column_config.NumberColumn(format="%.2f"),
+                },
+            )
+            with st.expander(
+                f"All {len(inventory_df)} Active Inputs",
+                expanded=False,
+            ):
+                filter_col1, filter_col2, filter_col3 = st.columns([2, 1, 1])
+                with filter_col1:
+                    evidence_search = st.text_input(
+                        "Search inputs",
+                        key=f"evidence_search_{selected_country_code}",
+                        placeholder="Feature, source, or unit",
+                    )
+                with filter_col2:
+                    pillar_filter = st.selectbox(
+                        "Pillar",
+                        options=["All", *sorted(inventory_df["pillar_label"].unique())],
+                        key=f"evidence_pillar_{selected_country_code}",
+                    )
+                with filter_col3:
+                    status_filter = st.selectbox(
+                        "Status",
+                        options=["All", *sorted(inventory_df["status"].unique())],
+                        key=f"evidence_status_{selected_country_code}",
+                    )
+                filtered_inventory = inventory_df.copy()
+                if evidence_search.strip():
+                    needle = evidence_search.strip().lower()
+                    search_columns = [
+                        "label", "feature", "source_family", "unit", "pillar_label"
+                    ]
+                    mask = pd.Series(False, index=filtered_inventory.index)
+                    for column in search_columns:
+                        mask |= filtered_inventory[column].astype(str).str.lower().str.contains(
+                            needle,
+                            regex=False,
+                        )
+                    filtered_inventory = filtered_inventory.loc[mask]
+                if pillar_filter != "All":
+                    filtered_inventory = filtered_inventory[
+                        filtered_inventory["pillar_label"] == pillar_filter
+                    ]
+                if status_filter != "All":
+                    filtered_inventory = filtered_inventory[
+                        filtered_inventory["status"] == status_filter
+                    ]
+                authoritative = filtered_inventory[
+                    [
+                        "label", "feature", "pillar_label", "value", "unit",
+                        "period", "status", "evidence_type", "source_family",
+                        "model_role",
+                    ]
+                ].rename(
+                    columns={
+                        "label": "Input",
+                        "feature": "Technical Code",
+                        "pillar_label": "Pillar",
+                        "value": "Value Used",
+                        "unit": "Unit",
+                        "period": "Period",
+                        "status": "Status",
+                        "evidence_type": "Evidence Type",
+                        "source_family": "Source / Lineage",
+                        "model_role": "Score Role",
+                    }
+                )
+                st.dataframe(
+                    authoritative,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Input": st.column_config.TextColumn(width="large"),
+                        "Value Used": st.column_config.NumberColumn(format="%.3f"),
+                    },
+                )
+                st.download_button(
+                    "Download Active-Input Evidence",
+                    data=authoritative.to_csv(index=False).encode("utf-8"),
+                    file_name=(
+                        f"bankenv_{selected_country_code.lower()}_active_inputs_"
+                        f"{snapshot_label}.csv"
+                    ),
+                    mime="text/csv",
+                    key=f"download_inputs_{selected_country_code}",
+                )
+
+        render_candidate_country_evidence(
+            selected_country_code,
+            model_features,
+            overlay_enabled=False,
+            selected_groups=None,
+            active_features=active_feature_codes,
+        )
+
+
+    with st.expander("Saved Scenario Preview", expanded=False):
+        st.caption(
+            "Optional saved challenger artifacts show a separate analytical score. "
+            "They do not change the served tier, percentile, drivers, ranking, or peers."
+        )
+        overlay_col1, overlay_col2 = st.columns(2)
+        with overlay_col1:
+            show_liquidity_overlay = st.toggle(
+                "Liquidity scenario",
+                value=False,
+                key="profile_liquidity_challenger_overlay",
+                help="Government and external-liquidity challenger features.",
+            )
+        with overlay_col2:
+            show_commodity_overlay = st.toggle(
+                "Commodity scenario",
+                value=False,
+                key="profile_commodity_challenger_overlay",
+                help="Commodity export concentration; independent of liquidity.",
+            )
+        overlay_scenario, overlay_label, overlay_groups = candidate_overlay_scenario(
+            show_liquidity_overlay,
+            show_commodity_overlay,
+        )
+        challenger_scores_for_profile = (
+            load_candidate_overlay_scores(overlay_scenario)
+            if overlay_scenario else pd.DataFrame()
+        )
+        challenger_score = None
+        if not challenger_scores_for_profile.empty:
+            challenger_row = challenger_scores_for_profile[
+                challenger_scores_for_profile["country_code"] == selected_country_code
+            ]
+            if not challenger_row.empty:
+                challenger_score = float(challenger_row.iloc[0]["candidate_risk_score"])
+        show_challenger_overlay = overlay_scenario is not None
+        if show_challenger_overlay and challenger_score is not None:
+            scenario_delta = challenger_score - risk_score
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("Served Score", f"{risk_score:.1f}/10")
+            sc2.metric(f"{overlay_label} Scenario", f"{challenger_score:.1f}/10")
+            sc3.metric("Difference", f"{scenario_delta:+.1f}")
+        elif show_challenger_overlay:
+            st.info(
+                "The selected saved scenario is not packaged for this country. "
+                "Turn it off or inspect the candidate inventory below."
+            )
+
+
+        if show_challenger_overlay:
+            render_candidate_country_evidence(
+                selected_country_code,
+                model_features,
+                overlay_enabled=True,
+                selected_groups=overlay_groups,
+                active_features=active_feature_codes,
+            )
+    _sync_public_query_state()
+    _render_shareable_state_link()
 
 # ==============================================================================
-# TAB: Data Explorer
+# VIEW: Data Explorer
 # ==============================================================================
-with tab_explorer:
+if primary_view == "Explorer":
+    st.markdown("# Data Explorer")
+    st.caption(
+        "Compare source histories, calculate auditable ratios and changes, or "
+        "inspect one source. Nothing here changes the served model score."
+    )
+    explorer_tool = _segmented_navigation(
+        "Explorer task",
+        options=EXPLORER_TOOLS,
+        key="explorer_tool",
+        on_change=_sync_public_query_state,
+    )
+
     with st.container(border=True):
-        st.markdown("### Explorer Workspace")
-        st.caption(
-            "Compare indicators across countries, build simple ratios or changes, "
-            "and inspect source histories on demand. Liquidity series are available "
-            "as normal source choices in Compare and Calculate."
-        )
         explorer_col1, explorer_col2 = st.columns([2, 3])
         with explorer_col1:
+            explorer_selector_key = "_explorer_focus_selector"
+            explorer_selector_kwargs = {}
+            if (
+                st.session_state.get(explorer_selector_key)
+                not in available_country_codes
+                or st.session_state.get(explorer_selector_key)
+                != st.session_state["explorer_focus_country"]
+            ):
+                st.session_state.pop(explorer_selector_key, None)
+                explorer_selector_kwargs["index"] = available_country_codes.index(
+                    st.session_state["explorer_focus_country"]
+                )
+
+            def _commit_explorer_country_selection() -> None:
+                selected = st.session_state.get(explorer_selector_key)
+                if selected in available_country_codes:
+                    st.session_state["explorer_focus_country"] = selected
+                _sync_public_query_state()
+
             explorer_focus_country = st.selectbox(
                 "Focus country",
                 options=available_country_codes,
                 format_func=format_country_option,
-                key="explorer_focus_country",
+                key=explorer_selector_key,
+                on_change=_commit_explorer_country_selection,
                 help=(
                     "Used for source history and to seed comparison "
                     "country defaults."
                 ),
+                **explorer_selector_kwargs,
             )
-
-        explorer_peers_df = safe_find_peers(
-            explorer_focus_country,
-            scores_df,
-            4,
-            model_features,
-        )
-        explorer_nearest_peer_codes = (
-            explorer_peers_df['country_code'].tolist()
-            if explorer_peers_df is not None and len(explorer_peers_df) > 0
-            else []
-        )
-        explorer_default_peers = explorer_nearest_peer_codes[:4]
-
+            st.session_state["explorer_focus_country"] = explorer_focus_country
+        explorer_default_peers = []
         with explorer_col2:
-            if explorer_default_peers:
-                st.caption(
-                    "Default comparison peers: "
-                    + ", ".join(format_country_option(code) for code in explorer_default_peers)
+            if explorer_tool in {"Compare", "Calculate"}:
+                explorer_peers_df = safe_find_peers(
+                    explorer_focus_country,
+                    scores_df,
+                    4,
+                    model_features,
                 )
+                explorer_nearest_peer_codes = (
+                    explorer_peers_df['country_code'].tolist()
+                    if explorer_peers_df is not None and len(explorer_peers_df) > 0
+                    else []
+                )
+                shared_peer_codes = st.session_state.get(
+                    f"shared_peer_codes_{explorer_focus_country}",
+                    [],
+                )
+                explorer_default_peers = (
+                    [
+                        code for code in shared_peer_codes
+                        if code in available_country_codes
+                        and code != explorer_focus_country
+                    ][:8]
+                    or explorer_nearest_peer_codes[:4]
+                )
+                if explorer_default_peers:
+                    st.caption(
+                        "Comparison peers: "
+                        + ", ".join(
+                            format_country_option(code)
+                            for code in explorer_default_peers
+                        )
+                    )
+                else:
+                    st.caption(
+                        "No nearest-neighbor peers are available for this country."
+                    )
             else:
-                st.caption("No nearest-neighbor peers are available for this country.")
+                st.caption(
+                    "Only the selected source and focus-country history are loaded."
+                )
 
-    tool_tab_compare, tool_tab_calc, tool_tab_inspect = st.tabs([
-        "Compare",
-        "Calculate",
-        "Source Inspector",
-    ])
-    with tool_tab_compare:
+    if explorer_tool == "Compare":
         render_indicator_comparison(
             scores=scores_df,
             selected_country=explorer_focus_country,
@@ -4044,7 +4823,7 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    with tool_tab_calc:
+    elif explorer_tool == "Calculate":
         render_calculated_series_builder(
             scores=scores_df,
             selected_country=explorer_focus_country,
@@ -4052,19 +4831,21 @@ with tab_explorer:
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
-    with tool_tab_inspect:
+    elif explorer_tool == "Source Inspector":
         render_source_inspector(
             selected_country=explorer_focus_country,
             country_formatter=format_country_option,
             wgi_panel=wgi_data,
         )
+    _sync_public_query_state()
+    _render_shareable_state_link()
 
 
 # ==============================================================================
-# TAB: Methodology
+# VIEW: Methodology
 # ==============================================================================
-with tab_methodology:
-    render_current_methodology(
+if primary_view == "Methodology":
+    render_methodology_workspace(
         scores=scores_df,
         features=model_features,
         manifest=data_manifest,
@@ -4076,4 +4857,3 @@ with tab_methodology:
             expanded=health_report["overall"] in ("degraded", "unknown"),
         ):
             render_system_health_panel()
-

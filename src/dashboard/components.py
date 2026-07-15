@@ -3,36 +3,31 @@ Dashboard components for BankEnv.
 Provides UI components for data visualization, trends, and prediction.
 """
 
-import streamlit as st
+import hashlib
+import logging
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import html
-from typing import Dict, List, Optional, Any
-from datetime import datetime
-from src.dashboard.styles import get_risk_color_hex, get_risk_label, COLORS
+import streamlit as st
+
+from src.dashboard.styles import get_risk_color_hex, get_risk_label
+from src.dashboard.presentation import (
+    add_time_boundary,
+    accessible_plotly_config,
+    apply_responsive_chart_layout,
+    render_full_label,
+)
+
+logger = logging.getLogger(__name__)
 
 RESERVE_CURRENCY_COUNTRIES = ['USA', 'GBR', 'JPN', 'CHE', 'EMU', 'DEU', 'FRA', 'ITA', 'ESP', 'NLD', 'BEL', 'AUT']
 
 
 def _render_hover_full_label(label: str, prefix: str = "Selected item") -> None:
-    """Show a compact selected-label preview with the full text on hover."""
-    text = str(label or "").strip()
-    if not text:
-        return
-    safe_text = html.escape(text, quote=True)
-    safe_prefix = html.escape(prefix, quote=True)
-    st.markdown(
-        (
-            f'<div title="{safe_text}" '
-            'style="font-size:0.82rem;color:#6B7280;line-height:1.3;'
-            'margin-top:-0.35rem;margin-bottom:0.35rem;white-space:nowrap;'
-            'overflow:hidden;text-overflow:ellipsis;">'
-            f'<span style="font-weight:600;">{safe_prefix}:</span> {safe_text}</div>'
-        ),
-        unsafe_allow_html=True,
-    )
+    """Backward-compatible alias for the accessible full-label readback."""
+    render_full_label(label, prefix)
 
 SOURCE_CONTEXT = {
     "WEO": ("IMF World Economic Outlook", "Country macroeconomic, fiscal and external-sector series."),
@@ -41,8 +36,14 @@ SOURCE_CONTEXT = {
     "FSIBSIS": ("IMF Financial Soundness Indicators balance sheets", "Deposit-taker balance-sheet and income-statement items."),
     "MFS": ("IMF Monetary and Financial Statistics, MFS_DC", "Monetary-sector balance sheets; not deposit-takers-only unless ODCORP is selected."),
     "WGI": ("World Bank Worldwide Governance Indicators", "Annual country governance scores."),
-    "EXTERNAL": ("Derived external-liquidity reference observations", "Staged external-sector and liquidity indicators assembled for BankEnv insights."),
-    "GOVT": ("Derived government-liquidity reference observations", "Staged fiscal and government-liquidity indicators assembled for BankEnv insights."),
+    "EXTERNAL": (
+        "BankEnv derived external-liquidity series",
+        "Derived from packaged upstream IMF and World Bank observations for analysis.",
+    ),
+    "GOVT": (
+        "BankEnv derived government-liquidity series",
+        "Derived from packaged upstream fiscal observations for analysis.",
+    ),
 }
 
 MFS_PREFIX_CONTEXT = {
@@ -58,8 +59,13 @@ def _source_history_context(dataset_name: str, chart_data: pd.DataFrame, selecte
         dataset_key,
         (dataset_name, "Source-specific observations."),
     )
-    if "indicator_code" in chart_data.columns and len(chart_data) > 0:
-        code = str(chart_data["indicator_code"].dropna().astype(str).iloc[0])
+    indicator_codes = (
+        chart_data["indicator_code"].dropna().astype(str)
+        if "indicator_code" in chart_data.columns
+        else pd.Series(dtype=str)
+    )
+    if len(indicator_codes) > 0:
+        code = str(indicator_codes.iloc[0])
     else:
         code = str(selected_key)
     text = f"{code} {label}".lower()
@@ -123,6 +129,7 @@ def _source_history_context(dataset_name: str, chart_data: pd.DataFrame, selecte
         latest_actual_year = ", ".join(values[:3]) if values else latest_actual_year
 
     return {
+        "Source": dataflow,
         "Dataflow": dataflow,
         "Source scope": source_scope,
         "Code": code,
@@ -135,6 +142,73 @@ def _source_history_context(dataset_name: str, chart_data: pd.DataFrame, selecte
         "Observation status": observation_status,
         "Latest actual year": latest_actual_year,
     }
+
+
+def _download_token(*parts: object) -> str:
+    """Return a short deterministic token for widget keys and filenames."""
+    payload = "|".join(str(part) for part in parts)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:10]
+
+
+def _safe_filename_part(value: object) -> str:
+    """Keep exported filenames portable across supported desktop platforms."""
+    cleaned = "".join(
+        character if character.isalnum() or character in {"-", "_"} else "-"
+        for character in str(value).strip()
+    )
+    return cleaned.strip("-") or "series"
+
+
+def _history_display_table(
+    chart_data: pd.DataFrame,
+    selected_freq: Optional[str],
+    dataset_name: str,
+) -> pd.DataFrame:
+    """Build the complete, downloadable history table shown below a chart."""
+    freq_labels = {"M": "Monthly", "Q": "Quarterly", "A": "Annual"}
+    source = SOURCE_CONTEXT.get(
+        str(dataset_name).upper(),
+        (str(dataset_name), "Source-specific observations."),
+    )[0]
+    rows = chart_data.copy()
+
+    def _period_label(timestamp) -> str:
+        if selected_freq == "Q":
+            return f"{timestamp.year}-Q{timestamp.quarter}"
+        if selected_freq == "M":
+            return timestamp.strftime("%Y-%m")
+        return str(timestamp.year)
+
+    rows["Period"] = rows["date"].map(_period_label)
+    rows["Value"] = pd.to_numeric(rows["value"], errors="coerce")
+    rows["Unit"] = (
+        rows["unit"].fillna("Not specified").astype(str)
+        if "unit" in rows.columns
+        else "Not specified"
+    )
+    if "frequency" in rows.columns:
+        rows["Frequency"] = rows["frequency"].map(
+            lambda value: freq_labels.get(str(value), str(value))
+            if pd.notna(value)
+            else "Not specified"
+        )
+    else:
+        rows["Frequency"] = freq_labels.get(
+            selected_freq, "Annual display" if selected_freq is None else str(selected_freq)
+        )
+    rows["Status"] = (
+        rows["observation_status"]
+        .fillna("Not specified")
+        .astype(str)
+        .str.replace("_", " ", regex=False)
+        .str.title()
+        if "observation_status" in rows.columns
+        else "Not specified"
+    )
+    rows["Source"] = source
+    return rows.sort_values("date", ascending=False)[
+        ["Period", "Value", "Unit", "Frequency", "Status", "Source"]
+    ]
 
 # ==============================================================================
 # SUMMARY COMPONENTS
@@ -150,21 +224,21 @@ def render_summary_card(country_name: str, score: float, tier: int, confidence: 
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown(f'<div class="summary-header">Risk Score</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Risk Score</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-value" style="color: {color}">{score:.1f}/10</div>', unsafe_allow_html=True)
         
     with col2:
-        st.markdown(f'<div class="summary-header">Risk Tier</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Risk Tier</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-value" style="color: {color}">{label}</div>', unsafe_allow_html=True)
         
     with col3:
-        st.markdown(f'<div class="summary-header">Category</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Category</div>', unsafe_allow_html=True)
         # Map tier to category description
         categories = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
         st.markdown(f'<div class="summary-value">{categories.get(tier, "N/A")} Risk</div>', unsafe_allow_html=True)
 
     with col4:
-        st.markdown(f'<div class="summary-header">Data Coverage</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Data Coverage</div>', unsafe_allow_html=True)
         # Color code coverage
         cov_color = "#22c55e" if confidence >= 0.70 else "#f59e0b" if confidence >= 0.50 else "#ef4444"
         st.markdown(f'<div class="summary-value" style="color: {cov_color}">{confidence:.0%}</div>', unsafe_allow_html=True)
@@ -173,12 +247,14 @@ def render_summary_card(country_name: str, score: float, tier: int, confidence: 
     if confidence < 0.70 or risk_floor_applied:
         warning_parts = []
         if confidence < 0.50:
-            warning_parts.append("⚠️ Very low data coverage (<50%)")
+            warning_parts.append("Very low data coverage (below 50%)")
         elif confidence < 0.70:
-            warning_parts.append("⚠️ Limited data coverage (<70%)")
+            warning_parts.append("Limited data coverage (below 70%)")
         
         if risk_floor_applied:
-            warning_parts.append("Risk score capped due to low confidence")
+            warning_parts.append(
+                "Risk score raised to a minimum floor because coverage is low"
+            )
         
         # Show pillar-specific coverage issues
         if econ_coverage is not None and econ_coverage < 0.30:
@@ -262,6 +338,8 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     # This is exact same data the model uses - no recalculation needed
     actual_values = {}
     model_columns = set()
+    provenance_load_failed = False
+    imputation_load_failed = False
 
     from src.config import CACHE_DIR
     import os
@@ -284,8 +362,12 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                         'credit_to_gdp_gap' in actual_values:
                     actual_values['credit_to_gdp_relative'] = actual_values['credit_to_gdp_gap']
                     model_columns.add('credit_to_gdp_relative')
-        except Exception as e:
-            pass
+        except Exception:
+            provenance_load_failed = True
+            logger.exception(
+                "Could not load crisis feature provenance for country %s",
+                country_code,
+            )
     
     # Fill from model_features for promoted fields that are not present in the
     # legacy crisis_features sidecar, including newer liquidity inputs.
@@ -299,7 +381,11 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
                         actual_values[col] = row[col]
                         model_columns.add(col)
         except Exception:
-            pass
+            provenance_load_failed = True
+            logger.exception(
+                "Could not read serving model features for country %s",
+                country_code,
+            )
 
     
     # Define indicator groups with display names and format
@@ -342,9 +428,6 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
     cols = st.columns(len(indicator_groups))
     
     # Load crisis_features.parquet to get imputed values
-    from src.config import CACHE_DIR
-    import os
-    import os
     # Read IMPUTED features (from train_model.py) for the "imputed_values" dict
     # This allows us to detect when Raw (crisis_features) differs from Imputed (imputed_features)
     parquet_path = os.path.join(CACHE_DIR, 'imputed_features.parquet')
@@ -356,7 +439,22 @@ def render_data_snapshot(country_data: Dict[str, Any], features_df: pd.DataFrame
             if len(imputed_row) > 0:
                 imputed_values = imputed_row.iloc[0].to_dict()
         except Exception:
-            pass
+            imputation_load_failed = True
+            logger.exception(
+                "Could not load imputation provenance for country %s",
+                country_code,
+            )
+
+    if provenance_load_failed:
+        st.warning(
+            "Some model-input provenance is unavailable. Values from the serving "
+            "artifact are shown where available."
+        )
+    if imputation_load_failed:
+        st.warning(
+            "Imputation status is unavailable for this country; displayed values "
+            "are not marked as imputed."
+        )
     
     for idx, (group_name, indicators) in enumerate(indicator_groups.items()):
         with cols[idx]:
@@ -402,7 +500,7 @@ def render_additional_data(country_code: str, loader, expanded: bool = False):
     Renders an expandable section with additional dataset indicators.
     Allows toggling between FSIC, WEO, and MFS data.
     """
-    with st.expander("📋 Additional Data (All Indicators)", expanded=expanded):
+    with st.expander("Additional Data (All Indicators)", expanded=expanded):
         # Dataset selector
         dataset_choice = st.radio(
             "Select Dataset",
@@ -418,7 +516,18 @@ def render_additional_data(country_code: str, loader, expanded: bool = False):
         }
         dataset = dataset_map[dataset_choice]
         
-        render_time_series_deep_dive(country_code, loader, dataset)
+        try:
+            source_df = loader.get_country_data(country_code, dataset)
+        except Exception:
+            logger.exception(
+                "Could not load %s history for country %s", dataset, country_code
+            )
+            st.warning(
+                f"{dataset} history could not be loaded. Try another source or "
+                "refresh the page."
+            )
+            return
+        render_time_series_deep_dive(source_df, dataset, country_code)
 
 
 # ==============================================================================
@@ -439,7 +548,26 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
         country_code: Country code (for display)
     """
     if df is None or len(df) == 0:
-        st.info(f"No {dataset_name} data available for {country_code}")
+        st.info(
+            f"No {dataset_name} observations are available for {country_code}. "
+            "Choose another source or country."
+        )
+        return
+
+    required_columns = {"period", "value"}
+    missing_columns = required_columns.difference(df.columns)
+    has_indicator_key = "indicator_code" in df.columns or "indicator_name" in df.columns
+    if missing_columns or not has_indicator_key:
+        logger.error(
+            "Invalid %s history frame for %s; missing columns: %s",
+            dataset_name,
+            country_code,
+            sorted(missing_columns),
+        )
+        st.warning(
+            f"{dataset_name} history is not in a displayable format. Try another "
+            "source or refresh the data snapshot."
+        )
         return
 
 
@@ -448,17 +576,21 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
     # So for FSIC/FSI/FSIBSIS, we need to use indicator_name as the unique key
     # WEO and MFS have 1:1 or many:1 code:name ratios, so indicator_code works fine
     
-    use_name_as_key = dataset_name in ("FSIC", "FSI", "FSIBSIS") and 'indicator_name' in df.columns
+    use_name_as_key = (
+        str(dataset_name).upper() in ("FSIC", "FSI", "FSIBSIS")
+        and "indicator_name" in df.columns
+    )
     
     if use_name_as_key:
         # For FSIC: Use indicator_name as the unique identifier
-        options = df['indicator_name'].dropna().unique().tolist()
+        options = df['indicator_name'].dropna().astype(str).unique().tolist()
         options_display = {name: name for name in options}
         sorted_options = sorted(options, key=lambda x: x.lower())
     else:
         # For WEO/MFS: Use indicator_code as the unique identifier
         if 'indicator_name' in df.columns:
             mapping = df[['indicator_code', 'indicator_name']].dropna().drop_duplicates('indicator_code')
+            mapping['indicator_code'] = mapping['indicator_code'].astype(str)
             name_map = dict(zip(mapping['indicator_code'], mapping['indicator_name']))
         else:
             name_map = {}
@@ -468,9 +600,27 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
                  return str(name_map[code])
             return code.replace('_', ' ').title()
 
-        options = df['indicator_code'].unique().tolist()
+        if "indicator_code" not in df.columns:
+            logger.error(
+                "Invalid %s history frame for %s; indicator_code is unavailable",
+                dataset_name,
+                country_code,
+            )
+            st.warning(
+                f"{dataset_name} history does not contain usable indicator codes. "
+                "Try another source."
+            )
+            return
+        options = df['indicator_code'].dropna().astype(str).unique().tolist()
         options_display = {code: f"{get_display_name(code)} ({code})" for code in options}
         sorted_options = sorted(options, key=lambda x: options_display[x])
+
+    if not sorted_options:
+        st.info(
+            f"No named {dataset_name} indicators are available for {country_code}. "
+            "Choose another source or country."
+        )
+        return
     
     # 3. UI Controls
     col_sel, col_range = st.columns([3, 1])
@@ -494,12 +644,13 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
 
     # 4. Filter Data - use the appropriate column based on dataset type
     if use_name_as_key:
-        chart_data = df[df['indicator_name'] == selected_key].copy()
+        chart_data = df[df['indicator_name'].astype(str) == selected_key].copy()
     else:
-        chart_data = df[df['indicator_code'] == selected_key].copy()
+        chart_data = df[df['indicator_code'].astype(str) == selected_key].copy()
     
     # Parse period/date
     chart_data['date'] = pd.to_datetime(chart_data['period'].astype(str), errors='coerce')
+    chart_data['value'] = pd.to_numeric(chart_data['value'], errors='coerce')
     chart_data = chart_data.dropna(subset=['date', 'value']).sort_values('date')
 
     if use_name_as_key:
@@ -540,7 +691,18 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
         if selected_freq is None:
             # Frames without frequency metadata: collapse to annual to avoid
             # mixed-frequency zigzag.
-            chart_data = chart_data.groupby('year').agg({'date': 'last', 'value': 'last'}).reset_index()
+            aggregation = {'date': 'last', 'value': 'last'}
+            for metadata_column in (
+                'unit',
+                'frequency',
+                'observation_status',
+                'latest_actual_year',
+                'indicator_code',
+                'indicator_name',
+            ):
+                if metadata_column in chart_data.columns:
+                    aggregation[metadata_column] = 'last'
+            chart_data = chart_data.groupby('year').agg(aggregation).reset_index()
         else:
             # Keep native periodicity; drop duplicate observations per period.
             chart_data = chart_data.drop_duplicates(subset='date', keep='last')
@@ -568,66 +730,101 @@ def render_time_series_deep_dive(df: pd.DataFrame, dataset_name: str, country_co
         else:
             indicator_name_clean = get_display_name(selected_key)
         
-        fig = px.line(
-            chart_data,
-            x='date',
-            y='value',
-            markers=True,
-            title=f"{indicator_name_clean} - Historical Trend"
-        )
-        fig.update_layout(
-            height=350,
-            margin=dict(l=20, r=20, t=40, b=20),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            xaxis_title=None,
-            yaxis_title=None,
-            # Trendline color
-        )
-        fig.update_traces(line_color='#60A5FA', line_width=2)
+        try:
+            fig = px.line(
+                chart_data,
+                x='date',
+                y='value',
+                markers=True,
+            )
+            fig.update_traces(line_width=2)
+            apply_responsive_chart_layout(
+                fig,
+                title=f"{indicator_name_clean} — Historical trend",
+                showlegend=False,
+            )
 
-        # Mark where reported actuals end (WEO carries estimates/projections).
-        shows_forward_values = False
-        if 'observation_status' in chart_data.columns:
-            actual_dates = chart_data.loc[
-                chart_data['observation_status'] == 'actual', 'date'
-            ]
-            shows_forward_values = (
-                chart_data['observation_status'].isin(['estimate', 'projection']).any()
-                and len(actual_dates) > 0
+            # Mark where reported actuals end (WEO carries estimates/projections).
+            shows_forward_values = False
+            if 'observation_status' in chart_data.columns:
+                normalized_status = (
+                    chart_data['observation_status'].fillna('').astype(str).str.lower()
+                )
+                actual_dates = chart_data.loc[normalized_status == 'actual', 'date']
+                shows_forward_values = (
+                    normalized_status.isin(['estimate', 'projection']).any()
+                    and len(actual_dates) > 0
+                )
+                if shows_forward_values:
+                    add_time_boundary(
+                        fig,
+                        actual_dates.max(),
+                        line_dash='dash',
+                        line_color='#6B7280',
+                    )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                theme="streamlit",
+                config=accessible_plotly_config(),
             )
             if shows_forward_values:
-                fig.add_vline(
-                    x=actual_dates.max(), line_dash='dash', line_color='#9CA3AF'
+                st.caption(
+                    "The dashed line marks the last reported actual; later values "
+                    "are IMF estimates or projections."
                 )
-
-        st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-        if shows_forward_values:
-            st.caption(
-                "The dashed line marks the last reported actual; later values "
-                "are IMF estimates/projections."
+        except Exception:
+            logger.exception(
+                "Could not render %s history chart for %s indicator %s",
+                dataset_name,
+                country_code,
+                selected_key,
+            )
+            st.warning(
+                "The chart could not be displayed. The complete observations remain "
+                "available in the table below."
             )
     else:
-        st.warning("No data found for this period.")
+        st.info(
+            "No observations match this indicator, periodicity, and range. Choose "
+            "a longer range or another periodicity."
+        )
 
     # 6. Render Data Table (Pivot/Detailed)
     st.caption("Detailed Data")
 
     if len(chart_data) > 0:
-        def _period_label(ts) -> str:
-            if selected_freq == 'Q':
-                return f"{ts.year}-Q{ts.quarter}"
-            if selected_freq == 'M':
-                return ts.strftime('%Y-%m')
-            return str(ts.year)
-
-        display_table = chart_data[['date', 'value']].copy()
-        display_table['Period'] = display_table['date'].map(_period_label)
-        display_table['Value'] = display_table['value'].apply(lambda x: f"{x:,.2f}")
-        display_table = display_table.sort_values('date', ascending=False)[['Period', 'Value']]
-
-        # Always display as a simple vertical table
-        st.dataframe(display_table, use_container_width=True, hide_index=True)
+        display_table = _history_display_table(
+            chart_data,
+            selected_freq,
+            dataset_name,
+        )
+        st.dataframe(
+            display_table,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Value": st.column_config.NumberColumn("Value", format="%.2f")
+            },
+        )
+        token = _download_token(
+            country_code,
+            dataset_name,
+            selected_key,
+            selected_freq,
+            time_range,
+        )
+        st.download_button(
+            "Download displayed data (CSV)",
+            data=display_table.to_csv(index=False).encode("utf-8"),
+            file_name=(
+                f"{_safe_filename_part(country_code)}-"
+                f"{_safe_filename_part(dataset_name)}-history-{token}.csv"
+            ),
+            mime="text/csv",
+            key=f"dd_download_{token}",
+        )
 
 
 
@@ -641,7 +838,7 @@ def render_prediction_form(current_values: Dict[str, float] = None) -> Dict[str,
     Renders an input form for prediction with sliders and number inputs.
     Returns the user-entered values.
     """
-    st.subheader("🔮 Predict Risk Score")
+    st.subheader("Predict Risk Score")
     st.caption("Enter hypothetical values to see predicted risk classification.")
     
     inputs = {}
@@ -757,31 +954,77 @@ def render_prediction_result(score: float, category: str, comparison_score: floa
 def render_drivers_chart(drivers: list):
     """Renders a bar chart of key risk drivers."""
     if not drivers:
-        st.info("No drivers data available.")
+        st.info(
+            "No feature-level drivers are available for this score. Review model "
+            "coverage and evidence status for the selected country."
+        )
         return
 
     df = pd.DataFrame(drivers)
+    required_columns = {"z_score", "impact", "indicator"}
+    missing_columns = required_columns.difference(df.columns)
+    if missing_columns:
+        logger.error(
+            "Driver chart input is missing columns: %s", sorted(missing_columns)
+        )
+        st.warning(
+            "Feature-level drivers are not in a displayable format. The score "
+            "summary remains available."
+        )
+        return
+    df['z_score'] = pd.to_numeric(df['z_score'], errors='coerce')
+    df = df.dropna(subset=['z_score', 'indicator'])
+    if df.empty:
+        st.info(
+            "No numeric feature-level drivers are available for this score."
+        )
+        return
     df = df.sort_values('z_score', ascending=True)
-    colors = df['impact'].map({'risk': COLORS['danger'], 'strength': COLORS['success']})
+    direction_labels = {
+        'risk': 'Raises risk',
+        'strength': 'Lowers risk',
+    }
+    direction_colors = {
+        'risk': '#C04444',
+        'strength': '#2F6F9F',
+    }
+    impact = df['impact'].fillna('').astype(str).str.lower()
+    directions = impact.map(direction_labels).fillna('Context only')
+    colors = impact.map(direction_colors).fillna('#6B7280')
     
     fig = go.Figure(go.Bar(
         x=df['z_score'],
         y=df['indicator'],
         orientation='h',
-        marker=dict(color=colors)
+        marker=dict(color=colors),
+        text=directions,
+        textposition='auto',
+        customdata=directions,
+        hovertemplate=(
+            "%{y}<br>Deviation: %{x:.2f} standard deviations"
+            "<br>%{customdata}<extra></extra>"
+        ),
     ))
-    
-    fig.update_layout(
-        title="Key Risk Drivers (Deviation from Peer Median)",
-        xaxis_title="Z-Score (Standard Deviations)",
-        yaxis_title=None,
-        height=300,
-        margin=dict(l=0, r=0, t=30, b=0),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+    apply_responsive_chart_layout(
+        fig,
+        title="Key risk drivers — deviation from peer median",
+        showlegend=False,
     )
-    
-    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+    fig.update_xaxes(title_text="Z-score (standard deviations)")
+
+    try:
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            theme="streamlit",
+            config=accessible_plotly_config(),
+        )
+    except Exception:
+        logger.exception("Could not render the feature-level driver chart")
+        st.warning(
+            "The feature-level driver chart could not be displayed. Review the "
+            "model evidence table for the underlying values."
+        )
 
 
 def render_comparison_table(main_country: str, peers_df: pd.DataFrame, use_full_names: bool = False):
@@ -813,6 +1056,13 @@ def render_comparison_table(main_country: str, peers_df: pd.DataFrame, use_full_
         peers_df['confidence'] = peers_df['data_coverage']
     
     available_cols = [c for c in cols if c in peers_df.columns]
+    if not available_cols:
+        logger.error("Peer comparison input has no supported display columns")
+        st.info(
+            "No comparable peer fields are available. Choose another peer set or "
+            "review the selected country's evidence."
+        )
+        return
     display_df = peers_df[available_cols].copy()
     
     # Format data coverage as percentage
@@ -838,18 +1088,34 @@ def render_comparison_table(main_country: str, peers_df: pd.DataFrame, use_full_
         
         st.dataframe(
             display_df.style.apply(
-                lambda x: ['background-color: #30363D' if x.name == main_idx else '' for i in x],
+                lambda x: ['font-weight: 700' if x.name == main_idx else '' for i in x],
                 axis=1
             ),
             use_container_width=True,
             hide_index=True
         )
-    except:
+    except Exception:
+        logger.exception(
+            "Could not highlight country %s in the peer comparison table",
+            main_country,
+        )
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 
 def render_spider_chart(country_data: str, labels: List[str], values: List[float]):
     """Renders a radar/spider chart for component scores."""
+    if not labels or not values or len(labels) != len(values):
+        logger.error(
+            "Invalid radar chart input for %s: %s labels and %s values",
+            country_data,
+            len(labels or []),
+            len(values or []),
+        )
+        st.info(
+            "Component scores are not available for this country. Review the "
+            "country evidence and coverage details."
+        )
+        return
     fig = go.Figure(data=go.Scatterpolar(
         r=values,
         theta=labels,
@@ -863,10 +1129,23 @@ def render_spider_chart(country_data: str, labels: List[str], values: List[float
                 visible=True,
                 range=[0, 100]
             )),
-        showlegend=False,
-        height=300,
-        margin=dict(t=20, b=20, l=40, r=40),
-        paper_bgcolor='rgba(0,0,0,0)',
     )
-    
-    st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+    apply_responsive_chart_layout(
+        fig,
+        title=f"{country_data} component scores" if country_data else "Component scores",
+        showlegend=False,
+    )
+
+    try:
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            theme="streamlit",
+            config=accessible_plotly_config(),
+        )
+    except Exception:
+        logger.exception("Could not render component score radar for %s", country_data)
+        st.warning(
+            "The component score chart could not be displayed. Review the score "
+            "summary for the available values."
+        )
