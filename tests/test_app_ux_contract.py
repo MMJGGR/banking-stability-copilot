@@ -104,6 +104,32 @@ def test_app_recovers_a_stale_calculated_series_module_cache():
     assert completed.returncode == 0, completed.stderr
 
 
+def test_app_recovers_a_stale_evidence_module_cache():
+    simulation = textwrap.dedent(
+        """
+        from src.dashboard import evidence
+
+        evidence.EVIDENCE_API_VERSION = 1
+        del evidence.build_active_feature_coverage
+
+        import app
+
+        assert evidence.EVIDENCE_API_VERSION == 2
+        assert callable(evidence.build_active_feature_coverage)
+        """
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", simulation],
+        cwd=".",
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_methodology_defaults_to_score_overview_without_prior_section_state():
     app = _run_app(view="methodology")
 

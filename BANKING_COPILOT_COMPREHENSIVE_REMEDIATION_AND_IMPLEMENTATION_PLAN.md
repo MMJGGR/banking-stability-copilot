@@ -3368,3 +3368,10 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     254 passed and five supported-version skips; an independent post-fix diff
     review found no remaining material issue. Pull-request, CI, merge, and
     production checks remain pending.
+  - Post-merge live finding: PR #22 merged as `6546f5f` after green branch and
+    master checks, but rendered production inspection caught an ImportError at
+    the new evidence-helper import. Root cause is Streamlit's warm interpreter
+    retaining the prior `src.dashboard.evidence` module across the deployment,
+    not a score or Methodology calculation failure. The follow-up hotfix adds an
+    explicit helper API version, conditional stale-module reload, and an isolated
+    warm-cache regression; production closure remains pending its release.
