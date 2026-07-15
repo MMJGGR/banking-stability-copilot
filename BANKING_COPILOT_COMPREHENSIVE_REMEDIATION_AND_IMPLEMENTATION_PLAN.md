@@ -3283,8 +3283,8 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     arbitrary scenario cascades, a conversational layer, and formal WCAG
   certification are not disguised as UX fixes; each has an explicit re-entry
   gate.
-- [ ] Checkpoint 51: Validate and release the comprehensive UX remediation.
-  - Working branch: `agent/ux-remediation-implementation`; draft PR
+- [x] Checkpoint 51: Validate and release the comprehensive UX remediation.
+  - Release branch: `agent/ux-remediation-implementation`; merged PR
     [#20](https://github.com/MMJGGR/banking-stability-copilot/pull/20).
   - Implementation checkpoint: the four public workspaces now render
     conditionally; Country has one risk direction, a reconciling score bridge,
@@ -3315,16 +3315,19 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     release-candidate acceptance evidence. UX-20 (full page-module extraction)
     and UX-21 (automated browser/axe/performance gates) remain explicit
     engineering-hardening work; neither is represented as a known public
-    runtime defect. Supported-version CI and the live deployment smoke test
-    remain required before this checkpoint is closed.
-  - Post-merge live finding: PR #20 merged at `4863a95`, and both master quality
-    and reachability workflows passed, but rendered production inspection found
-    an ImportError where the new `app.py` import contract met a helper module
-    retained by Streamlit's warm interpreter. Branch
-    `agent/live-import-hotfix` adds an explicit calculated-series API version,
-    reloads that helper only when stale, and regression-tests the warm-cache
-    recovery. Checkpoint 51 remains open until this hotfix passes CI and the
-    rendered production app is clean.
+    runtime defect. Supported-version CI and the rendered production smoke test
+    passed before this checkpoint was closed.
+  - Post-merge live finding and resolution: PR #20 merged at `4863a95`; rendered
+    production inspection then found an ImportError where the new `app.py`
+    contract met a calculated-series helper retained by Streamlit's warm
+    interpreter. PR #21 added an explicit helper API version, conditional stale
+    reload, and isolated warm-cache regression, and merged at `0f3033c` after
+    clean CI. Both master quality and live-reachability workflows passed.
+  - Final rendered production evidence: Global loaded its watchlist, map, and
+    charts; Country restored Kenya with Tanzania and Uganda peers; Explorer
+    restored WEO `NGDP_RPCH` for USA/Canada/United Kingdom and rendered the chart
+    and table after Apply Comparison; Methodology opened on How the Score Works
+    with its Model Card. No Streamlit application exception appeared.
   - Score invariance check: the recomputed structural score matches the served
     score for 199/201 countries; the only two differences are exactly the
     recorded legacy crisis adjustments for Switzerland and Seychelles. USA
