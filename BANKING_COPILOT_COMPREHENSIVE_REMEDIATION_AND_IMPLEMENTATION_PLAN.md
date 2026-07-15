@@ -3332,7 +3332,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     score for 199/201 countries; the only two differences are exactly the
     recorded legacy crisis adjustments for Switzerland and Seychelles. USA
     remains 7.0, Kenya 8.0, and Mozambique 8.6.
-- [ ] Checkpoint 52: Make the public Methodology workspace concise and useful.
+- [x] Checkpoint 52: Make the public Methodology workspace concise and useful.
   - Trigger: rendered production review found an empty confusion-matrix warning,
     internal release-engineering language, repeated status controls, misleading
     derived-package counts, and conceptual tables whose explanations were
@@ -3362,16 +3362,24 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     snapshots resolve their own policy audit and validation files; package-level
     totals are withheld when an archive did not store them.
   - Verification and release: implementation is on
-    `agent/methodology-plain-language`. The three sections were rendered locally
-    and reviewed at desktop width without application errors or clipped
+    `agent/methodology-plain-language`; PR #22 merged as `6546f5f`. The three
+    sections were rendered locally without application errors or clipped
     conceptual explanations. Syntax checks and the full local suite are green at
-    254 passed and five supported-version skips; an independent post-fix diff
-    review found no remaining material issue. Pull-request, CI, merge, and
-    production checks remain pending.
-  - Post-merge live finding: PR #22 merged as `6546f5f` after green branch and
+    254 passed and five supported-version skips; independent pre-commit and
+    post-fix reviews found no remaining material issue. Branch and master Quality
+    checks passed.
+  - Post-merge live finding and resolution: PR #22 merged after green branch and
     master checks, but rendered production inspection caught an ImportError at
     the new evidence-helper import. Root cause is Streamlit's warm interpreter
     retaining the prior `src.dashboard.evidence` module across the deployment,
-    not a score or Methodology calculation failure. The follow-up hotfix adds an
-    explicit helper API version, conditional stale-module reload, and an isolated
-    warm-cache regression; production closure remains pending its release.
+    not a score or Methodology calculation failure. PR #23 added an explicit
+    helper API version, conditional stale-module reload, and an isolated
+    warm-cache regression, then merged as `13b0a46` after clean CI. Both master
+    Quality and live-reachability workflows passed.
+  - Final rendered production evidence: `bankenv.streamlit.app` loads all three
+    Methodology sections without an exception. Data and Coverage reports 92%
+    median direct coverage, separates official and derived sources, excludes WEO
+    projections, and has no invariant Role filter. Evidence and Limits contains
+    the plain crisis limitation and 136/201 policy-effect disclosure, with no
+    empty confusion-matrix warning, raw release jargon, or public candidate
+    appendix.
