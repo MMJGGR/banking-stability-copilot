@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+import textwrap
+
 import pytest
 import streamlit as st
 from packaging.version import Version
@@ -46,6 +50,32 @@ def _run_app(*, view: str, tool: str | None = None, section: str | None = None) 
 )
 def test_public_workspace_loads_without_streamlit_errors(view, tool, section):
     _run_app(view=view, tool=tool, section=section)
+
+
+def test_app_recovers_a_stale_calculated_series_module_cache():
+    simulation = textwrap.dedent(
+        """
+        from src.dashboard import calculated_series
+
+        calculated_series.CALCULATED_SERIES_API_VERSION = 1
+        del calculated_series.diagnose_alignment
+
+        import app
+
+        assert calculated_series.CALCULATED_SERIES_API_VERSION == 2
+        assert callable(calculated_series.diagnose_alignment)
+        """
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", simulation],
+        cwd=".",
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_methodology_defaults_to_score_overview_without_prior_section_state():

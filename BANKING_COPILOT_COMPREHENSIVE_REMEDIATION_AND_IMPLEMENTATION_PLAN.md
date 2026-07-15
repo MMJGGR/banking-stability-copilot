@@ -3300,7 +3300,7 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     critical-missingness outputs remain distinct; obsolete duplicate
     Methodology/liquidity renderers were removed.
   - Automated evidence at this checkpoint: the full local repository suite is
-    green at 250 passed and four skipped. The four skips are widget-rerun
+    green at 251 passed and four skipped. The four skips are widget-rerun
     contracts that require the repository's supported Streamlit `>=1.45`; this
     machine has 1.30, so those contracts remain enabled for the clean CI
     environment. Syntax compilation and `git diff --check` are clean.
@@ -3317,6 +3317,14 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     engineering-hardening work; neither is represented as a known public
     runtime defect. Supported-version CI and the live deployment smoke test
     remain required before this checkpoint is closed.
+  - Post-merge live finding: PR #20 merged at `4863a95`, and both master quality
+    and reachability workflows passed, but rendered production inspection found
+    an ImportError where the new `app.py` import contract met a helper module
+    retained by Streamlit's warm interpreter. Branch
+    `agent/live-import-hotfix` adds an explicit calculated-series API version,
+    reloads that helper only when stale, and regression-tests the warm-cache
+    recovery. Checkpoint 51 remains open until this hotfix passes CI and the
+    rendered production app is clean.
   - Score invariance check: the recomputed structural score matches the served
     score for 199/201 countries; the only two differences are exactly the
     recorded legacy crisis adjustments for Switzerland and Seychelles. USA

@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 
 
+CALCULATED_SERIES_API_VERSION = 2
+
+
 @dataclass(frozen=True)
 class CalculationSpec:
     """Human-readable description of a calculated series."""
