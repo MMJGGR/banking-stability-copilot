@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 import numpy as np
 import pandas as pd
@@ -38,6 +38,562 @@ class FormulaPlan:
     expression: ast.Expression
     normalized_formula: str
     used_operands: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class UnitProfile:
+    """Conservative unit semantics used by calculation validity gates."""
+
+    raw_unit: str
+    canonical_unit: str
+    dimension: str
+    additive: bool | None
+
+
+@dataclass(frozen=True)
+class UnitCompatibility:
+    """Result of checking whether an operation is meaningful for its units."""
+
+    valid: bool
+    operation: str
+    units: tuple[str, ...]
+    output_unit: str | None
+    reason: str
+    warnings: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "operation": self.operation,
+            "units": list(self.units),
+            "output_unit": self.output_unit,
+            "reason": self.reason,
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True)
+class AlignmentDiagnostics:
+    """Exact-key alignment coverage for one or more calculation operands."""
+
+    matched_observations: int
+    output_observations: int | None
+    dropped_after_calculation: int | None
+    input_observations: Mapping[str, int]
+    dropped_observations: Mapping[str, int]
+    input_frequencies: Mapping[str, tuple[str, ...]]
+    input_periods: Mapping[str, tuple[str | None, str | None]]
+    matched_frequencies: tuple[str, ...]
+    matched_period_start: str | None
+    matched_period_end: str | None
+    matched_countries: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "matched_observations": self.matched_observations,
+            "output_observations": self.output_observations,
+            "dropped_after_calculation": self.dropped_after_calculation,
+            "input_observations": dict(self.input_observations),
+            "dropped_observations": dict(self.dropped_observations),
+            "input_frequencies": {
+                name: list(values) for name, values in self.input_frequencies.items()
+            },
+            "input_periods": {
+                name: {"start": bounds[0], "end": bounds[1]}
+                for name, bounds in self.input_periods.items()
+            },
+            "matched_frequencies": list(self.matched_frequencies),
+            "matched_period_start": self.matched_period_start,
+            "matched_period_end": self.matched_period_end,
+            "matched_countries": self.matched_countries,
+        }
+
+
+@dataclass(frozen=True)
+class CalculationRecipe:
+    """Task-oriented preset that can drive an Explorer recipe selector."""
+
+    key: str
+    title: str
+    operation: str
+    description: str
+    example: str
+    scale: float
+    output_unit: str
+    temporal_mode: str | None = None
+    requires_additive_input: bool = False
+    formula_template: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "title": self.title,
+            "operation": self.operation,
+            "description": self.description,
+            "example": self.example,
+            "scale": self.scale,
+            "output_unit": self.output_unit,
+            "temporal_mode": self.temporal_mode,
+            "requires_additive_input": self.requires_additive_input,
+            "formula_template": self.formula_template,
+        }
+
+
+CALCULATION_RECIPES = (
+    CalculationRecipe(
+        key="ratio_percent",
+        title="Ratio as percent",
+        operation="ratio",
+        description="Divide one aligned series by another and multiply by 100.",
+        example="Interest expense / government revenue",
+        scale=100.0,
+        output_unit="percent",
+        formula_template="A / B",
+    ),
+    CalculationRecipe(
+        key="cross_sectional_share_percent",
+        title="Country share of selected total",
+        operation="share",
+        description="Divide each selected country's additive level by the group total.",
+        example="Country reserves / selected-country reserves",
+        scale=100.0,
+        output_unit="percent",
+        requires_additive_input=True,
+    ),
+    CalculationRecipe(
+        key="period_change_percent",
+        title="Change from prior period",
+        operation="change",
+        description="Calculate period-over-period percent change at native frequency.",
+        example="Annual change in nominal GDP",
+        scale=100.0,
+        output_unit="percent",
+        temporal_mode="period_pct",
+    ),
+    CalculationRecipe(
+        key="base_change_percent",
+        title="Change from first selected period",
+        operation="change",
+        description="Calculate percent change from the first observation in range.",
+        example="Change in reserves since 2020",
+        scale=100.0,
+        output_unit="percent",
+        temporal_mode="base_pct",
+    ),
+    CalculationRecipe(
+        key="rebase_index_100",
+        title="Rebase first period to 100",
+        operation="change",
+        description="Express each observation relative to a first-period index of 100.",
+        example="Comparable deposit-growth paths across countries",
+        scale=100.0,
+        output_unit="index (first period = 100)",
+        temporal_mode="index_100",
+    ),
+)
+
+
+def get_calculation_recipes(operation: str | None = None) -> tuple[CalculationRecipe, ...]:
+    """Return task presets in display order, optionally filtered by operation."""
+    if operation is None:
+        return CALCULATION_RECIPES
+    normalized = str(operation).strip().lower()
+    return tuple(recipe for recipe in CALCULATION_RECIPES if recipe.operation == normalized)
+
+
+def get_calculation_recipe(key: str) -> CalculationRecipe:
+    """Return one named recipe or fail with a UI-safe list of valid keys."""
+    normalized = str(key or "").strip().lower()
+    for recipe in CALCULATION_RECIPES:
+        if recipe.key == normalized:
+            return recipe
+    valid = ", ".join(recipe.key for recipe in CALCULATION_RECIPES)
+    raise ValueError(f"Unknown calculation recipe {key!r}. Use one of: {valid}.")
+
+
+def profile_unit(unit: str | None, *, additive: bool | None = None) -> UnitProfile:
+    """Infer conservative semantics from a source-supplied unit label.
+
+    Unknown units are deliberately not assumed additive. Callers with trusted
+    metadata can provide an explicit ``additive`` declaration.
+    """
+    raw = str(unit or "").strip()
+    canonical = " ".join(raw.lower().replace("_", " ").split())
+    if not canonical:
+        return UnitProfile(raw, "unknown", "unknown", additive)
+
+    percent_markers = ("%", "percent", "percentage", "pct", "percentage point")
+    ratio_markers = (
+        "ratio",
+        "per capita",
+        " of gdp",
+        "/gdp",
+        " of revenue",
+        "/revenue",
+        "times",
+    )
+    index_markers = ("index", "base year", "=100")
+    currency_markers = (
+        "usd",
+        "eur",
+        "gbp",
+        "kes",
+        "lcu",
+        "currency",
+        "local currency",
+    )
+    count_markers = ("count", "number", "persons", "people", "units")
+
+    if any(marker in canonical for marker in percent_markers):
+        dimension = "percentage"
+        inferred_additive = False
+    elif any(marker in canonical for marker in index_markers):
+        dimension = "index"
+        inferred_additive = False
+    elif any(marker in canonical for marker in ratio_markers) or canonical in {"x", "multiple"}:
+        dimension = "ratio"
+        inferred_additive = False
+    elif any(marker in canonical for marker in currency_markers):
+        dimension = "currency"
+        inferred_additive = "per capita" not in canonical
+    elif any(marker in canonical for marker in count_markers):
+        dimension = "count"
+        inferred_additive = True
+    else:
+        dimension = "unknown"
+        inferred_additive = None
+
+    return UnitProfile(
+        raw_unit=raw,
+        canonical_unit=canonical,
+        dimension=dimension,
+        additive=inferred_additive if additive is None else bool(additive),
+    )
+
+
+def check_cross_sectional_additivity(
+    unit: str | None,
+    *,
+    additive: bool | None = None,
+) -> UnitCompatibility:
+    """Require an additive level before calculating country shares."""
+    profile = profile_unit(unit, additive=additive)
+    if profile.additive is True:
+        return UnitCompatibility(
+            valid=True,
+            operation="share",
+            units=(profile.canonical_unit,),
+            output_unit="percent",
+            reason="The input is declared or inferred to be an additive level.",
+        )
+    if profile.additive is False:
+        reason = (
+            "Cross-sectional shares require additive levels; percentages, ratios, "
+            "per-capita series, and indexes must not be summed across countries."
+        )
+    else:
+        reason = (
+            "Additivity is unknown. Supply source metadata that explicitly marks "
+            "the series as additive before calculating a cross-sectional share."
+        )
+    return UnitCompatibility(
+        valid=False,
+        operation="share",
+        units=(profile.canonical_unit,),
+        output_unit=None,
+        reason=reason,
+    )
+
+
+def check_unit_compatibility(
+    operation: str,
+    units: Iterable[str | None],
+    *,
+    additive: bool | None = None,
+) -> UnitCompatibility:
+    """Validate unit semantics for ratio, share, change, add, or subtract.
+
+    The result is advisory and explicit: existing compute helpers retain their
+    current arithmetic behavior, while UI callers can gate execution on
+    ``result.valid``.
+    """
+    normalized_operation = str(operation or "").strip().lower()
+    profiles = tuple(profile_unit(unit) for unit in units)
+    canonical_units = tuple(profile.canonical_unit for profile in profiles)
+
+    if normalized_operation == "share":
+        if len(profiles) != 1:
+            return UnitCompatibility(
+                False,
+                "share",
+                canonical_units,
+                None,
+                "A share recipe requires exactly one input series.",
+            )
+        return check_cross_sectional_additivity(
+            profiles[0].raw_unit,
+            additive=additive,
+        )
+
+    if normalized_operation == "ratio":
+        if len(profiles) != 2:
+            return UnitCompatibility(
+                False,
+                "ratio",
+                canonical_units,
+                None,
+                "A ratio requires numerator and denominator units.",
+            )
+        numerator, denominator = profiles
+        if "unknown" in canonical_units:
+            return UnitCompatibility(
+                False,
+                "ratio",
+                canonical_units,
+                None,
+                "Both source units must be known before a ratio is presented.",
+            )
+        if (
+            numerator.dimension == denominator.dimension == "currency"
+            and numerator.canonical_unit != denominator.canonical_unit
+        ):
+            return UnitCompatibility(
+                False,
+                "ratio",
+                canonical_units,
+                None,
+                "Currency units or scales differ; convert them before division.",
+            )
+        output_unit = (
+            "ratio"
+            if numerator.canonical_unit == denominator.canonical_unit
+            else f"{numerator.canonical_unit} per {denominator.canonical_unit}"
+        )
+        warnings: tuple[str, ...] = ()
+        if numerator.dimension in {"percentage", "ratio", "index"}:
+            warnings = (
+                "The numerator is already normalized; review whether a ratio of "
+                "normalized series has an interpretable economic meaning.",
+            )
+        return UnitCompatibility(
+            True,
+            "ratio",
+            canonical_units,
+            output_unit,
+            "Units can be divided without an unhandled currency-scale conversion.",
+            warnings,
+        )
+
+    if normalized_operation in {"add", "subtract"}:
+        if len(profiles) < 2:
+            return UnitCompatibility(
+                False,
+                normalized_operation,
+                canonical_units,
+                None,
+                "Addition and subtraction require at least two units.",
+            )
+        if "unknown" in canonical_units or len(set(canonical_units)) != 1:
+            return UnitCompatibility(
+                False,
+                normalized_operation,
+                canonical_units,
+                None,
+                "Addition and subtraction require identical declared units and scales.",
+            )
+        return UnitCompatibility(
+            True,
+            normalized_operation,
+            canonical_units,
+            canonical_units[0],
+            "All operands use the same declared unit and scale.",
+        )
+
+    if normalized_operation == "change":
+        if len(profiles) != 1:
+            return UnitCompatibility(
+                False,
+                "change",
+                canonical_units,
+                None,
+                "A temporal-change recipe requires exactly one input series.",
+            )
+        warnings = (
+            ("The source unit is not supplied; label the exported source value accordingly.",)
+            if profiles[0].dimension == "unknown"
+            else ()
+        )
+        return UnitCompatibility(
+            True,
+            "change",
+            canonical_units,
+            "percent or index",
+            "Temporal change compares one series with itself at different periods.",
+            warnings,
+        )
+
+    raise ValueError(f"Unsupported unit-check operation: {operation}")
+
+
+def check_recipe_units(
+    recipe_key: str,
+    units: Iterable[str | None],
+    *,
+    additive: bool | None = None,
+) -> UnitCompatibility:
+    """Apply the correct unit gate for a named task recipe."""
+    recipe = get_calculation_recipe(recipe_key)
+    return check_unit_compatibility(
+        recipe.operation,
+        units,
+        additive=additive if recipe.requires_additive_input else None,
+    )
+
+
+def _period_bounds(frame: pd.DataFrame) -> tuple[str | None, str | None]:
+    dates = pd.to_datetime(frame.get("date"), errors="coerce")
+    if not isinstance(dates, pd.Series) or not dates.notna().any():
+        return None, None
+    return dates.min().date().isoformat(), dates.max().date().isoformat()
+
+
+def _ordered_frequencies(values: Iterable[Any]) -> tuple[str, ...]:
+    present = {str(value) for value in values if pd.notna(value) and str(value)}
+    preferred = [frequency for frequency in ("M", "Q", "A") if frequency in present]
+    return tuple(preferred + sorted(present.difference(preferred)))
+
+
+def diagnose_alignment(
+    operands: Mapping[str, pd.DataFrame],
+    result: pd.DataFrame | None = None,
+) -> AlignmentDiagnostics:
+    """Report exact country/date/frequency matches and losses by operand."""
+    if not operands:
+        return AlignmentDiagnostics(
+            matched_observations=0,
+            output_observations=0 if result is not None else None,
+            dropped_after_calculation=0 if result is not None else None,
+            input_observations={},
+            dropped_observations={},
+            input_frequencies={},
+            input_periods={},
+            matched_frequencies=(),
+            matched_period_start=None,
+            matched_period_end=None,
+            matched_countries=0,
+        )
+
+    keyed_frames: dict[str, pd.DataFrame] = {}
+    input_observations: dict[str, int] = {}
+    input_frequencies: dict[str, tuple[str, ...]] = {}
+    input_periods: dict[str, tuple[str | None, str | None]] = {}
+    key_indexes: list[pd.MultiIndex] = []
+    for raw_name, frame in operands.items():
+        name = str(raw_name)
+        missing = set(ALIGN_KEYS).difference(frame.columns)
+        if missing:
+            raise ValueError(
+                f"Operand {name!r} is missing alignment columns: {sorted(missing)}"
+            )
+        keyed = frame[ALIGN_KEYS].copy()
+        keyed["date"] = pd.to_datetime(keyed["date"], errors="coerce")
+        keyed = keyed.dropna(subset=ALIGN_KEYS).drop_duplicates(ALIGN_KEYS)
+        keyed_frames[name] = keyed
+        input_observations[name] = len(keyed)
+        input_frequencies[name] = _ordered_frequencies(keyed["frequency"])
+        input_periods[name] = _period_bounds(keyed)
+        key_indexes.append(pd.MultiIndex.from_frame(keyed[ALIGN_KEYS]))
+
+    intersection = key_indexes[0]
+    for index in key_indexes[1:]:
+        intersection = intersection.intersection(index)
+    matched = intersection.to_frame(index=False, name=ALIGN_KEYS)
+    matched_count = len(matched)
+    dropped = {
+        name: max(count - matched_count, 0)
+        for name, count in input_observations.items()
+    }
+    matched_frequencies = _ordered_frequencies(
+        matched.get("frequency", pd.Series(dtype=str))
+    )
+    matched_start, matched_end = _period_bounds(matched)
+    output_count = None if result is None else int(len(result))
+    dropped_after = (
+        None if output_count is None else max(matched_count - output_count, 0)
+    )
+    return AlignmentDiagnostics(
+        matched_observations=matched_count,
+        output_observations=output_count,
+        dropped_after_calculation=dropped_after,
+        input_observations=input_observations,
+        dropped_observations=dropped,
+        input_frequencies=input_frequencies,
+        input_periods=input_periods,
+        matched_frequencies=matched_frequencies,
+        matched_period_start=matched_start,
+        matched_period_end=matched_end,
+        matched_countries=(
+            int(matched["country_code"].nunique()) if not matched.empty else 0
+        ),
+    )
+
+
+def build_query_metadata(
+    *,
+    operation: str,
+    recipe_key: str | None = None,
+    dataset: str | None = None,
+    source_version: str | None = None,
+    indicators: Mapping[str, str] | None = None,
+    countries: Iterable[str] = (),
+    requested_frequency: str | None = None,
+    requested_range: str | None = None,
+    formula: str | None = None,
+    scale: float | None = None,
+    units: Mapping[str, str] | None = None,
+    observation_statuses: Iterable[str] = (),
+    alignment: AlignmentDiagnostics | None = None,
+    unit_compatibility: UnitCompatibility | None = None,
+) -> dict[str, Any]:
+    """Build stable, JSON-ready metadata for chart-data or CSV exports."""
+    recipe = get_calculation_recipe(recipe_key) if recipe_key else None
+    normalized_operation = str(operation).strip().lower()
+    if recipe is not None and recipe.operation != normalized_operation:
+        raise ValueError(
+            f"Recipe {recipe.key!r} is for {recipe.operation!r}, not "
+            f"{normalized_operation!r}."
+        )
+    return {
+        "schema_version": "bankenv.calculation-query.v1",
+        "query": {
+            "dataset": None if dataset is None else str(dataset),
+            "source_version": None if source_version is None else str(source_version),
+            "indicators": dict(
+                sorted((str(key), str(value)) for key, value in (indicators or {}).items())
+            ),
+            "countries": sorted({str(country).upper() for country in countries}),
+            "requested_frequency": (
+                None if requested_frequency is None else str(requested_frequency)
+            ),
+            "requested_range": None if requested_range is None else str(requested_range),
+            "observation_statuses": sorted(
+                {str(status) for status in observation_statuses}
+            ),
+        },
+        "calculation": {
+            "operation": normalized_operation,
+            "recipe": recipe.as_dict() if recipe else None,
+            "formula": None if formula is None else str(formula),
+            "scale": None if scale is None else float(scale),
+            "units": dict(
+                sorted((str(key), str(value)) for key, value in (units or {}).items())
+            ),
+            "unit_compatibility": (
+                unit_compatibility.as_dict() if unit_compatibility else None
+            ),
+        },
+        "alignment": alignment.as_dict() if alignment else None,
+    }
 
 
 def normalize_observation_frame(
