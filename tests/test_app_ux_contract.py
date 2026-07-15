@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import re
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
 import streamlit as st
@@ -35,6 +38,29 @@ def _run_app(*, view: str, tool: str | None = None, section: str | None = None) 
     return app
 
 
+def _visible_copy(app: AppTest) -> str:
+    """Collect public copy, including text rendered inside dataframes."""
+    text_elements = (
+        app.markdown,
+        app.caption,
+        app.info,
+        app.warning,
+        app.success,
+        app.error,
+    )
+    chunks = [
+        str(item.value)
+        for group in text_elements
+        for item in group
+    ]
+    chunks.extend(
+        frame.value.to_string(index=False)
+        for frame in app.dataframe
+        if hasattr(frame.value, "to_string")
+    )
+    return "\n".join(chunks)
+
+
 @pytest.mark.parametrize(
     ("view", "tool", "section"),
     [
@@ -45,7 +71,7 @@ def _run_app(*, view: str, tool: str | None = None, section: str | None = None) 
         ("explorer", "source inspector", None),
         ("methodology", None, "How the Score Works"),
         ("methodology", None, "Data and Coverage"),
-        ("methodology", None, "Validation and Release"),
+        ("methodology", None, "Evidence and Limits"),
     ],
 )
 def test_public_workspace_loads_without_streamlit_errors(view, tool, section):
@@ -82,7 +108,31 @@ def test_methodology_defaults_to_score_overview_without_prior_section_state():
     app = _run_app(view="methodology")
 
     assert app.session_state["methodology_section"] == "How the Score Works"
-    assert any("## Model Card" in str(item.value) for item in app.markdown)
+    assert any("## How the Score Works" in str(item.value) for item in app.markdown)
+
+
+def test_methodology_recovers_old_or_stale_section_state():
+    app = _run_app(view="methodology", section="Validation and Release")
+
+    assert app.session_state["methodology_section"] == "How the Score Works"
+
+
+@requires_supported_widget_testing
+def test_archived_methodology_uses_archived_policy_evidence(monkeypatch):
+    monkeypatch.setenv("SHOW_ADMIN_DIAGNOSTICS", "1")
+    app = AppTest.from_file("app.py", default_timeout=180)
+    app.query_params["view"] = "methodology"
+    app.session_state["methodology_section"] = "Evidence and Limits"
+    app.session_state["snapshot_select"] = "2025-12-31"
+
+    app.run(timeout=180)
+
+    assert not app.exception, [str(item.value) for item in app.exception]
+    copy = _visible_copy(app)
+    assert "Coverage-based minimum scores currently affect 30 of 201 countries" in copy
+    assert "If removed, 22 countries move by at least 1 point" in copy
+    assert "No approved historical test is packaged with this snapshot" in copy
+    assert "currently affect 136 of 201 countries" not in copy
 
 
 @requires_supported_widget_testing
@@ -180,18 +230,100 @@ def test_source_inspector_remains_loaded_after_inner_control_rerun():
     )
 
 
-def test_validation_appendix_does_not_nest_expanders():
-    app = _run_app(
-        view="methodology",
-        section="Validation and Release",
+def test_public_methodology_is_plain_and_hides_release_engineering_copy():
+    apps = [
+        _run_app(view="methodology", section=section)
+        for section in (
+            "How the Score Works",
+            "Data and Coverage",
+            "Evidence and Limits",
+        )
+    ]
+    copy = "\n".join(_visible_copy(app) for app in apps)
+
+    forbidden_phrases = (
+        "schema-versioned",
+        "checksum-linked",
+        "fitted loading maps",
+        "arithmetic precursor",
+        "pre-reconciliation",
+        "operating threshold",
+        "leakage-safe",
+        "pre-declared forward holdout",
+        "served bundle",
+        "score-movement gate",
+        "Confusion Matrix Status",
+        "Release Gate",
+        "Technical Diagnostics",
     )
-    appendix = next(
-        item
-        for item in app.checkbox
-        if item.label == "Show candidate monitoring appendix"
+    for phrase in forbidden_phrases:
+        assert phrase not in copy
+    assert "Precision, recall, and a confusion matrix do not apply" in copy
+    assert "older crisis adjustment" in copy.lower()
+    assert all(
+        not any(
+            item.label == "Show candidate monitoring appendix"
+            for item in app.checkbox
+        )
+        for app in apps
     )
-    appendix.check().run(timeout=180)
-    assert not app.exception, [str(item.value) for item in app.exception]
+
+
+def test_methodology_coverage_uses_only_served_country_systems():
+    app = _run_app(view="methodology", section="Data and Coverage")
+
+    assert "Role" not in {item.label for item in app.selectbox}
+    snapshot_caption = next(
+        str(item.value)
+        for item in app.caption
+        if str(item.value).startswith("Model snapshot")
+    )
+    served_count_match = re.search(r"([\d,]+) countries$", snapshot_caption)
+    assert served_count_match is not None
+    served_count = int(served_count_match.group(1).replace(",", ""))
+    input_count = int(
+        next(
+            str(item.value)
+            for item in app.metric
+            if item.label == "Inputs used in score"
+        ).replace(",", "")
+    )
+    coverage = next(
+        frame.value
+        for frame in app.dataframe
+        if {
+            "Indicator",
+            "Countries with direct data",
+            "Coverage",
+        }.issubset(frame.value.columns)
+    )
+    assert len(coverage) == input_count
+    assert int(coverage["Countries with direct data"].max()) <= served_count
+    for _, row in coverage.iterrows():
+        assert row["Coverage"] == pytest.approx(
+            row["Countries with direct data"] / served_count
+        )
+
+    derived = next(
+        frame.value
+        for frame in app.dataframe
+        if "Indicator family" in frame.value.columns
+    )
+    expected_derived_counts = {
+        "External liquidity indicators": json.loads(
+            Path("data/reference/external_liquidity_features_report.json")
+            .read_text(encoding="utf-8")
+        )["observation_countries"],
+        "Government liquidity indicators": json.loads(
+            Path("data/reference/government_liquidity_features_report.json")
+            .read_text(encoding="utf-8")
+        )["observation_countries"],
+    }
+    actual_derived_counts = {
+        row["Indicator family"]: int(str(row["Countries"]).replace(",", ""))
+        for _, row in derived.iterrows()
+    }
+    assert actual_derived_counts == expected_derived_counts
 
 
 @requires_supported_widget_testing

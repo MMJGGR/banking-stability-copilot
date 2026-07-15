@@ -10,6 +10,7 @@ from src.dashboard.evidence import (
     STATUS_IMPUTED,
     STATUS_REPORTED_DERIVED,
     STATUS_UNAVAILABLE,
+    build_active_feature_coverage,
     build_active_feature_registry,
     build_active_input_inventory,
     feature_metadata,
@@ -269,6 +270,31 @@ def test_registry_rejects_duplicate_cross_pillar_membership():
                 "industry_loadings": {"gdp_growth": 0.5},
             }
         )
+
+
+def test_cross_country_coverage_counts_distinct_served_countries():
+    scores = pd.DataFrame({"country_code": ["USA", "KEN"]})
+    features = pd.DataFrame(
+        {
+            "country_code": ["usa", "USA", "KEN", "ZZZ"],
+            "gdp_growth": [2.0, np.nan, np.nan, 4.0],
+            "npl_ratio": [np.nan, 3.0, np.nan, 5.0],
+        }
+    )
+
+    coverage = build_active_feature_coverage(
+        scores,
+        features,
+        {
+            "economic_loadings": {"gdp_growth": 1.0},
+            "industry_loadings": {"npl_ratio": 1.0},
+        },
+    ).set_index("feature")
+
+    assert coverage.loc["gdp_growth", "direct_countries"] == 1
+    assert coverage.loc["gdp_growth", "direct_coverage"] == pytest.approx(0.5)
+    assert coverage.loc["npl_ratio", "direct_countries"] == 1
+    assert coverage.loc["npl_ratio", "direct_coverage"] == pytest.approx(0.5)
 
 
 def test_duplicate_country_rows_are_rejected():
