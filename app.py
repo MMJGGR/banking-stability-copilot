@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import importlib
 import os
 import json
 import re
@@ -65,6 +66,15 @@ from src.dashboard.presentation import (
 from src.dashboard.components import (
     render_time_series_deep_dive,
 )
+from src.dashboard import calculated_series as _calculated_series
+
+# Streamlit Cloud can rerun ``app.py`` in a warm interpreter after pulling a
+# commit while retaining an older imported helper module in ``sys.modules``.
+# Reload only when the helper API is stale so a source update cannot leave the
+# public app with a partial old/new import state.
+if getattr(_calculated_series, "CALCULATED_SERIES_API_VERSION", 0) < 2:
+    _calculated_series = importlib.reload(_calculated_series)
+
 from src.dashboard.calculated_series import (
     available_frequencies,
     check_cross_sectional_additivity,
