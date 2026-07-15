@@ -241,6 +241,7 @@ INVENTORY_COLUMNS = REGISTRY_COLUMNS + [
     "value",
     "period",
     "status",
+    "evidence_type",
     "is_direct",
 ]
 
@@ -364,6 +365,26 @@ def _period_value(
     return str(value)
 
 
+def _evidence_type(source_family: str, status: str) -> str:
+    """Describe provenance at the finest level supported by the artifact.
+
+    The promoted cross-section does not preserve upstream observation flags, so
+    it would be misleading to infer reported, estimated, projected, or
+    carried-forward status from a year alone. Derived and proxy roles are,
+    however, explicit in the maintained source-family metadata.
+    """
+    if status == STATUS_IMPUTED:
+        return "Imputed model value"
+    if status == STATUS_UNAVAILABLE:
+        return "Unavailable"
+    lineage = str(source_family).lower()
+    if "proxy" in lineage:
+        return "Derived proxy"
+    if "derived" in lineage:
+        return "Derived feature"
+    return "Source value; upstream status not retained"
+
+
 def build_active_input_inventory(
     country_code: str,
     model_features: pd.DataFrame | None,
@@ -414,6 +435,10 @@ def build_active_input_inventory(
                 "value": value,
                 "period": _period_value(feature, raw_row, imputed_row),
                 "status": status,
+                "evidence_type": _evidence_type(
+                    registry_row["source_family"],
+                    status,
+                ),
                 "is_direct": is_direct,
             }
         )

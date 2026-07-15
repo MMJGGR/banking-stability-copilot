@@ -134,16 +134,22 @@ def test_inventory_distinguishes_direct_imputed_and_unavailable_inputs():
     assert rows.loc["gdp_growth", "value"] == pytest.approx(3.0)
     assert rows.loc["gdp_growth", "imputed_value"] == pytest.approx(99.0)
     assert rows.loc["gdp_growth", "period"] == 2025
+    assert (
+        rows.loc["gdp_growth", "evidence_type"]
+        == "Source value; upstream status not retained"
+    )
     assert bool(rows.loc["gdp_growth", "is_direct"]) is True
 
     assert rows.loc["inflation", "status"] == STATUS_IMPUTED
     assert rows.loc["inflation", "value"] == pytest.approx(4.5)
     assert rows.loc["inflation", "period"] == 2024
+    assert rows.loc["inflation", "evidence_type"] == "Imputed model value"
     assert bool(rows.loc["inflation", "is_direct"]) is False
 
     assert rows.loc["npl_ratio", "status"] == STATUS_UNAVAILABLE
     assert np.isnan(rows.loc["npl_ratio", "value"])
     assert rows.loc["npl_ratio", "period"] is None
+    assert rows.loc["npl_ratio", "evidence_type"] == "Unavailable"
     assert bool(rows.loc["npl_ratio", "is_direct"]) is False
 
 
@@ -211,6 +217,35 @@ def test_index_based_feature_frames_and_imputed_periods_are_supported():
     assert row["status"] == STATUS_IMPUTED
     assert row["value"] == pytest.approx(4.0)
     assert row["period"] == "2023Q4"
+    assert row["evidence_type"] == "Imputed model value"
+
+
+def test_inventory_distinguishes_derived_features_and_proxies():
+    inventory = build_active_input_inventory(
+        "USA",
+        pd.DataFrame(
+            {
+                "country_code": ["USA"],
+                "m2_to_reserves": [2.0],
+                "gross_external_financing_need_proxy_gdp": [12.0],
+            }
+        ),
+        {
+            "economic_loadings": {
+                "m2_to_reserves": 0.5,
+                "gross_external_financing_need_proxy_gdp": 0.5,
+            },
+            "industry_loadings": {},
+        },
+    ).rows.set_index("feature")
+
+    assert inventory.loc["m2_to_reserves", "evidence_type"] == "Derived feature"
+    assert (
+        inventory.loc[
+            "gross_external_financing_need_proxy_gdp", "evidence_type"
+        ]
+        == "Derived proxy"
+    )
 
 
 def test_empty_loading_maps_have_explicit_zero_coverage_semantics():

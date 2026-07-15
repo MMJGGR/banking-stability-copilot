@@ -3281,5 +3281,32 @@ An item is checked only after its acceptance criteria pass in the rendered app.
     is tracked independently.
   - Exclusions: model retuning, ranking-policy changes, new-source procurement,
     arbitrary scenario cascades, a conversational layer, and formal WCAG
-    certification are not disguised as UX fixes; each has an explicit re-entry
-    gate.
+  certification are not disguised as UX fixes; each has an explicit re-entry
+  gate.
+- [ ] Checkpoint 51: Validate and release the comprehensive UX remediation.
+  - Working branch: `agent/ux-remediation-implementation`; draft PR
+    [#20](https://github.com/MMJGGR/banking-stability-copilot/pull/20).
+  - Implementation checkpoint: the four public workspaces now render
+    conditionally; Country has one risk direction, a reconciling score bridge,
+    on-demand analyst-readable attribution, canonical active-input evidence,
+    auditable peers, and scenarios demoted to the final workflow step. Global
+    leads with the disclosed watchlist and provides accessible data exports.
+    Explorer shares one grouped source registry, persists Source Inspector
+    state, enforces unit/additivity/alignment gates, and exposes full chart
+    data. Methodology is one concise three-section workspace with governed
+    confusion-matrix handling and a filterable Data Card.
+  - Trust/reliability checkpoint: stale country, peer, and navigation state is
+    sanitized; source failures clear after a successful retry; floor and
+    critical-missingness outputs remain distinct; obsolete duplicate
+    Methodology/liquidity renderers were removed.
+  - Automated evidence at this checkpoint: 65 focused model/dashboard tests
+    passed; 10 rendered AppTest routes passed locally and two interaction tests
+    were skipped only because the local Streamlit 1.30 test harness predates the
+    repository's supported `>=1.45` range. The supported-version CI run, full
+    repository suite, viewport/theme browser matrix, and live deployment smoke
+    test remain required before this checkpoint or UX-01 through UX-24 can be
+    marked complete.
+  - Score invariance check: the recomputed structural score matches the served
+    score for 199/201 countries; the only two differences are exactly the
+    recorded legacy crisis adjustments for Switzerland and Seychelles. USA
+    remains 7.0, Kenya 8.0, and Mozambique 8.6.

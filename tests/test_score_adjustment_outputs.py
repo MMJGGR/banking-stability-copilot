@@ -46,6 +46,29 @@ def test_penalty_only_country_is_not_mislabelled_as_floor_applied():
     assert not bool(row["risk_floor_applied"])
 
 
+def test_floor_only_country_has_no_critical_missingness_penalty():
+    pipeline, features = _fit_pipeline(median_risk=1.0)
+    probe = features.iloc[[0]].copy()
+    keep = {
+        "country_code",
+        "capital_adequacy",
+        "npl_ratio",
+        "liquid_assets_st_liab",
+        "loan_concentration",
+    }
+    for column in probe.columns:
+        if column not in keep:
+            probe[column] = np.nan
+
+    row = pipeline.transform(probe).iloc[0]
+
+    assert bool(row["risk_floor_applied"])
+    assert row["risk_floor_delta"] > 0
+    assert row["critical_missing_fields"] == ()
+    assert row["critical_missing_share"] == pytest.approx(0.0)
+    assert row["critical_penalty_applied"] == pytest.approx(0.0)
+
+
 def test_floor_and_missingness_outputs_reconcile_to_structural_score():
     # A low median makes the deliberately sparse row remain below the six-point
     # policy floor before the floor is applied, giving this test both a true

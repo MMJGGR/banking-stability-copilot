@@ -223,21 +223,21 @@ def render_summary_card(country_name: str, score: float, tier: int, confidence: 
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown(f'<div class="summary-header">Risk Score</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Risk Score</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-value" style="color: {color}">{score:.1f}/10</div>', unsafe_allow_html=True)
         
     with col2:
-        st.markdown(f'<div class="summary-header">Risk Tier</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Risk Tier</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="summary-value" style="color: {color}">{label}</div>', unsafe_allow_html=True)
         
     with col3:
-        st.markdown(f'<div class="summary-header">Category</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Category</div>', unsafe_allow_html=True)
         # Map tier to category description
         categories = {1: "Very Low", 2: "Low", 3: "Moderate", 4: "High", 5: "Very High"}
         st.markdown(f'<div class="summary-value">{categories.get(tier, "N/A")} Risk</div>', unsafe_allow_html=True)
 
     with col4:
-        st.markdown(f'<div class="summary-header">Data Coverage</div>', unsafe_allow_html=True)
+        st.markdown('<div class="summary-header">Data Coverage</div>', unsafe_allow_html=True)
         # Color code coverage
         cov_color = "#22c55e" if confidence >= 0.70 else "#f59e0b" if confidence >= 0.50 else "#ef4444"
         st.markdown(f'<div class="summary-value" style="color: {cov_color}">{confidence:.0%}</div>', unsafe_allow_html=True)

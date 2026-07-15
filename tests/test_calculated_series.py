@@ -198,6 +198,7 @@ def test_cross_sectional_share_gate_requires_additive_levels():
     assert check_cross_sectional_additivity(
         "source unit unavailable", additive=True
     ).valid is True
+    assert check_cross_sectional_additivity("US dollar").valid is True
 
 
 def test_unit_compatibility_catches_scale_mismatch_and_unsafe_addition():

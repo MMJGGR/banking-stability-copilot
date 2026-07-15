@@ -586,3 +586,40 @@ def render_global_summary(
     _render_watchlist(df)
     _render_risk_map(df)
     _render_regional_charts(df, region_summary)
+    with st.expander("Download global analysis data", expanded=False):
+        export_columns = [
+            column
+            for column in (
+                "country_code",
+                "country_name",
+                "Region",
+                "risk_score",
+                "nominal_gdp",
+                "gdp_growth",
+                "economic_pillar",
+                "industry_pillar",
+                "data_coverage",
+            )
+            if column in df.columns
+        ]
+        country_export = df[export_columns].sort_values(
+            ["risk_score", "country_name"],
+            ascending=[False, True],
+        )
+        export_col1, export_col2 = st.columns(2)
+        with export_col1:
+            st.download_button(
+                "Download country risk data",
+                data=country_export.to_csv(index=False).encode("utf-8"),
+                file_name="bankenv_global_country_risk.csv",
+                mime="text/csv",
+                key="download_global_country_risk",
+            )
+        with export_col2:
+            st.download_button(
+                "Download regional risk data",
+                data=region_summary.to_csv(index=False).encode("utf-8"),
+                file_name="bankenv_global_regional_risk.csv",
+                mime="text/csv",
+                key="download_global_regional_risk",
+            )

@@ -235,10 +235,15 @@ def profile_unit(unit: str | None, *, additive: bool | None = None) -> UnitProfi
     index_markers = ("index", "base year", "=100")
     currency_markers = (
         "usd",
+        "us dollar",
+        "u.s. dollar",
         "eur",
+        "euro",
         "gbp",
+        "pound sterling",
         "kes",
         "lcu",
+        "domestic currency",
         "currency",
         "local currency",
     )
