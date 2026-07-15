@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 
 
+EVIDENCE_API_VERSION = 2
+
+
 STATUS_REPORTED_DERIVED = "Reported/derived"
 STATUS_IMPUTED = "Imputed for scoring"
 STATUS_UNAVAILABLE = "Unavailable"
@@ -522,6 +525,7 @@ __all__ = [
     "ACTIVE_MODEL_ROLE",
     "ActiveInputInventory",
     "DirectActiveInputCoverage",
+    "EVIDENCE_API_VERSION",
     "FEATURE_EVIDENCE_METADATA",
     "FeatureEvidenceMetadata",
     "STATUS_IMPUTED",

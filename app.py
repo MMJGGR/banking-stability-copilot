@@ -91,11 +91,20 @@ from src.dashboard.calculated_series import (
     validate_formula,
 )
 from src.dashboard.global_view import render_global_summary
-from src.dashboard.evidence import (
-    build_active_feature_coverage,
-    build_active_feature_registry,
-    build_active_input_inventory,
-)
+from src.dashboard import evidence as _dashboard_evidence
+
+# Streamlit Cloud can briefly execute a refreshed ``app.py`` in a warm process
+# that still holds the previous evidence helper module. Reload only when its API
+# predates the cross-country coverage helper required by this app revision.
+if (
+    getattr(_dashboard_evidence, "EVIDENCE_API_VERSION", 0) < 2
+    or not hasattr(_dashboard_evidence, "build_active_feature_coverage")
+):
+    _dashboard_evidence = importlib.reload(_dashboard_evidence)
+
+build_active_feature_coverage = _dashboard_evidence.build_active_feature_coverage
+build_active_feature_registry = _dashboard_evidence.build_active_feature_registry
+build_active_input_inventory = _dashboard_evidence.build_active_input_inventory
 from src import utils as dashboard_utils
 
 
