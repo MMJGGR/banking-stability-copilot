@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+  # Keep this scheduled probe active while the production app remains deployed.
   schedule:
     - cron: "23 */6 * * *"
   workflow_dispatch:
