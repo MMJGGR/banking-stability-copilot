@@ -1,0 +1,154 @@
+name: September candidate lineage and reproduction audit
+on:
+  push:
+    branches: [validation/september-candidate-2026-09-15]
+    paths: [.github/workflows/validate-september-lineage.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 42f1920af908730b483e8831d74a7752ea674bf6
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+      - name: Retrieve checksum-pinned inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/candidate.zip
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10403046735/zip > /tmp/audit.zip
+          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/candidate.zip' | sha256sum -c -
+          echo '4d43479a643abefd0f04d4dbf162cbbfdb9fe28740f68f33a0aa7306d7f8680c  /tmp/audit.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile, shutil, hashlib, json
+          from pathlib import Path
+          for label in ['candidate','audit']:
+              root=Path('/tmp') / label
+              root.mkdir(exist_ok=True)
+              with zipfile.ZipFile(f'/tmp/{label}.zip') as z:
+                  for name in z.namelist():
+                      assert (root/name).resolve().is_relative_to(root.resolve())
+                  z.extractall(root)
+          manifest=json.loads(Path('/tmp/candidate/artifacts/data_manifest.json').read_text())
+          for name, meta in manifest['artifacts'].items():
+              p=Path('/tmp/candidate')/name
+              assert len(p.read_bytes())==meta['bytes']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
+          for folder in ['artifacts','cache','data']:
+              shutil.copytree(Path('/tmp/candidate')/folder,folder,dirs_exist_ok=True)
+          PY
+      - name: Reproduce scores, audit lineage, and test source-order invariance
+        run: |
+          mkdir -p lineage-output
+          python - <<'PY' 2>&1 | tee lineage-output/run.log
+          import contextlib, io, json, pickle, hashlib
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          import train_model
+          from src.feature_engineering import CrisisFeatureEngineer
+          from src.scripts.audit_model_policy import build_policy_audit
+          from src.scripts.explain_country_scores import build_driver_table
+          out=Path('lineage-output')
+          roots={'baseline':Path('/tmp/audit/baseline'),'candidate':Path('cache')}
+          models={k:pickle.loads((v/'risk_model.pkl').read_bytes()) for k,v in roots.items()}
+          pipes={k:pickle.loads((v/'inference_pipeline.pkl').read_bytes())['pillar_pipeline'] for k,v in roots.items()}
+          result={}
+          def score(pipe,features):
+              scored=pipe.transform(features).set_index('country_code')
+              prob=features.set_index('country_code')['crisis_prob'].reindex(scored.index)
+              scored['risk_score']=(scored.risk_score+0.1*((1+9*prob)-scored.risk_score).clip(lower=0)).clip(1,10)
+              return scored
+          for label in roots:
+              m=models[label]; p=pipes[label]
+              features=m['feature_values']
+              scores=m['country_scores'].set_index('country_code')
+              replay=score(p,features).reindex(scores.index)
+              diff=replay.risk_score-scores.risk_score
+              result[label+'_replay']={'max_abs_difference':float(diff.abs().max()),'nonzero_countries':int((diff.abs()>1e-10).sum())}
+              pd.DataFrame({'stored':scores.risk_score,'replayed':replay.risk_score,'difference':diff}).to_csv(out/f'{label}-replay.csv')
+              meta={'numeric_columns':p.numeric_columns_,'economic_columns':p.economic_columns_,'industry_columns':p.industry_columns_,'empty_columns':p.empty_columns_,'loadings':p.loadings(),'risk_directions':p.risk_directions_,'critical_columns':p.critical_columns_}
+              (out/f'{label}-pipeline.json').write_text(json.dumps(meta,indent=2))
+          bm=models['baseline']; cm=models['candidate']; bp=pipes['baseline']; cp=pipes['candidate']
+          cf=cm['feature_values'].copy(); bf=bm['feature_values'].copy()
+          frozen=score(bp,cf)
+          recency_fixed=cf.copy()
+          old_recency=bf.set_index('country_code').years_since_banking_crisis
+          recency_fixed['years_since_banking_crisis']=recency_fixed.country_code.map(old_recency)
+          frozen_oldrecency=score(bp,recency_fixed)
+          comparison=pd.DataFrame(index=bm['country_scores'].country_code)
+          comparison['production']=bm['country_scores'].set_index('country_code').risk_score
+          comparison['baseline_replay']=score(bp,bf).risk_score
+          comparison['fresh_with_old_pipeline_old_recency']=frozen_oldrecency.risk_score
+          comparison['fresh_with_old_pipeline']=frozen.risk_score
+          comparison['candidate']=cm['country_scores'].set_index('country_code').risk_score
+          comparison['other_input_effect']=comparison.fresh_with_old_pipeline_old_recency-comparison.baseline_replay
+          comparison['crisis_recency_effect']=comparison.fresh_with_old_pipeline-comparison.fresh_with_old_pipeline_old_recency
+          comparison['pipeline_refit_effect']=comparison.candidate-comparison.fresh_with_old_pipeline
+          comparison.to_csv(out/'score-attribution.csv')
+          actual_audit=build_policy_audit(cf)
+          stored_audit=json.loads(Path('artifacts/model_policy_audit.json').read_text())
+          result['policy_audit_from_actual_model_features_matches']=actual_audit==stored_audit
+          (out/'policy-audit-actual-feature-input.json').write_text(json.dumps(actual_audit,indent=2))
+          raw=pd.read_parquet('cache/crisis_features.parquet').set_index('country_code')
+          modelraw=cf.set_index('country_code').reindex(raw.index)
+          mismatches=[]
+          for col in raw.columns:
+              x=raw[col];y=modelraw[col]
+              equal=x.eq(y)|(x.isna()&y.isna())
+              if not equal.all():mismatches.append({'field':col,'count':int((~equal).sum())})
+          result['raw_cache_vs_model_input_mismatches']=mismatches
+          drivers=build_driver_table(['BGR','MHL','ROU','ARE','LUX','TLS','HRV','SRB','EST','LTU','KEN','COD','CMR','BFA','ETH'],model=cm,pipeline=cp)
+          (out/'country-drivers.json').write_text(json.dumps(drivers,indent=2))
+          fsic=pd.read_parquet('cache/FSIC_cache.parquet');mfs=pd.read_parquet('cache/MFS_cache.parquet');weo=pd.read_parquet('cache/WEO_cache.parquet')
+          def stablecheck(name,method,frames):
+              with contextlib.redirect_stdout(io.StringIO()):
+                  f1=method(*frames,as_of_date='2026-09-15').set_index('country_code').sort_index()
+                  f2=method(*[x.iloc[::-1].reset_index(drop=True) for x in frames],as_of_date='2026-09-15').set_index('country_code').sort_index()
+              cols=f1.select_dtypes(include=[np.number]).columns.intersection(f2.columns)
+              f2=f2.reindex(f1.index)
+              changes=[]
+              for col in cols:
+                  equal=np.isclose(f1[col],f2[col],atol=1e-8,rtol=1e-10,equal_nan=True)
+                  for cc in f1.index[~equal]:
+                      changes.append({'country_code':cc,'field':col,'original_order':f1.loc[cc,col],'reversed_order':f2.loc[cc,col]})
+              pd.DataFrame(changes,columns=['country_code','field','original_order','reversed_order']).to_csv(out/f'{name}-row-order-changes.csv',index=False)
+              result[name+'_row_order_changed_cells']=len(changes)
+              return f1,f2
+          eng=CrisisFeatureEngineer()
+          ff1,ff2=stablecheck('fsic',eng.extract_fsic_features,[fsic])
+          mm1,mm2=stablecheck('mfs_sovereign',eng.compute_sovereign_bank_nexus,[mfs,weo])
+          cc1,cc2=stablecheck('credit_depth',eng.compute_credit_to_gdp_relative,[mfs,weo])
+          lineage=[]
+          for label,frame in [('FSIC',fsic),('MFS',mfs),('WEO',weo)]:
+              frame=frame[pd.to_datetime(frame.period)<=pd.Timestamp('2026-09-15')].copy()
+              group=frame.groupby(['country_code','indicator_code'])['period'].transform('max')
+              latest=frame[frame.period.eq(group)]
+              conflicts=latest.groupby(['country_code','indicator_code'])['value'].nunique().gt(1)
+              bad=conflicts[conflicts].reset_index()[['country_code','indicator_code']]
+              latest.merge(bad,on=['country_code','indicator_code']).to_csv(out/f'{label}-latest-conflicting-observations.csv',index=False)
+              result[label+'_latest_conflicting_series']=len(bad)
+              result[label+'_columns']=list(frame.columns)
+          for code in ['MHL','TLS']:
+              fsic[fsic.country_code.eq(code)].to_csv(out/f'{code}-fsic-source.csv',index=False)
+          result['decision']='REVIEW_REQUIRED_NO_AUTOMATIC_PROMOTION'
+          (out/'lineage-summary.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+      - name: Upload evidence without changing production
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: september-lineage-reproduction
+          path: lineage-output/
+          retention-days: 30
+          if-no-files-found: error
