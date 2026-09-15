@@ -1,0 +1,62 @@
+name: Validate FSIC selection and September release
+on:
+  push:
+    branches: [fix/fsic-selection-promotion-2026-09-15]
+    paths: [.github/workflows/fsic-release.yml]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: fsic-selection-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          lfs: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+      - name: Inspect checksum-pinned September source observations
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/candidate.zip
+          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/candidate.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile, json, hashlib
+          from pathlib import Path
+          import pandas as pd
+          root=Path('/tmp/candidate')
+          with zipfile.ZipFile('/tmp/candidate.zip') as z:
+              for name in z.namelist():
+                  assert (root/name).resolve().is_relative_to(root.resolve())
+              z.extractall(root)
+          manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
+          for name, meta in manifest['artifacts'].items():
+              p=root/name
+              assert len(p.read_bytes())==meta['bytes']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
+          df=pd.read_parquet(root/'cache/FSIC_cache.parquet')
+          df['indicator_code']=df.indicator_code.str.strip()
+          vnm=df[df.country_code.eq('VNM') & df.indicator_name.str.contains('Tier 1 capital to risk-weighted assets',case=False,na=False)].copy()
+          vnm=vnm[pd.to_datetime(vnm.period)<=pd.Timestamp('2026-09-15')]
+          vnm=vnm[vnm.period.eq(vnm.period.max())]
+          ratios=df[df.unit.eq('PT')].drop_duplicates(['indicator_code','indicator_name'])
+          report={'source_artifact':10402061259,'cutoff':'2026-09-15','columns':list(df.columns),'vnm_latest_competing_rows':json.loads(vnm.to_json(orient='records',date_format='iso')),'percent_series_catalog':json.loads(ratios[['indicator_code','indicator_name','unit']].sort_values('indicator_code').to_json(orient='records'))}
+          p=Path('review/2026-09-15/fsic-source-diagnostic.json');p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
+          PY
+          git add review/2026-09-15/fsic-source-diagnostic.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'audit: record exact FSIC series metadata and Vietnam competing observations'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
