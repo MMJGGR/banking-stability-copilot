@@ -12,7 +12,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       GH_TOKEN: ${{ github.token }}
       OMP_NUM_THREADS: '2'
@@ -27,23 +27,26 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - name: Install dependencies and normalize audit-only date metadata
+      - name: Install dependencies and wire stable-distance implementation
         run: |
           python -m pip install -r requirements-dev.txt -c constraints-dev.txt
           python -m pip check
-          python review/2026-09-15/finalize_release.py patch
           python - <<'PY'
           from pathlib import Path
-          p=Path('src/scripts/validate_fsic_release.py');text=p.read_text()
-          old='        saved = sidecar.reindex(eligible.index)[pipe.numeric_columns_]\n'
-          new='        saved = sidecar.reindex(eligible.index)[pipe.numeric_columns_].astype(float)\n'
-          if old in text:
+          p=Path('src/pillar_pipeline.py');text=p.read_text()
+          old='from sklearn.preprocessing import MinMaxScaler\n'
+          new=old+'\nfrom src.stable_distance import stable_nan_euclidean\n'
+          if new not in text:
               assert text.count(old)==1
-              p.write_text(text.replace(old,new))
-          else:
-              assert new in text
+              text=text.replace(old,new)
+          old='            weights="distance",\n        )'
+          new='            weights="distance",\n            metric=stable_nan_euclidean,\n        )'
+          if new not in text:
+              assert text.count(old)==1
+              text=text.replace(old,new)
+          p.write_text(text)
           PY
-          python -m py_compile src/scripts/validate_fsic_release.py
+          python -m py_compile src/pillar_pipeline.py src/stable_distance.py src/scripts/validate_fsic_release.py
       - name: Preserve verified production baseline
         run: |
           set -euo pipefail
@@ -52,54 +55,79 @@ jobs:
           python -c "from src.classifier_integrity import verify_classifier_file; print(verify_classifier_file())"
           mkdir -p /tmp/baseline/cache release-output
           cp cache/*.pkl cache/imputed_features.parquet /tmp/baseline/cache/
-      - name: Run complete regression suite and commit audit repair
+      - name: Run all tests and commit the exact tested runtime
         run: |
           set -euo pipefail
           python -m pytest -q --junitxml=release-output/tests.xml | tee release-output/tests.txt
-          git add src/scripts/validate_fsic_release.py
+          git add src/pillar_pipeline.py
           if ! git diff --cached --quiet; then
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'audit: use numeric arrays when replaying nullable date metadata'
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: use direct-difference missing-aware distances for pillar imputation'
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
           git rev-parse HEAD > release-output/source-commit.txt
-      - name: Retrieve and verify original and repaired candidates
+      - name: Retrieve and verify original September 15 source vintage
         run: |
           set -euo pipefail
           gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/previous.zip
-          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10404058870/zip > /tmp/repaired.zip
           echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/previous.zip' | sha256sum -c -
-          echo 'e89dab14c26636aa7cee9a771e26d54e416fd9a2041d3d00ff896f7b1f9eb3dd  /tmp/repaired.zip' | sha256sum -c -
           python - <<'PY'
-          import zipfile, json, hashlib, shutil
+          import zipfile, json, hashlib
           from pathlib import Path
-          for label in ['previous','repaired']:
-              root=Path('/tmp')/label
-              with zipfile.ZipFile(f'/tmp/{label}.zip') as z:
-                  for name in z.namelist():
-                      assert (root/name).resolve().is_relative_to(root.resolve())
-                  z.extractall(root)
-              manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
-              for name,meta in manifest['artifacts'].items():
-                  p=root/name
-                  assert p.stat().st_size==meta['bytes']
-                  assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
-          for folder in ['cache','artifacts','data']:
-              shutil.copytree(Path('/tmp/repaired')/folder,folder,dirs_exist_ok=True)
+          root=Path('/tmp/previous')
+          with zipfile.ZipFile('/tmp/previous.zip') as z:
+              for name in z.namelist():
+                  assert (root/name).resolve().is_relative_to(root.resolve())
+              z.extractall(root)
+          manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
+          for name,meta in manifest['artifacts'].items():
+              p=root/name
+              assert p.stat().st_size==meta['bytes']
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
           PY
-          python -m src.scripts.smoke_test_artifacts | tee release-output/smoke.txt
+      - name: Rebuild fixed candidate without classifier retraining
+        run: |
+          set -o pipefail
+          python -m src.scripts.refresh_data --as-of 2026-09-15 --source-snapshot /tmp/previous 2>&1 | tee release-output/rebuild.log
+          python -m src.scripts.smoke_test_artifacts 2>&1 | tee release-output/smoke.txt
       - name: Full independent replay and source permutation checks
         run: |
           set -o pipefail
           python -m src.scripts.validate_fsic_release --previous /tmp/previous --baseline /tmp/baseline --output release-output 2>&1 | tee release-output/validation.log
-      - name: Prepare atomic release only after passing all gates
+      - name: Prepare atomic release after all gates pass
         run: |
           set -o pipefail
-          python review/2026-09-15/finalize_release.py prepare 2>&1 | tee release-output/preparation.log
+          python review/2026-09-15/prepare_release.py 2>&1 | tee release-output/preparation.log
       - name: Preserve complete gate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fsic-promotion-validation-2026-09-15
+          name: fsic-stable-distance-promotion-validation-2026-09-15
           path: release-output/
           retention-days: 90
           if-no-files-found: error
+      - name: Preserve candidate separately from approval
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsic-stable-distance-candidate-2026-09-15
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            artifacts/data_manifest.json
+            artifacts/validated_classifier.json
+            artifacts/model_policy_audit.json
+            artifacts/feature_heuristics.json
+            artifacts/government_liquidity_features_report.json
+            data/reference/government_liquidity_features.parquet
+            data/reference/government_liquidity_observations.parquet
+            data/reference/government_liquidity_features_report.json
+            cache/FSIBSIS_cache.parquet
+            cache/FSIC_cache.parquet
+            cache/MFS_cache.parquet
+            cache/WEO_cache.parquet
+            cache/WGI_cache.parquet
+            cache/crisis_features.parquet
+            cache/imputed_features.parquet
+            cache/risk_model.pkl
+            cache/inference_pipeline.pkl
+            cache/crisis_classifier.pkl
