@@ -43,6 +43,24 @@ def replay(root, model, *, saved_imputation=False, threads=2):
         eligible = numeric[numeric.notna().mean(axis=1) >= pipe.minimum_data_coverage]
         saved = sidecar.reindex(eligible.index)[pipe.numeric_columns_]
         assert sidecar.index.is_unique and set(saved.index) == set(eligible.index)
+        # Display sidecars intentionally retain missing observation dates.
+        # Dates are not pillar inputs; reconstruct only those unused metadata
+        # cells so the fitted scaler receives its complete numeric schema.
+        missing_metadata = saved.columns[saved.isna().any()].tolist()
+        used = set(pipe.economic_columns_) | set(pipe.industry_columns_)
+        assert all(c.endswith('_year') for c in missing_metadata), missing_metadata
+        assert not (set(missing_metadata) & used), missing_metadata
+        if missing_metadata:
+            with threadpool_limits(limits=threads):
+                reconstructed = pd.DataFrame(
+                    pipe.imputer_.transform(eligible[pipe.imputed_columns_]),
+                    index=eligible.index, columns=pipe.imputed_columns_)
+            for col in missing_metadata:
+                if col in reconstructed:
+                    saved[col] = saved[col].fillna(reconstructed[col])
+                else:
+                    assert col in pipe.empty_columns_, col
+                    saved[col] = saved[col].fillna(0.0)
         assert np.isfinite(saved.to_numpy(dtype=float)).all()
         assert ((saved == eligible) | eligible.isna()).all().all(), 'Saved imputation changed an observed value'
         def persisted_transform(frame):
