@@ -1,0 +1,111 @@
+name: Review classifier-preserving September snapshot
+
+on:
+  push:
+    branches: ["fix/classifier-preserving-refresh-2026-09-15"]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: classifier-preserving-september-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: github.ref == 'refs/heads/fix/classifier-preserving-refresh-2026-09-15'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          lfs: false
+          fetch-depth: 0
+      - name: Apply context-checked source fix
+        run: python review/2026-09-15/apply_fix.py
+      - name: Hydrate selected baseline LFS objects
+        run: |
+          git lfs install --local
+          git lfs pull --include="cache/*.pkl,cache/*_cache.parquet,cache/crisis_features.parquet,cache/imputed_features.parquet,data/reference/*.parquet" --exclude=""
+          python -c "from src.classifier_integrity import verify_classifier_file; print(verify_classifier_file())"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned project dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip check
+      - name: Unit and regression tests
+        run: |
+          mkdir -p review-output
+          set -o pipefail
+          python -m pytest -q --junitxml=review-output/tests.xml | tee review-output/tests.txt
+      - name: Commit tested source-only fix on review branch
+        run: |
+          git add train_model.py src/scripts/refresh_data.py
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix: fail closed and preserve classifier during snapshot refresh"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git rev-parse HEAD > review-output/source_commit.txt
+          git diff 860cfd64d795458a871f1a654e7497bf3a360012 -- train_model.py src/scripts/refresh_data.py src/classifier_integrity.py src/snapshot_reuse.py tests/test_classifier_integrity.py .github/workflows/refresh-data.yml > review-output/source_fix.patch
+      - name: Preserve baseline and original candidate evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/baseline/cache" "$RUNNER_TEMP/baseline/artifacts" "$RUNNER_TEMP/original"
+          cp cache/*_cache.parquet cache/crisis_classifier.pkl cache/risk_model.pkl cache/inference_pipeline.pkl cache/crisis_features.parquet cache/imputed_features.parquet "$RUNNER_TEMP/baseline/cache/"
+          cp artifacts/data_manifest.json artifacts/model_policy_audit.json "$RUNNER_TEMP/baseline/artifacts/"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/10297154977/zip" > "$RUNNER_TEMP/original.zip"
+          echo "d02b1865febdf6a3083ffa74afa239b6e6ba2fbf663c083ab90176fa90d592fa  $RUNNER_TEMP/original.zip" | sha256sum --check
+          python -m zipfile -e "$RUNNER_TEMP/original.zip" "$RUNNER_TEMP/original"
+          cp "$RUNNER_TEMP/baseline/artifacts/data_manifest.json" review-output/baseline_manifest.json
+          cp "$RUNNER_TEMP/original/artifacts/data_manifest.json" review-output/original_candidate_manifest.json
+      - name: Rebuild identical source vintage with baseline classifier
+        run: |
+          set -o pipefail
+          python -m src.scripts.refresh_data --as-of 2026-09-12 --source-snapshot "$RUNNER_TEMP/original" | tee review-output/rebuild.log
+      - name: Smoke-test complete serving bundle
+        run: |
+          set -o pipefail
+          python -m src.scripts.smoke_test_artifacts | tee review-output/smoke-test.txt
+      - name: Reconcile sources, features, scores and frozen pipeline
+        run: python -m src.scripts.review_candidate --baseline "$RUNNER_TEMP/baseline" --original "$RUNNER_TEMP/original" --candidate . --output review-output
+      - name: Upload review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classifier-preserving-review-2026-09-12
+          path: review-output/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Upload validated candidate without promotion
+        uses: actions/upload-artifact@v4
+        with:
+          name: banking-copilot-2026-09-12-classifier-preserved
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            artifacts/data_manifest.json
+            artifacts/validated_classifier.json
+            artifacts/model_policy_audit.json
+            artifacts/feature_heuristics.json
+            artifacts/government_liquidity_features_report.json
+            data/reference/government_liquidity_features.parquet
+            data/reference/government_liquidity_observations.parquet
+            data/reference/government_liquidity_features_report.json
+            cache/FSIBSIS_cache.parquet
+            cache/FSIC_cache.parquet
+            cache/MFS_cache.parquet
+            cache/WEO_cache.parquet
+            cache/WGI_cache.parquet
+            cache/crisis_features.parquet
+            cache/imputed_features.parquet
+            cache/risk_model.pkl
+            cache/inference_pipeline.pkl
+            cache/crisis_classifier.pkl
