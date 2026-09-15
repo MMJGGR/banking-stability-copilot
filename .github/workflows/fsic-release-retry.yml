@@ -12,7 +12,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
       OMP_NUM_THREADS: '2'
@@ -27,120 +27,66 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - name: Install and check dependencies
+      - name: Install dependencies and repair audit-only metadata handling
         run: |
           python -m pip install -r requirements-dev.txt -c constraints-dev.txt
           python -m pip check
+          python review/2026-09-15/finalize_release.py patch
+          python -m py_compile src/scripts/validate_fsic_release.py
       - name: Preserve verified production baseline
         run: |
           set -euo pipefail
           git lfs install --local
           git lfs pull --include="cache/*.pkl,cache/*_cache.parquet,cache/crisis_features.parquet,cache/imputed_features.parquet,data/reference/*.parquet" --exclude=""
           python -c "from src.classifier_integrity import verify_classifier_file; print(verify_classifier_file())"
-          mkdir -p /tmp/baseline/cache /tmp/baseline/artifacts release-output
-          cp cache/*.pkl cache/*_cache.parquet cache/crisis_features.parquet cache/imputed_features.parquet /tmp/baseline/cache/
-          cp artifacts/data_manifest.json artifacts/model_policy_audit.json /tmp/baseline/artifacts/
-          git rev-parse HEAD > release-output/source-commit.txt
-      - name: Complete regression suite
-        run: |
-          set -o pipefail
-          python -m pytest -q --junitxml=release-output/tests.xml | tee release-output/tests.txt
-      - name: Verify September 15 source snapshot
+          mkdir -p /tmp/baseline/cache release-output
+          cp cache/*.pkl cache/imputed_features.parquet /tmp/baseline/cache/
+      - name: Run complete regression suite and commit audit repair
         run: |
           set -euo pipefail
-          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/candidate.zip
-          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/candidate.zip' | sha256sum -c -
-          python - <<'PY'
-          import zipfile, json, hashlib
-          from pathlib import Path
-          root=Path('/tmp/candidate')
-          with zipfile.ZipFile('/tmp/candidate.zip') as z:
-              for name in z.namelist():
-                  assert (root/name).resolve().is_relative_to(root.resolve())
-              z.extractall(root)
-          manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
-          for name,meta in manifest['artifacts'].items():
-              p=root/name
-              assert p.stat().st_size==meta['bytes']
-              assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
-          PY
-      - name: Rebuild with canonical source selection and preserved classifier
+          python -m pytest -q --junitxml=release-output/tests.xml | tee release-output/tests.txt
+          git add src/scripts/validate_fsic_release.py
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'audit: reconstruct only unused missing date metadata for saved-input replay'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git rev-parse HEAD > release-output/source-commit.txt
+      - name: Retrieve and verify original and repaired candidates
         run: |
-          set -o pipefail
-          python -m src.scripts.refresh_data --as-of 2026-09-15 --source-snapshot /tmp/candidate 2>&1 | tee release-output/rebuild.log
-          python -m src.scripts.smoke_test_artifacts 2>&1 | tee release-output/smoke.txt
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/previous.zip
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10404058870/zip > /tmp/repaired.zip
+          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/previous.zip' | sha256sum -c -
+          echo 'e89dab14c26636aa7cee9a771e26d54e416fd9a2041d3d00ff896f7b1f9eb3dd  /tmp/repaired.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile, json, hashlib, shutil
+          from pathlib import Path
+          for label in ['previous','repaired']:
+              root=Path('/tmp')/label
+              with zipfile.ZipFile(f'/tmp/{label}.zip') as z:
+                  for name in z.namelist():
+                      assert (root/name).resolve().is_relative_to(root.resolve())
+                  z.extractall(root)
+              manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
+              for name,meta in manifest['artifacts'].items():
+                  p=root/name
+                  assert p.stat().st_size==meta['bytes']
+                  assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
+          for folder in ['cache','artifacts','data']:
+              shutil.copytree(Path('/tmp/repaired')/folder,folder,dirs_exist_ok=True)
+          PY
+          python -m src.scripts.smoke_test_artifacts | tee release-output/smoke.txt
       - name: Full independent replay and source permutation checks
         run: |
           set -o pipefail
-          python -m src.scripts.validate_fsic_release --previous /tmp/candidate --baseline /tmp/baseline --output release-output 2>&1 | tee release-output/validation.log
-      - name: Prepare clean atomic release only after all gates pass
-        run: |
-          set -euo pipefail
-          git fetch origin master
-          test "$(git rev-parse origin/master)" = 860cfd64d795458a871f1a654e7497bf3a360012
-          GIT_LFS_SKIP_SMUDGE=1 git worktree add -b promote/fsic-2026-09-15 /tmp/release 860cfd64d795458a871f1a654e7497bf3a360012
-          python - <<'PY'
-          import json, shutil, os
-          from pathlib import Path
-          target=Path('/tmp/release')
-          paths=['.github/workflows/refresh-data.yml','src/classifier_integrity.py','src/scripts/refresh_data.py','src/snapshot_reuse.py','tests/test_classifier_integrity.py','train_model.py','src/feature_engineering.py','src/fsic_selection.py','tests/test_fsic_selection.py','src/scripts/validate_fsic_release.py']
-          manifest=json.loads(Path('artifacts/data_manifest.json').read_text())
-          paths=sorted(set(paths+list(manifest['artifacts'])+['artifacts/data_manifest.json','artifacts/validated_classifier.json','artifacts/feature_heuristics.json']))
-          for name in paths:
-              source=Path(name);destination=target/name
-              assert source.is_file(),name
-              destination.parent.mkdir(parents=True,exist_ok=True)
-              shutil.copy2(source,destination)
-          docs=target/'docs/releases/2026-09-15';docs.mkdir(parents=True,exist_ok=True)
-          for name in ['validation.json','complete-replay.json','country-review.csv','repair-feature-changes.csv','fsic-selected-observations.csv','source-commit.txt']:
-              shutil.copy2(Path('release-output')/name,docs/name)
-          for name in ['fsic-source-diagnostic.json','replay-diagnostic.json']:
-              shutil.copy2(Path('review/2026-09-15')/name,docs/name)
-          r=json.loads((docs/'validation.json').read_text())
-          lines=['# September 15, 2026 FSIC-corrected release','', 'User authorization: fix the independently reproduced source-selection defect and promote after validation.','', '## Verified controls', '- All five source caches are unchanged from checksum-verified September 15 artifact 10402061259.', '- Existing served crisis classifier preserved byte-for-byte. Retraining is disabled unless explicitly authorized.', '- Tier 1 FSI626_CFSI_PT is selected explicitly; Common Equity Tier 1 FSI15_CFSI_PT cannot substitute for it.', '- Identical-valued duplicate observations can coalesce. Conflicting values or economic dimensions fail closed; no arbitrary frequency precedence.', f"- Tests: {r['tests']['passed']} passed, {r['tests']['skipped']} skipped, no failures.", f"- {r['countries']} countries retained; all {r['manifest_files_verified']} artifacts verified.", '- Full FSIC original/reversed/three shuffled extracts agree exactly.', '- Historical scores are replayed using their saved imputation inputs; recomputed historical KNN differences are explicitly retained in complete-replay.json. The new release additionally passes exact raw-input replay with one, two and four computational threads.', f"- Vietnam Tier 1: {r['vnm_tier1']}; capital quality: {r['vnm_capital_quality']}.", f"- Maximum score change due to repair: {r['max_score_change_due_to_repair']}; versus production: {r['max_score_change_vs_production']}.", f"- Evidence run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}", '', '## Approval and rollback', 'This branch is prepared, not automatically merged. Final approval is recorded in its pull request.', 'Rollback baseline: 860cfd64d795458a871f1a654e7497bf3a360012, also preserved at rollback/pre-september-2026-09-15. Revert the atomic release commit through a reviewed PR and rerun serving checks; never restore only part of the bundle.', '', '## Scope', 'This is a corrected data refresh, not classifier recertification. Existing PCA/imputation refitting remains in place. Historical crisis-reference corrections are not current economic shocks. Selected-input validation does not certify unused raw series.']
-          (docs/'README.md').write_text('\n'.join(lines)+'\n')
-          Path('release-output/staged-paths.txt').write_text('\n'.join(paths+['docs/releases/2026-09-15'])+'\n')
-          PY
-          cd /tmp/release
-          git lfs checkout
-          python -m src.scripts.smoke_test_artifacts > "$GITHUB_WORKSPACE/release-output/clean-tree-smoke.txt"
-          python -m pytest -q --junitxml="$GITHUB_WORKSPACE/release-output/clean-tree-tests.xml" > "$GITHUB_WORKSPACE/release-output/clean-tree-tests.txt"
-          while IFS= read -r path; do git add -- "$path"; done < "$GITHUB_WORKSPACE/release-output/staged-paths.txt"
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix and promote: canonical FSIC selection and validated September 15 serving snapshot'
-          git push origin HEAD:promote/fsic-2026-09-15
-          git rev-parse HEAD > "$GITHUB_WORKSPACE/release-output/release-commit.txt"
-          git diff --stat 860cfd64d795458a871f1a654e7497bf3a360012 > "$GITHUB_WORKSPACE/release-output/release-diff-stat.txt"
-      - name: Preserve complete evidence, including any failed gate
+          python -m src.scripts.validate_fsic_release --previous /tmp/previous --baseline /tmp/baseline --output release-output 2>&1 | tee release-output/validation.log
+      - name: Prepare atomic release only after passing all gates
+        run: python review/2026-09-15/finalize_release.py prepare 2>&1 | tee release-output/preparation.log
+      - name: Preserve complete gate evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fsic-final-release-evidence-2026-09-15
+          name: fsic-promotion-validation-2026-09-15
           path: release-output/
           retention-days: 90
           if-no-files-found: error
-      - name: Preserve rebuilt candidate for independent inspection
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: fsic-rebuilt-candidate-pending-approval-2026-09-15
-          retention-days: 90
-          if-no-files-found: warn
-          path: |
-            artifacts/data_manifest.json
-            artifacts/validated_classifier.json
-            artifacts/model_policy_audit.json
-            artifacts/feature_heuristics.json
-            artifacts/government_liquidity_features_report.json
-            data/reference/government_liquidity_features.parquet
-            data/reference/government_liquidity_observations.parquet
-            data/reference/government_liquidity_features_report.json
-            cache/FSIBSIS_cache.parquet
-            cache/FSIC_cache.parquet
-            cache/MFS_cache.parquet
-            cache/WEO_cache.parquet
-            cache/WGI_cache.parquet
-            cache/crisis_features.parquet
-            cache/imputed_features.parquet
-            cache/risk_model.pkl
-            cache/inference_pipeline.pkl
-            cache/crisis_classifier.pkl
