@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 
-from src.config import BASE_DIR
+from src.config import BASE_DIR, CACHE_DIR
+from src.classifier_integrity import load_validated_classifier, verify_classifier_file
+from src.snapshot_reuse import restore_source_snapshot
 from src.data_loader import FSIBSISLoader, IMFDataLoader, WGILoader
 from src.government_liquidity import (
     build_government_liquidity_features,
@@ -169,10 +171,33 @@ def main():
         "--manifest",
         default=str(Path(BASE_DIR) / "artifacts" / "data_manifest.json"),
     )
+    parser.add_argument(
+        "--source-snapshot",
+        help="Rebuild the identical cutoff from checksum-verified candidate source caches; retain original retrieval dates.",
+    )
     args = parser.parse_args()
 
+    # Fail before any network retrieval or active-cache mutation.
+    classifier_before = None
+    if not args.retrain_classifier:
+        load_validated_classifier()
+        classifier_before = verify_classifier_file()
+    source_snapshot = None
     download_dir = Path(args.download_dir)
-    if args.retrieval_mode == "official":
+    if args.source_snapshot:
+        if args.retrieval_mode != "official" or args.reuse_downloads:
+            parser.error("--source-snapshot cannot be combined with legacy mode or --reuse-downloads")
+        source_snapshot = restore_source_snapshot(args.source_snapshot, args.as_of, CACHE_DIR)
+        loader = IMFDataLoader()
+        if not loader.load_from_cache():
+            raise RuntimeError("Verified source caches could not be loaded")
+        FSIBSISLoader().load()
+        WGILoader().load(force_refresh=False)
+        fsic_df = loader._data_cache.get("FSIC")
+        weo_df = loader._data_cache.get("WEO")
+        mfs_df = loader._data_cache.get("MFS")
+        fetched = {}
+    elif args.retrieval_mode == "official":
         fetched, fsic_df, weo_df, mfs_df = _fetch_and_normalize_official_sources(
             download_dir,
             reuse_downloads=args.reuse_downloads,
@@ -238,6 +263,8 @@ def main():
         model_features=candidate_model_features,
         reference_dir=Path(BASE_DIR) / "data" / "reference",
     )
+    if classifier_before is not None and verify_classifier_file() != classifier_before:
+        raise RuntimeError("Classifier changed during refresh; candidate publication blocked")
     model.save()
 
     policy_audit = build_policy_audit(model.feature_values)
@@ -261,6 +288,20 @@ def main():
         "model_checks_passed": int(passed_checks),
         "model_checks_failed": int(failed_checks),
     }
+    manifest["classifier_preservation"] = {
+        "mode": "explicit_retraining" if args.retrain_classifier else "preserved",
+        "verified_baseline": classifier_before,
+        "human_promotion_approved": False,
+        "pillar_policy": "Pillar pipeline is refitted by the existing build; review the frozen-pipeline comparison separately.",
+    }
+    if source_snapshot is not None:
+        manifest["retrieval"] = source_snapshot["retrieval"]
+        manifest["source_mode"] = "verified_candidate_cache_rebuild"
+        manifest["source_reuse"] = {
+            "original_as_of_date": source_snapshot["as_of_date"],
+            "original_generated_at": source_snapshot.get("generated_at"),
+            "note": "Source retrieval dates are original, not the rebuild date. Only the five source caches were reused.",
+        }
     output = write_snapshot_manifest(manifest, args.manifest)
     print(f"Published candidate snapshot manifest: {output}")
     print(f"Snapshot status: {manifest['snapshot_status']}")
