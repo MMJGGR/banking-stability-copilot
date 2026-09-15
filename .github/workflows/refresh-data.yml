@@ -3,15 +3,22 @@ name: Build candidate data snapshot
 on:
   schedule:
     - cron: "17 7 12 * *"
+  push:
+    branches:
+      - codex/classifier-preserving-refresh-2026-09-15
   workflow_dispatch:
     inputs:
       as_of_date:
-        description: Snapshot cutoff in YYYY-MM-DD format
-        required: true
-        default: "2026-06-30"
+        description: Snapshot cutoff YYYY-MM-DD; blank uses the UTC run date
+        required: false
+        default: ""
 
 permissions:
   contents: read
+
+concurrency:
+  group: candidate-data-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   refresh:
@@ -37,23 +44,69 @@ jobs:
           python -m pip check
 
       - name: Run unit tests
-        run: python -m pytest -q
+        run: python -m pytest -q --junitxml=artifacts/refresh-tests.xml
 
       - name: Resolve snapshot cutoff
-        shell: bash
+        env:
+          REQUESTED_DATE: ${{ inputs.as_of_date }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SNAPSHOT_DATE="${{ inputs.as_of_date }}"
-          else
-            SNAPSHOT_DATE="$(date -u +%Y-%m-%d)"
-          fi
-          echo "SNAPSHOT_DATE=${SNAPSHOT_DATE}" >> "$GITHUB_ENV"
-          echo "Snapshot cutoff: ${SNAPSHOT_DATE}"
+          python - <<'PY'
+          import os
+          from datetime import date, datetime, timezone
+          value = os.environ.get("REQUESTED_DATE", "").strip()
+          cutoff = date.fromisoformat(value) if value else datetime.now(timezone.utc).date()
+          if cutoff > datetime.now(timezone.utc).date():
+              raise SystemExit("A serving-data candidate cannot use a future cutoff")
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write(f"SNAPSHOT_DATE={cutoff.isoformat()}\n")
+          PY
 
-      - name: Fetch sources and build candidate snapshot
+      - name: Restore only the selected serving baseline from Git LFS
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="cache/FSIC_cache.parquet,cache/MFS_cache.parquet,cache/FSIBSIS_cache.parquet,cache/WEO_cache.parquet,cache/WGI_cache.parquet,cache/crisis_classifier.pkl,cache/crisis_features.parquet,cache/imputed_features.parquet,cache/risk_model.pkl,cache/inference_pipeline.pkl" --exclude=""
+          echo "BASELINE_DIR=$RUNNER_TEMP/banking-serving-baseline" >> "$GITHUB_ENV"
+          echo "BASELINE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import hashlib, json, os, re, shutil, subprocess
+          from pathlib import Path
+          baseline = Path(os.environ["RUNNER_TEMP"]) / "banking-serving-baseline"
+          (baseline / "cache").mkdir(parents=True, exist_ok=True)
+          shutil.copytree("artifacts", baseline / "artifacts", dirs_exist_ok=True)
+          names = [f"cache/{source}_cache.parquet" for source in ("FSIC", "MFS", "FSIBSIS", "WEO", "WGI")]
+          names += [f"cache/{name}" for name in ("crisis_classifier.pkl", "crisis_features.parquet", "imputed_features.parquet", "risk_model.pkl", "inference_pipeline.pkl")]
+          inventory = {}
+          for name in names:
+              pointer = subprocess.check_output(["git", "show", f"HEAD:{name}"], text=True)
+              match = re.search(r"^oid sha256:([0-9a-f]{64})$", pointer, re.M)
+              size = re.search(r"^size (\d+)$", pointer, re.M)
+              if not match or not size:
+                  raise SystemExit(f"Expected a committed Git LFS pin: {name}")
+              path = Path(name)
+              digest = hashlib.file_digest(path.open("rb"), "sha256").hexdigest()
+              if digest != match.group(1) or path.stat().st_size != int(size.group(1)):
+                  raise SystemExit(f"Serving-baseline LFS verification failed: {name}")
+              inventory[name] = {"sha256": digest, "bytes": path.stat().st_size}
+              shutil.copy2(path, baseline / name)
+          (baseline / "artifacts/baseline_lfs_inventory.json").write_text(json.dumps(inventory, indent=2))
+          PY
+
+      - name: Verify and load pinned classifier before any source refresh
         run: >-
-          python -m src.scripts.refresh_data
-          --as-of "$SNAPSHOT_DATE"
+          python -m src.scripts.classifier_guard
+          --manifest "$BASELINE_DIR/artifacts/data_manifest.json"
+          --load
+
+      - name: Fetch sources and build classifier-preserving candidate
+        run: |
+          set -euo pipefail
+          python -m src.scripts.refresh_data --as-of "$SNAPSHOT_DATE" 2>&1 | tee artifacts/refresh.log
+          if grep -q 'Cached crisis classifier unavailable; retraining' artifacts/refresh.log; then
+            echo "Implicit classifier retraining detected; candidate blocked" >&2
+            exit 1
+          fi
+          python -m src.scripts.classifier_guard --manifest "$BASELINE_DIR/artifacts/data_manifest.json" --load
 
       - name: Verify government-liquidity reference bundle
         shell: bash
@@ -74,11 +127,18 @@ jobs:
       - name: Smoke-test candidate serving artifacts
         run: python -m src.scripts.smoke_test_artifacts
 
-      - name: Upload candidate serving artifacts
-        if: always()
+      - name: Build country-level owner-review package
+        run: |
+          python -m src.scripts.review_data_candidate --baseline "$BASELINE_DIR" --output artifacts/review
+          cp "$BASELINE_DIR/artifacts/data_manifest.json" artifacts/review/baseline_data_manifest.json
+          cp "$BASELINE_DIR/artifacts/baseline_lfs_inventory.json" artifacts/review/baseline_lfs_inventory.json
+          cat artifacts/review/REVIEW.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validated candidate and review evidence
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: banking-copilot-${{ env.SNAPSHOT_DATE }}
+          name: banking-copilot-preserved-${{ env.SNAPSHOT_DATE }}-${{ github.run_id }}
           if-no-files-found: error
           retention-days: 30
           path: |
@@ -86,6 +146,8 @@ jobs:
             artifacts/model_policy_audit.json
             artifacts/feature_heuristics.json
             artifacts/government_liquidity_features_report.json
+            artifacts/review/
+            artifacts/refresh-tests.xml
             data/reference/government_liquidity_features.parquet
             data/reference/government_liquidity_observations.parquet
             data/reference/government_liquidity_features_report.json
@@ -99,3 +161,14 @@ jobs:
             cache/risk_model.pkl
             cache/inference_pipeline.pkl
             cache/crisis_classifier.pkl
+
+      - name: Upload diagnostics separately, never as a valid candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: banking-refresh-diagnostics-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            artifacts/refresh-tests.xml
+            artifacts/refresh.log
