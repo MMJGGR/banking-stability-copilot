@@ -1,0 +1,328 @@
+{
+  "decision": "VALIDATED_FOR_REVIEWED_PROMOTION",
+  "cutoff": "2026-09-15",
+  "classifier": {
+    "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee",
+    "bytes": 52580,
+    "baseline_commit": "860cfd64d795458a871f1a654e7497bf3a360012"
+  },
+  "source_caches_unchanged": {
+    "FSIC": true,
+    "MFS": true,
+    "WEO": true,
+    "WGI": true,
+    "FSIBSIS": true
+  },
+  "manifest_files_verified": 15,
+  "countries": 201,
+  "exact_replay_max_errors": {
+    "baseline": 0.0,
+    "previous": 0.0,
+    "release": 0.0
+  },
+  "release_raw_replay_by_threads": [
+    {
+      "mode": "recomputed_imputation",
+      "threads": 1,
+      "max_abs_error": 0.0,
+      "differences": []
+    },
+    {
+      "mode": "recomputed_imputation",
+      "threads": 2,
+      "max_abs_error": 0.0,
+      "differences": []
+    },
+    {
+      "mode": "recomputed_imputation",
+      "threads": 4,
+      "max_abs_error": 0.0,
+      "differences": []
+    }
+  ],
+  "historical_raw_replay_diagnostics": {
+    "baseline": [
+      {
+        "mode": "recomputed_imputation",
+        "threads": 1,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 2,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "SXM",
+            "stored": 6.4,
+            "replayed": 6.6,
+            "delta": 0.1999999999999993
+          },
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 4,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "AIA",
+            "stored": 6.6,
+            "replayed": 6.7,
+            "delta": 0.10000000000000053
+          },
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      }
+    ],
+    "previous": [
+      {
+        "mode": "recomputed_imputation",
+        "threads": 1,
+        "max_abs_error": 0.0,
+        "differences": []
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 2,
+        "max_abs_error": 0.09999999999999964,
+        "differences": [
+          {
+            "country_code": "SXM",
+            "stored": 6.5,
+            "replayed": 6.4,
+            "delta": -0.09999999999999964
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 4,
+        "max_abs_error": 0.5999999999999996,
+        "differences": [
+          {
+            "country_code": "AIA",
+            "stored": 6.9,
+            "replayed": 7.5,
+            "delta": 0.5999999999999996
+          }
+        ]
+      }
+    ]
+  },
+  "policy_audit_exact": true,
+  "raw_features_match_model": true,
+  "fsic_permutations_passed": [
+    "reversed",
+    "shuffled_7",
+    "shuffled_42",
+    "shuffled_2026"
+  ],
+  "fsic_countries": 157,
+  "fsic_selected_cells": 1738,
+  "vnm_tier1": 10.58593648681355,
+  "vnm_capital_quality": 87.77238459235349,
+  "repair_feature_changes": [],
+  "tests": {
+    "tests": 304,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "passed": 303
+  },
+  "max_score_change_vs_production": 4.8,
+  "max_score_change_due_to_repair": 1.5,
+  "score_countries_changed_by_repair": 117,
+  "top_score_changes": [
+    {
+      "country_code": "BGR",
+      "production": 8.5,
+      "previous_candidate": 3.8,
+      "repaired_candidate": 3.7,
+      "vs_production": -4.8,
+      "repair_effect": -0.1,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.0503708352,
+      "country_name": "Bulgaria"
+    },
+    {
+      "country_code": "MHL",
+      "production": 6.5,
+      "previous_candidate": 2.7,
+      "repaired_candidate": 2.7,
+      "vs_production": -3.8,
+      "repair_effect": 0.0,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.095675515,
+      "country_name": "Marshall Islands"
+    },
+    {
+      "country_code": "ROU",
+      "production": 7.5,
+      "previous_candidate": 4.1,
+      "repaired_candidate": 4.0,
+      "vs_production": -3.5,
+      "repair_effect": -0.1,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.0501764903,
+      "country_name": "Romania"
+    },
+    {
+      "country_code": "ARE",
+      "production": 7.1,
+      "previous_candidate": 3.7,
+      "repaired_candidate": 3.7,
+      "vs_production": -3.4,
+      "repair_effect": 0.0,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.1117953709,
+      "country_name": "United Arab Emirates"
+    },
+    {
+      "country_code": "LUX",
+      "production": 1.9,
+      "previous_candidate": 4.8,
+      "repaired_candidate": 4.8,
+      "vs_production": 2.9,
+      "repair_effect": 0.0,
+      "risk_category": "5-6: Moderate Risk",
+      "crisis_prob": 0.0475634649,
+      "country_name": "Luxembourg"
+    },
+    {
+      "country_code": "SRB",
+      "production": 8.9,
+      "previous_candidate": 6.5,
+      "repaired_candidate": 6.1,
+      "vs_production": -2.8,
+      "repair_effect": -0.4,
+      "risk_category": "7-8: High Risk",
+      "crisis_prob": 0.1409747651,
+      "country_name": "Serbia"
+    },
+    {
+      "country_code": "HRV",
+      "production": 5.5,
+      "previous_candidate": 2.7,
+      "repaired_candidate": 2.7,
+      "vs_production": -2.8,
+      "repair_effect": 0.0,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.0714964617,
+      "country_name": "Croatia"
+    },
+    {
+      "country_code": "TLS",
+      "production": 6.1,
+      "previous_candidate": 3.4,
+      "repaired_candidate": 3.5,
+      "vs_production": -2.6,
+      "repair_effect": 0.1,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.0,
+      "country_name": "Timor-Leste"
+    },
+    {
+      "country_code": "EST",
+      "production": 3.7,
+      "previous_candidate": 1.7,
+      "repaired_candidate": 1.7,
+      "vs_production": -2.0,
+      "repair_effect": 0.0,
+      "risk_category": "1-2: Very Low Risk",
+      "crisis_prob": 0.0132434611,
+      "country_name": "Estonia"
+    },
+    {
+      "country_code": "LTU",
+      "production": 3.4,
+      "previous_candidate": 1.5,
+      "repaired_candidate": 1.6,
+      "vs_production": -1.8,
+      "repair_effect": 0.1,
+      "risk_category": "1-2: Very Low Risk",
+      "crisis_prob": 0.0132434611,
+      "country_name": "Lithuania"
+    },
+    {
+      "country_code": "MSR",
+      "production": 6.6,
+      "previous_candidate": 6.6,
+      "repaired_candidate": 8.1,
+      "vs_production": 1.5,
+      "repair_effect": 1.5,
+      "risk_category": "9-10: Very High Risk",
+      "crisis_prob": 0.0416762199,
+      "country_name": ""
+    },
+    {
+      "country_code": "BEL",
+      "production": 3.8,
+      "previous_candidate": 4.8,
+      "repaired_candidate": 5.1,
+      "vs_production": 1.3,
+      "repair_effect": 0.3,
+      "risk_category": "5-6: Moderate Risk",
+      "crisis_prob": 0.0313953017,
+      "country_name": "Belgium"
+    },
+    {
+      "country_code": "AUT",
+      "production": 3.6,
+      "previous_candidate": 4.6,
+      "repaired_candidate": 4.8,
+      "vs_production": 1.2,
+      "repair_effect": 0.2,
+      "risk_category": "5-6: Moderate Risk",
+      "crisis_prob": 0.059909428,
+      "country_name": "Austria"
+    },
+    {
+      "country_code": "LVA",
+      "production": 4.9,
+      "previous_candidate": 5.7,
+      "repaired_candidate": 6.0,
+      "vs_production": 1.1,
+      "repair_effect": 0.3,
+      "risk_category": "5-6: Moderate Risk",
+      "crisis_prob": 0.0287822763,
+      "country_name": "Latvia"
+    },
+    {
+      "country_code": "CHE",
+      "production": 1.805306849,
+      "previous_candidate": 2.4,
+      "repaired_candidate": 2.8,
+      "vs_production": 0.994693151,
+      "repair_effect": 0.4,
+      "risk_category": "3-4: Low Risk",
+      "crisis_prob": 0.0047541674,
+      "country_name": "Switzerland"
+    }
+  ],
+  "limitations": [
+    "Existing legacy classifier preserved, not recertified.",
+    "PCA/imputation refit remains part of the existing refresh methodology.",
+    "Historical exact replay uses saved imputation inputs; recomputed historical KNN gaps are separately disclosed.",
+    "This validates selected model inputs, not every unused raw series."
+  ]
+}

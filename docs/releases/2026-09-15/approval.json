@@ -1,0 +1,9 @@
+{
+  "status": "validated_pending_final_PR_review",
+  "user_authorization": "Fix and promote after successful independent validation.",
+  "validation_run": "34990214433",
+  "build_source_commit": "6c832c59213e10a2da4abb577a0a7bc61ba71937",
+  "baseline_commit": "860cfd64d795458a871f1a654e7497bf3a360012",
+  "scope": "Same September 15 source vintage; canonical FSIC selection; mathematically equivalent stable neighbor-distance calculation; existing classifier preserved.",
+  "created_at": "2026-09-15T15:44:57.887121+00:00"
+}

@@ -1,0 +1,133 @@
+{
+  "baseline": {
+    "persisted": {
+      "mode": "persisted_imputation",
+      "threads": 2,
+      "max_abs_error": 0.0,
+      "differences": []
+    },
+    "raw": [
+      {
+        "mode": "recomputed_imputation",
+        "threads": 1,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 2,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "SXM",
+            "stored": 6.4,
+            "replayed": 6.6,
+            "delta": 0.1999999999999993
+          },
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 4,
+        "max_abs_error": 0.1999999999999993,
+        "differences": [
+          {
+            "country_code": "AIA",
+            "stored": 6.6,
+            "replayed": 6.7,
+            "delta": 0.10000000000000053
+          },
+          {
+            "country_code": "THA",
+            "stored": 6.6,
+            "replayed": 6.4,
+            "delta": -0.1999999999999993
+          }
+        ]
+      }
+    ]
+  },
+  "previous": {
+    "persisted": {
+      "mode": "persisted_imputation",
+      "threads": 2,
+      "max_abs_error": 0.0,
+      "differences": []
+    },
+    "raw": [
+      {
+        "mode": "recomputed_imputation",
+        "threads": 1,
+        "max_abs_error": 0.0,
+        "differences": []
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 2,
+        "max_abs_error": 0.09999999999999964,
+        "differences": [
+          {
+            "country_code": "SXM",
+            "stored": 6.5,
+            "replayed": 6.4,
+            "delta": -0.09999999999999964
+          }
+        ]
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 4,
+        "max_abs_error": 0.5999999999999996,
+        "differences": [
+          {
+            "country_code": "AIA",
+            "stored": 6.9,
+            "replayed": 7.5,
+            "delta": 0.5999999999999996
+          }
+        ]
+      }
+    ]
+  },
+  "release": {
+    "persisted": {
+      "mode": "persisted_imputation",
+      "threads": 2,
+      "max_abs_error": 0.0,
+      "differences": []
+    },
+    "raw": [
+      {
+        "mode": "recomputed_imputation",
+        "threads": 1,
+        "max_abs_error": 0.0,
+        "differences": []
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 2,
+        "max_abs_error": 0.0,
+        "differences": []
+      },
+      {
+        "mode": "recomputed_imputation",
+        "threads": 4,
+        "max_abs_error": 0.0,
+        "differences": []
+      }
+    ]
+  }
+}

@@ -1106,20 +1106,10 @@ class BankingRiskModel:
                 weo_df=weo_df, fsic_df=fsic_df, as_of_date=cutoff,
             )
         else:
-            try:
-                classifier = CrisisClassifier.load()
-                metrics = {"cached_classifier": True}
-                print("  Loaded cached crisis classifier for snapshot scoring.")
-            except Exception as e:
-                print(
-                    "  Cached crisis classifier unavailable; retraining "
-                    f"for this snapshot: {e}"
-                )
-                classifier, metrics = train_crisis_model(
-                    weo_df=weo_df,
-                    fsic_df=fsic_df,
-                    as_of_date=cutoff,
-                )
+            from src.classifier_integrity import load_validated_classifier
+            classifier = load_validated_classifier()
+            metrics = {"cached_classifier": True}
+            print("  Loaded checksum-verified baseline classifier; retraining disabled.")
         
         # Get crisis probabilities
         print("  Generating crisis probabilities...")
