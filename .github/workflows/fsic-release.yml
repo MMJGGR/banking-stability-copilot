@@ -12,7 +12,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       GH_TOKEN: ${{ github.token }}
       OMP_NUM_THREADS: '2'
@@ -20,15 +20,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.sha }}
           lfs: false
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
-      - run: python -m pip install -r requirements-dev.txt -c constraints-dev.txt
-      - name: Inspect checksum-pinned September source observations
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+          python -m pip check
+      - name: Wire canonical selector with exact context checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/feature_engineering.py');text=p.read_text()
+          start='        # FSIC indicator mappings - Core FSI metrics\n'
+          end='        fsic_features = pd.DataFrame(features_list)'
+          replacement='        from src.fsic_selection import select_fsic_features\n\n        self.fsic_selection_audit = []\n        fsic_features = select_fsic_features(fsic_df, audit=self.fsic_selection_audit)'
+          if start in text:
+              assert text.count(start)==1
+              a=text.index(start);b=text.index(end,a)+len(end)
+              p.write_text(text[:a]+replacement+text[b:])
+          else:
+              assert replacement in text, 'Selector patch context changed'
+          PY
+      - name: Hydrate trusted baseline and preserve rollback evidence
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="cache/*.pkl,cache/*_cache.parquet,cache/crisis_features.parquet,cache/imputed_features.parquet,data/reference/*.parquet" --exclude=""
+          python -c "from src.classifier_integrity import verify_classifier_file; print(verify_classifier_file())"
+          mkdir -p /tmp/baseline/cache /tmp/baseline/artifacts release-output
+          cp cache/*.pkl cache/*_cache.parquet cache/crisis_features.parquet cache/imputed_features.parquet /tmp/baseline/cache/
+          cp artifacts/data_manifest.json artifacts/model_policy_audit.json /tmp/baseline/artifacts/
+      - name: Run all tests including selector regressions
+        run: |
+          set -o pipefail
+          python -m pytest -q --junitxml=release-output/tests.xml | tee release-output/tests.txt
+      - name: Commit tested source fix without any serving changes
+        run: |
+          git add src/feature_engineering.py
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: replace FSIC regex last-row extraction with canonical conflict-safe selection'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git rev-parse HEAD > release-output/source-commit.txt
+      - name: Retrieve and verify the fresh September 15 candidate
         run: |
           set -euo pipefail
           gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/candidate.zip
@@ -36,27 +75,120 @@ jobs:
           python - <<'PY'
           import zipfile, json, hashlib
           from pathlib import Path
-          import pandas as pd
           root=Path('/tmp/candidate')
           with zipfile.ZipFile('/tmp/candidate.zip') as z:
               for name in z.namelist():
                   assert (root/name).resolve().is_relative_to(root.resolve())
               z.extractall(root)
           manifest=json.loads((root/'artifacts/data_manifest.json').read_text())
-          for name, meta in manifest['artifacts'].items():
+          for name,meta in manifest['artifacts'].items():
               p=root/name
-              assert len(p.read_bytes())==meta['bytes']
+              assert p.stat().st_size==meta['bytes']
               assert hashlib.sha256(p.read_bytes()).hexdigest()==meta['sha256']
-          df=pd.read_parquet(root/'cache/FSIC_cache.parquet')
-          df['indicator_code']=df.indicator_code.str.strip()
-          vnm=df[df.country_code.eq('VNM') & df.indicator_name.str.contains('Tier 1 capital to risk-weighted assets',case=False,na=False)].copy()
-          vnm=vnm[pd.to_datetime(vnm.period)<=pd.Timestamp('2026-09-15')]
-          vnm=vnm[vnm.period.eq(vnm.period.max())]
-          ratios=df[df.unit.eq('PT')].drop_duplicates(['indicator_code','indicator_name'])
-          report={'source_artifact':10402061259,'cutoff':'2026-09-15','columns':list(df.columns),'vnm_latest_competing_rows':json.loads(vnm.to_json(orient='records',date_format='iso')),'percent_series_catalog':json.loads(ratios[['indicator_code','indicator_name','unit']].sort_values('indicator_code').to_json(orient='records'))}
-          p=Path('review/2026-09-15/fsic-source-diagnostic.json');p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(report,indent=2))
-          print(json.dumps(report,indent=2))
           PY
-          git add review/2026-09-15/fsic-source-diagnostic.json
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'audit: record exact FSIC series metadata and Vietnam competing observations'
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Rebuild same source vintage with existing classifier
+        run: |
+          set -o pipefail
+          python -m src.scripts.refresh_data --as-of 2026-09-15 --source-snapshot /tmp/candidate | tee release-output/rebuild.log
+      - name: Serving smoke tests
+        run: |
+          set -o pipefail
+          python -m src.scripts.smoke_test_artifacts | tee release-output/smoke.txt
+      - name: Independent source invariance and complete model replay gates
+        run: |
+          set -o pipefail
+          python -m src.scripts.validate_fsic_release --previous /tmp/candidate --baseline /tmp/baseline --output release-output | tee release-output/validation.log
+      - name: Prepare clean atomic release branch from unchanged production
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          test "$(git rev-parse origin/master)" = 860cfd64d795458a871f1a654e7497bf3a360012
+          GIT_LFS_SKIP_SMUDGE=1 git worktree add -b promote/fsic-2026-09-15 /tmp/release 860cfd64d795458a871f1a654e7497bf3a360012
+          python - <<'PY'
+          import json, shutil, os
+          from pathlib import Path
+          target=Path('/tmp/release')
+          source_paths=['.github/workflows/refresh-data.yml','src/classifier_integrity.py','src/scripts/refresh_data.py','src/snapshot_reuse.py','tests/test_classifier_integrity.py','train_model.py','src/feature_engineering.py','src/fsic_selection.py','tests/test_fsic_selection.py','src/scripts/validate_fsic_release.py']
+          manifest=json.loads(Path('artifacts/data_manifest.json').read_text())
+          paths=sorted(set(source_paths+list(manifest['artifacts'])+['artifacts/data_manifest.json','artifacts/validated_classifier.json','artifacts/feature_heuristics.json']))
+          for name in paths:
+              source=Path(name);destination=target/name
+              assert source.is_file(),name
+              destination.parent.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(source,destination)
+          docs=target/'docs/releases/2026-09-15';docs.mkdir(parents=True,exist_ok=True)
+          for name in ['validation.json','country-review.csv','repair-feature-changes.csv','fsic-selected-observations.csv','source-commit.txt']:
+              shutil.copy2(Path('release-output')/name,docs/name)
+          shutil.copy2('review/2026-09-15/fsic-source-diagnostic.json',docs/'official-series-diagnostic.json')
+          r=json.loads((docs/'validation.json').read_text())
+          text=f'''# September 15, 2026 FSIC-corrected serving release
+
+User authorization: fix the independently reproduced source-selection defect and promote after successful validation.
+
+## Controls and evidence
+- Source cutoff and retrieval vintage: 2026-09-15, reused without redownloading from verified artifact 10402061259.
+- All five source caches remain byte-identical to that candidate.
+- Existing served crisis classifier preserved byte-for-byte; no retraining authorized or performed.
+- Canonical Tier 1: FSI626_CFSI_PT. Common Equity Tier 1 (FSI15_CFSI_PT) is a distinct measure and never a substitute.
+- Duplicate observations at a period end can be coalesced only when their finite values agree exactly. Conflicting values or extra economic dimensions stop the build; no arbitrary frequency precedence.
+- {r['tests']['passed']} tests passed, {r['tests']['skipped']} skipped, no failures. Original/reversed/three shuffled complete FSIC frames yield identical extracted features.
+- Exact score replay checked for baseline, previous candidate and release; raw/model features and policy audit reconcile.
+- {r['countries']} countries retained; all {r['manifest_files_verified']} manifest artifacts verified.
+- Vietnam Tier 1: {r['vnm_tier1']}; derived capital quality: {r['vnm_capital_quality']}.
+- Maximum score movement caused by this repair: {r['max_score_change_due_to_repair']}; versus production: {r['max_score_change_vs_production']}.
+- Build/evidence run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}
+
+## Approval and rollback
+This branch contains both the tested source fix and complete serving bundle. The workflow prepares the branch; it does not merge it. Final approval is recorded in the release PR after inspecting these gates.
+
+Rollback baseline: 860cfd64d795458a871f1a654e7497bf3a360012. Revert the atomic release commit through a reviewed PR and rerun serving smoke checks; do not restore only part of the bundle.
+
+## Scope limitations
+Preservation is not predictive-model recertification. Existing PCA/imputation refits remain part of refresh methodology. Validation of selected model inputs does not certify unused ambiguous raw series. Historical crisis-reference corrections are not current economic shocks.
+'''
+          (docs/'README.md').write_text(text)
+          Path('release-output/staged-paths.txt').write_text('\n'.join(paths+['docs/releases/2026-09-15']))
+          PY
+          cd /tmp/release
+          git lfs checkout
+          python -m src.scripts.smoke_test_artifacts > "$GITHUB_WORKSPACE/release-output/clean-tree-smoke.txt"
+          python -m pytest -q --junitxml="$GITHUB_WORKSPACE/release-output/clean-tree-tests.xml" > "$GITHUB_WORKSPACE/release-output/clean-tree-tests.txt"
+          while IFS= read -r path; do git add -- "$path"; done < "$GITHUB_WORKSPACE/release-output/staged-paths.txt"
+          git add -- docs/releases/2026-09-15
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix and promote: canonical FSIC selection and validated September 15 serving snapshot'
+          git push origin HEAD:promote/fsic-2026-09-15
+          git rev-parse HEAD > "$GITHUB_WORKSPACE/release-output/release-commit.txt"
+          git diff --stat 860cfd64d795458a871f1a654e7497bf3a360012 > "$GITHUB_WORKSPACE/release-output/release-diff-stat.txt"
+      - name: Upload complete validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsic-release-validation-2026-09-15
+          path: release-output/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Upload fixed candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: banking-copilot-2026-09-15-fsic-repaired
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            artifacts/data_manifest.json
+            artifacts/validated_classifier.json
+            artifacts/model_policy_audit.json
+            artifacts/feature_heuristics.json
+            artifacts/government_liquidity_features_report.json
+            data/reference/government_liquidity_features.parquet
+            data/reference/government_liquidity_observations.parquet
+            data/reference/government_liquidity_features_report.json
+            cache/FSIBSIS_cache.parquet
+            cache/FSIC_cache.parquet
+            cache/MFS_cache.parquet
+            cache/WEO_cache.parquet
+            cache/WGI_cache.parquet
+            cache/crisis_features.parquet
+            cache/imputed_features.parquet
+            cache/risk_model.pkl
+            cache/inference_pipeline.pkl
+            cache/crisis_classifier.pkl
