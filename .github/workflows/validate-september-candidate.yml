@@ -1,0 +1,118 @@
+name: Independent September candidate validation
+on:
+  push:
+    branches: [validation/september-candidate-2026-09-15]
+    paths: [.github/workflows/validate-september-candidate.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 42f1920af908730b483e8831d74a7752ea674bf6
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install repository-pinned dependencies
+        run: python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+      - name: Preserve exact source and baseline serving objects
+        run: |
+          set -euo pipefail
+          mkdir -p validation-output/baseline
+          git rev-parse HEAD > validation-output/source-commit.txt
+          git archive --format=tar.gz HEAD > validation-output/source.tar.gz
+          git lfs pull --include="cache/risk_model.pkl,cache/inference_pipeline.pkl,cache/crisis_classifier.pkl,cache/crisis_features.parquet,cache/imputed_features.parquet"
+          cp cache/risk_model.pkl cache/inference_pipeline.pkl cache/crisis_classifier.pkl cache/crisis_features.parquet cache/imputed_features.parquet validation-output/baseline/
+          cp artifacts/data_manifest.json validation-output/baseline/
+          echo '054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee  cache/crisis_classifier.pkl' | sha256sum -c -
+      - name: Fetch the immutable candidate and verify before loading
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/september-candidate.zip
+          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/september-candidate.zip' | sha256sum -c -
+          python - <<'PY'
+          import hashlib, json, shutil, zipfile
+          from pathlib import Path
+          target = Path('/tmp/september-candidate')
+          target.mkdir()
+          with zipfile.ZipFile('/tmp/september-candidate.zip') as z:
+              for member in z.infolist():
+                  if not (target / member.filename).resolve().is_relative_to(target.resolve()):
+                      raise ValueError('Unsafe archive member')
+              z.extractall(target)
+          manifest = json.loads((target / 'artifacts/data_manifest.json').read_text())
+          assert manifest['as_of_date'] == '2026-09-15'
+          assert manifest['snapshot_status'] == 'verified'
+          verified = []
+          for name, expected in manifest['artifacts'].items():
+              data = (target / name).read_bytes()
+              assert len(data) == expected['bytes'], name
+              assert hashlib.sha256(data).hexdigest() == expected['sha256'], name
+              verified.append(name)
+          assert (target / 'cache/crisis_classifier.pkl').read_bytes() == Path('validation-output/baseline/crisis_classifier.pkl').read_bytes()
+          for root in ['artifacts', 'cache', 'data']:
+              shutil.copytree(target / root, root, dirs_exist_ok=True)
+          Path('validation-output/integrity.json').write_text(json.dumps({'verified_files': verified, 'classifier_preserved': True, 'candidate_artifact_id': 10402061259}, indent=2))
+          PY
+      - name: Independent compile, test and serving checks
+        run: |
+          set -euo pipefail
+          python -m compileall -q app.py train_model.py src tests
+          python -m pytest -q --junitxml=validation-output/independent-tests.xml 2>&1 | tee validation-output/independent-tests.txt
+          python -m src.scripts.smoke_test_artifacts 2>&1 | tee validation-output/independent-smoke.txt
+          python -m src.scripts.audit_model_policy 2>&1 | tee validation-output/independent-policy.txt
+          cp artifacts/model_policy_audit.json validation-output/recomputed-model-policy.json
+      - name: Export independently loaded objects and country-level diagnostics
+        if: always()
+        run: |
+          python - <<'PY'
+          import hashlib, json, pickle
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          import train_model
+          from src.crisis_labels import CrisisLabels
+          out = Path('validation-output')
+          manifests = {}
+          for label, root in [('baseline', out / 'baseline'), ('candidate', Path('cache'))]:
+              obj = pickle.loads((root / 'risk_model.pkl').read_bytes())
+              values = obj if isinstance(obj, dict) else vars(obj)
+              (out / f'{label}-model-keys.json').write_text(json.dumps({k: type(v).__name__ for k, v in values.items()}, indent=2))
+              for key, value in values.items():
+                  if isinstance(value, pd.DataFrame):
+                      value.to_csv(out / f'{label}-{key}.csv', index=False)
+              for filename in ['crisis_features', 'imputed_features']:
+                  pd.read_parquet(root / f'{filename}.parquet').to_csv(out / f'{label}-{filename}.csv', index=False)
+          labels = CrisisLabels().get_episode_table()
+          labels.to_csv(out / 'official-crisis-episodes.csv', index=False)
+          a = pd.read_csv(out / 'baseline-country_scores.csv').set_index('country_code').sort_index()
+          b = pd.read_csv(out / 'candidate-country_scores.csv').set_index('country_code').sort_index()
+          assert a.index.is_unique and b.index.is_unique
+          assert set(a.index) == set(b.index)
+          delta = b.risk_score - a.risk_score
+          gates = {'countries': len(b), 'named_countries': int(b.country_name.notna().sum()), 'scores_finite_in_range': bool(np.isfinite(b.risk_score).all() and b.risk_score.between(1, 10).all()), 'mean_absolute_change': float(delta.abs().mean()), 'countries_moving_ge_1': int((delta.abs() >= 1 - 1e-9).sum()), 'countries_moving_ge_3': int((delta.abs() >= 3 - 1e-9).sum()), 'spearman_rank_correlation': float(a.risk_score.corr(b.risk_score, method='spearman')), 'category_changes': int((a.risk_category != b.risk_category).sum())}
+          raw = pd.read_parquet('cache/crisis_features.parquet').set_index('country_code')
+          end = labels.loc[labels.classification.eq('systemic')].groupby('country_code').label_end_year.max()
+          expected = (2026 - raw.index.to_series().map(end)).fillna(25).clip(0, 25)
+          recency = pd.DataFrame({'actual': raw.years_since_banking_crisis, 'expected': expected})
+          recency.to_csv(out / 'crisis-recency-reconciliation.csv')
+          gates['crisis_recency_mismatches'] = int((recency.actual != recency.expected).sum())
+          gates['approval'] = 'NOT_GRANTED_BY_WORKFLOW'
+          (out / 'independent-gates.json').write_text(json.dumps(gates, indent=2))
+          print(json.dumps(gates, indent=2))
+          PY
+      - name: Publish audit evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-september-validation
+          path: validation-output/
+          retention-days: 30
+          if-no-files-found: error
