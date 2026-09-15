@@ -277,50 +277,10 @@ class CrisisFeatureEngineer:
 
         fsic_df = self._enforce_cutoff(fsic_df, as_of_date)
 
-        # FSIC indicator mappings - Core FSI metrics
-        # IMPORTANT: Patterns must include 'Percent' where relevant to avoid matching currency values
-        fsic_mappings = {
-            'capital_adequacy': ('Regulatory capital to risk-weighted assets.*Core FSI', True),
-            'npl_ratio': ('Nonperforming loans to total gross loans.*Core FSI', False),
-            'roe': ('Return on equity.*Core FSI', True),
-            'roa': ('Return on assets.*Core FSI', True),
-            # 'short.?term' matches both the legacy 'short term' and the
-            # official SDMX 'short-term' spellings.
-            'liquid_assets_st_liab': ('Liquid assets to short.?term liabilities.*Core FSI', True),
-            'liquid_assets_total': ('Liquid assets to total assets.*Percent', True),
-            'deposit_to_total_assets': ('Deposits to total.*assets.*Percent', True),  # NEW: Supplementary liquidity
-            'customer_deposits_loans': ('Customer deposits to total.*loans.*Percent', True),
-            # Official SDMX name: 'Foreign-currency-denominated loans to total
-            # loans'; legacy name: 'Foreign currency loans to total loans'.
-            'fx_loan_exposure': ('Foreign.currency.*loans to total.*loans.*Percent', False),
-            'tier1_capital': ('Tier 1 capital to risk-weighted assets.*Core FSI', True), # Fixed ambiguity
-            'npl_provisions': ('Provisions to nonperforming loans.*Percent', True),
-            'loan_concentration': ('Loan concentration.*Percent', False),
-            'real_estate_loans': ('Residential real estate loans to total gross loans.*Core FSI', False),  # BICRA: Real Estate Risk
-        }
-        
-        features_list = []
-        
-        for country in fsic_df['country_code'].unique():
-            country_data = fsic_df[fsic_df['country_code'] == country]
-            country_features = {'country_code': country}
-            
-            for feature_name, (pattern, _) in fsic_mappings.items():
-                mask = country_data['indicator_name'].str.contains(
-                    pattern, case=False, na=False, regex=True
-                )
-                if mask.any():
-                    matched = country_data[mask].sort_values('period')
-                    if len(matched) > 0:
-                        country_features[feature_name] = matched['value'].iloc[-1]
-                        # Store YEAR as integer
-                        p = pd.to_datetime(matched['period'].iloc[-1])
-                        country_features[f'{feature_name}_year'] = p.year
-            
-            if len(country_features) > 1:
-                features_list.append(country_features)
-        
-        fsic_features = pd.DataFrame(features_list)
+        from src.fsic_selection import select_fsic_features
+
+        self.fsic_selection_audit = []
+        fsic_features = select_fsic_features(fsic_df, audit=self.fsic_selection_audit)
         
         # NOTE: features are kept in their natural units (e.g. NPL ratio is positive percent)
         # Directionality (higher is better vs lower is better) is handled during:
