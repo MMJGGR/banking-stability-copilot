@@ -65,7 +65,7 @@
       "pct_model_countries": 42.3
     }
   },
-  "generated_at": "2026-07-12T08:49:39.509059+00:00",
+  "generated_at": "2026-09-15T15:43:58.101291+00:00",
   "model_countries": 201,
   "notes": [
     "A curated subset is wired into production scoring when the active model artifact includes it; other government-liquidity fields are packaged for analysis only.",

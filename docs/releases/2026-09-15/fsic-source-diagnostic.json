@@ -1,0 +1,540 @@
+{
+  "source_artifact": 10402061259,
+  "cutoff": "2026-09-15",
+  "columns": [
+    "country_code",
+    "country_name",
+    "indicator_code",
+    "indicator_name",
+    "frequency",
+    "unit",
+    "latest_actual_year",
+    "period_str",
+    "value",
+    "period",
+    "dataset",
+    "observation_status"
+  ],
+  "vnm_latest_competing_rows": [
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_CFSI_PT",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "frequency": "A",
+      "unit": "PT",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 0.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_CFSI_PT",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "frequency": "Q",
+      "unit": "PT",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 0.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_FSI46A_XDC",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, Common Equity Tier 1 capital, Domestic currency",
+      "frequency": "A",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 0.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_FSI46A_XDC",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, Common Equity Tier 1 capital, Domestic currency",
+      "frequency": "Q",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 0.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_RWA_XDC",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, Risk-weighted assets, Domestic currency",
+      "frequency": "A",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 2.088081775e+16,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI15_RWA_XDC",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, Risk-weighted assets, Domestic currency",
+      "frequency": "Q",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 2.088081775e+16,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_CFSI_PT",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "frequency": "A",
+      "unit": "PT",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 10.5859364868,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_CFSI_PT",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "frequency": "Q",
+      "unit": "PT",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 10.5859364868,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_RWA_XDC",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, Risk-weighted assets, Domestic currency",
+      "frequency": "A",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 2.088081775e+16,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_RWA_XDC",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, Risk-weighted assets, Domestic currency",
+      "frequency": "Q",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 2.088081775e+16,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_T1K_XDC",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, Tier 1 Capital, Domestic currency",
+      "frequency": "A",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025",
+      "value": 2210430105470000.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    },
+    {
+      "country_code": "VNM",
+      "country_name": "Vietnam",
+      "indicator_code": "FSI626_T1K_XDC",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, Tier 1 Capital, Domestic currency",
+      "frequency": "Q",
+      "unit": "XDC",
+      "latest_actual_year": null,
+      "period_str": "2025-Q4",
+      "value": 2210430105470000.0,
+      "period": "2025-12-31T00:00:00.000",
+      "dataset": "FSIC",
+      "observation_status": "unknown"
+    }
+  ],
+  "percent_series_catalog": [
+    {
+      "indicator_code": "AQ12_CFSI_PT",
+      "indicator_name": "Nonperforming loans to total gross loans, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "AQ14_CFSI_PT",
+      "indicator_name": "Provisions to nonperforming loans, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "AQ1_CFSI_PT",
+      "indicator_name": "Loan concentration by economic activity, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI107_CFSI_PT",
+      "indicator_name": "Non-interest Expenses to Gross Income, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI115_AFSI_PT",
+      "indicator_name": "Earnings to interest and principal expenses, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI131_AFSI_PT",
+      "indicator_name": "Foreign-currency-denominated loans to total loans, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI153_AFSI_PT",
+      "indicator_name": "Gross asset position in financial derivatives to capital, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI157_AFSI_PT",
+      "indicator_name": "Household debt to household disposal income, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI15_CFSI_PT",
+      "indicator_name": "Common Equity Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI167_AFSI_PT",
+      "indicator_name": "Gross liability position in financial derivatives to capital, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI179_AFSI_PT",
+      "indicator_name": "Household debt to gross domestic product, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI17_CFSI_PT",
+      "indicator_name": "Non-performing loans net of provisions to capital, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI202_AFSI_PT",
+      "indicator_name": "Earnings to interest expenses, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI214_AFSI_PT",
+      "indicator_name": "Large exposures to capital, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI283_LIQATTA_PT",
+      "indicator_name": "Liquid assets to total assets, Liquid Assets to Total Assets, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI288_CFSI_PT",
+      "indicator_name": "Liquidity coverage ratio, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI289_CFSI_PT",
+      "indicator_name": "Net stable funding ratio, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI320_AFSI_PT",
+      "indicator_name": "Maturity distribution of investments: >90 days, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI321_AFSI_PT",
+      "indicator_name": "Maturity distribution of investments: 1-30 days, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI322_AFSI_PT",
+      "indicator_name": "Maturity distribution of investments: 31-90 days, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI354_AFSI_PT",
+      "indicator_name": "Personnel expenses to noninterest expenses, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI41N_AFSI_PT",
+      "indicator_name": "FSI41N_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI470_AFSI_PT",
+      "indicator_name": "Liquid assets to estimated pension payments in the next year, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI520_AFSI_PT",
+      "indicator_name": "Commercial real estate loans to total gross loans, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI522_AFSI_PT",
+      "indicator_name": "Commercial real estate prices (percentage change/last 12 months), (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI524_CFSI_PT",
+      "indicator_name": "Residential real estate loans to total gross loans, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI526_AFSI_PT",
+      "indicator_name": "Residential real estate prices (percentage change/last 12 months), (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI555_CFSI_PT",
+      "indicator_name": "Net open position in foreign exchange to capital, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI55_AFSI_PT",
+      "indicator_name": "Customer deposits to total (noninterbank) loans, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI626_CFSI_PT",
+      "indicator_name": "Tier 1 capital to risk-weighted assets, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI636_AFSI_PT",
+      "indicator_name": "Foreign currency debt to equity, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI637_AFSI_PT",
+      "indicator_name": "Total debt to equity, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI641_AFSI_PT",
+      "indicator_name": "External debt to equity, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI680_AFSI_PT",
+      "indicator_name": "Foreign-currency-denominated liabilities to total liabilities, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI688_CFSI_PT",
+      "indicator_name": "Regulatory capital to risk-weighted assets, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI690_AFSI_PT",
+      "indicator_name": "Trading income to total income, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI709_AFSI_PT",
+      "indicator_name": "Credit growth to private sector, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI726_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Advanced economies, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI727_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Domestic economies, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI728_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Emerging market and developing economies, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI729_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Emerging and developing Asia, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI730_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Emerging and developing Europe, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI731_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Latin America and the Caribbean, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI737_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans: Middle East and Central Asia, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI738_AFSI_PT",
+      "indicator_name": "Geographic distribution of loans, Sub-Saharan Africa, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI765_CFSI_PT",
+      "indicator_name": "Liquid assets to short-term liabilities, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_RESS_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S11_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S121_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S12CFSI_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S12R_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S1311MIXED_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI796_Z_S13U_PT",
+      "indicator_name": "Sectoral distribution of investments, Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI82_AFSI_PT",
+      "indicator_name": "Total debt to GDP, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI85_AFSI_PT",
+      "indicator_name": "Household debt service and principal payments to income, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "FSI99_CFSI_PT",
+      "indicator_name": "Interest margin to gross income, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "OFCAGDP_AFSI_PT",
+      "indicator_name": "OFCs' Assets to Gross Domestic Product: OFCs, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "OFCATFA_AFSI_PT",
+      "indicator_name": "OFCATFA_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "ROA_AFSI_PT",
+      "indicator_name": "Return on assets, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "ROA_CFSI_PT",
+      "indicator_name": "Return on assets, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "ROE_AFSI_PT",
+      "indicator_name": "Return on equity, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "ROE_CFSI_PT",
+      "indicator_name": "Return on equity, (Core FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S123AGDP_AFSI_PT",
+      "indicator_name": "S123AGDP_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S123ATFA_AFSI_PT",
+      "indicator_name": "S123ATFA_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S128AGDP_AFSI_PT",
+      "indicator_name": "S128AGDP_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S128ATFA_AFSI_PT",
+      "indicator_name": "S128ATFA_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S129AGDP_AFSI_PT",
+      "indicator_name": "S129AGDP_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "S129ATFA_AFSI_PT",
+      "indicator_name": "S129ATFA_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "SETIA_AFSI_PT",
+      "indicator_name": "SETIA_AFSI_PT, (Additional FSI), Percent",
+      "unit": "PT"
+    },
+    {
+      "indicator_code": "T1KTA_CFSI_PT",
+      "indicator_name": "Tier 1 capital to assets, (Core FSI), Percent",
+      "unit": "PT"
+    }
+  ]
+}

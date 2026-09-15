@@ -1,0 +1,40 @@
+{
+  "status": "approved_for_user_authorized_promotion_subject_to_repository_checks",
+  "user_authorization": "The user explicitly requested correction and promotion after independent validation: Plus fix and promote.",
+  "review_type": "assistant validation under explicit user delegation; not separate human model recertification",
+  "validation_run": "34990214433",
+  "build_source_commit": "6c832c59213e10a2da4abb577a0a7bc61ba71937",
+  "validated_release_commit": "83c0a611161aa36eb72fc8ad9516ea8196f303b9",
+  "baseline_commit": "860cfd64d795458a871f1a654e7497bf3a360012",
+  "pull_request": 27,
+  "scope": "Same September 15 source vintage; canonical FSIC selection; mathematically equivalent stable neighbor-distance calculation; existing classifier preserved.",
+  "candidate_artifact_id": 10405252101,
+  "candidate_zip_sha256": "9f1adc1ddd99a44d73df6ac30e09d9496fa828037b271dbd0a0bbe58b1453c5c",
+  "candidate_manifest_sha256": "fa6952aaad5b086c2ddd557f284ddd5b74cf3eaf6350ca54c958786d7fc2c3fa",
+  "evidence_artifact_id": 10405132310,
+  "evidence_zip_sha256": "93975843866a48a40edb67d19170db4cb4e7d44ed465f7fa5366a8056c06eef4",
+  "completed_controls": [
+    "303 tests passed, 1 existing provenance test skipped, 0 failures; repeated successfully in the clean release worktree",
+    "3 model checks and all serving smoke checks passed",
+    "All 15 manifest files and both downloaded ZIP digests independently verified",
+    "201 scored countries retained; classifier and all five source caches preserved",
+    "Full FSIC selection invariant under original, reversed and three shuffled source orders",
+    "All published release scores reproduce exactly from raw inputs with 1, 2 and 4 threads",
+    "Separate local environment reproduces identical imputed values across threads and row orders",
+    "Raw model inputs and persisted policy audit reconcile; score movements reviewed"
+  ],
+  "reviewed_material_movements": {
+    "category_changes_vs_production": 22,
+    "max_score_change_vs_production": 4.8,
+    "max_score_change_vs_prior_candidate": 1.5,
+    "largest_numerical_correction": "Montserrat 6.6 to 8.1; a computational correction, not newly observed economic deterioration",
+    "raw_engineered_feature_changes_vs_prior_candidate": 0
+  },
+  "retained_limitations": [
+    "The existing full-verification test against a locally pinned published Laeven-Valencia workbook remains skipped because that workbook is not bundled. This release does not certify the entire historical crisis-label transcription or renew classifier validation.",
+    "Exact historical replay uses saved imputed economic inputs. Legacy recomputed KNN discrepancies remain explicitly disclosed.",
+    "Selected-input validation does not certify every unused raw series. Individual source observation dates still vary by country.",
+    "The original candidate manifest is preserved unchanged, including its human_promotion_approved=false field, because no separate human model review is asserted. This signed-in repository release record documents the user's delegated promotion authority."
+  ],
+  "created_at": "2026-09-15T15:44:57.887121+00:00"
+}

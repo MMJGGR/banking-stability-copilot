@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "path": "cache/crisis_classifier.pkl",
+  "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee",
+  "bytes": 52580,
+  "baseline_commit": "860cfd64d795458a871f1a654e7497bf3a360012",
+  "policy": "Preserve the existing served classifier. This lock does not constitute renewed model validation. A new classifier requires separate release approval."
+}

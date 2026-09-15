@@ -8,6 +8,8 @@ from sklearn.decomposition import PCA
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import MinMaxScaler
 
+from src.stable_distance import stable_nan_euclidean
+
 
 ECONOMIC_FEATURES = [
     "gdp_growth", "inflation", "current_account_gdp", "gdp_per_capita",
@@ -265,6 +267,7 @@ class PillarInferencePipeline:
         self.imputer_ = KNNImputer(
             n_neighbors=min(5, len(training) - 1),
             weights="distance",
+            metric=stable_nan_euclidean,
         )
         imputed = pd.DataFrame(
             self.imputer_.fit_transform(training[self.imputed_columns_]),

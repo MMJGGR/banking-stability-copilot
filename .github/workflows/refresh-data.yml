@@ -17,65 +17,51 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     timeout-minutes: 180
-
     steps:
-      - name: Check out source only
+      - name: Check out source and classifier pointer
         uses: actions/checkout@v4
         with:
           lfs: false
-
+      - name: Fetch only the validated classifier LFS object
+        run: |
+          git lfs install --local
+          git lfs pull --include="cache/crisis_classifier.pkl" --exclude=""
+          python -c "from src.classifier_integrity import verify_classifier_file; print(verify_classifier_file())"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
           python -m pip check
-
       - name: Run unit tests
         run: python -m pytest -q
-
       - name: Resolve snapshot cutoff
         shell: bash
+        env:
+          INPUT_AS_OF_DATE: ${{ inputs.as_of_date }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SNAPSHOT_DATE="${{ inputs.as_of_date }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            SNAPSHOT_DATE="$INPUT_AS_OF_DATE"
           else
             SNAPSHOT_DATE="$(date -u +%Y-%m-%d)"
           fi
+          [[ "$SNAPSHOT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || exit 1
           echo "SNAPSHOT_DATE=${SNAPSHOT_DATE}" >> "$GITHUB_ENV"
-          echo "Snapshot cutoff: ${SNAPSHOT_DATE}"
-
-      - name: Fetch sources and build candidate snapshot
-        run: >-
-          python -m src.scripts.refresh_data
-          --as-of "$SNAPSHOT_DATE"
-
+      - name: Fetch sources and build classifier-preserving candidate
+        run: python -m src.scripts.refresh_data --as-of "$SNAPSHOT_DATE"
       - name: Verify government-liquidity reference bundle
-        shell: bash
         run: |
           set -euo pipefail
-          for path in \
-            artifacts/government_liquidity_features_report.json \
-            data/reference/government_liquidity_features.parquet \
-            data/reference/government_liquidity_observations.parquet \
-            data/reference/government_liquidity_features_report.json
-          do
-            test -s "$path" || {
-              echo "Required government-liquidity output is missing or empty: $path" >&2
-              exit 1
-            }
+          for path in artifacts/government_liquidity_features_report.json data/reference/government_liquidity_features.parquet data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_features_report.json; do
+            test -s "$path" || exit 1
           done
-
       - name: Smoke-test candidate serving artifacts
         run: python -m src.scripts.smoke_test_artifacts
-
-      - name: Upload candidate serving artifacts
-        if: always()
+      - name: Upload successfully validated candidate
         uses: actions/upload-artifact@v4
         with:
           name: banking-copilot-${{ env.SNAPSHOT_DATE }}
@@ -83,6 +69,7 @@ jobs:
           retention-days: 30
           path: |
             artifacts/data_manifest.json
+            artifacts/validated_classifier.json
             artifacts/model_policy_audit.json
             artifacts/feature_heuristics.json
             artifacts/government_liquidity_features_report.json

@@ -1,13 +1,13 @@
 {
   "counts_by_heuristic": {
-    "bank_liability_to_nfa_clip": 1,
+    "bank_liability_to_nfa_clip": 2,
     "credit_to_gdp_scale_adjustment": 1,
     "credit_to_gdp_unit_mismatch_drop": 7,
     "reserve_currency_fx_imputation": 3,
-    "sovereign_exposure_low_value_overwrite": 18,
+    "sovereign_exposure_low_value_overwrite": 20,
     "sovereign_exposure_securities_proxy": 7
   },
-  "flag_count": 37,
+  "flag_count": 40,
   "flags": [
     {
       "country_code": "AFG",
@@ -17,7 +17,13 @@
     },
     {
       "country_code": "HTI",
-      "detail": "ratio 2.98% outside 5-500% at all trial scales; country dropped from credit features",
+      "detail": "ratio 3.01% outside 5-500% at all trial scales; country dropped from credit features",
+      "feature": "private_credit_to_gdp",
+      "heuristic": "credit_to_gdp_unit_mismatch_drop"
+    },
+    {
+      "country_code": "KWT",
+      "detail": "ratio 4.96% outside 5-500% at all trial scales; country dropped from credit features",
       "feature": "private_credit_to_gdp",
       "heuristic": "credit_to_gdp_unit_mismatch_drop"
     },
@@ -47,19 +53,19 @@
     },
     {
       "country_code": "SSD",
-      "detail": "ratio 3.04% outside 5-500% at all trial scales; country dropped from credit features",
-      "feature": "private_credit_to_gdp",
-      "heuristic": "credit_to_gdp_unit_mismatch_drop"
-    },
-    {
-      "country_code": "ZMB",
-      "detail": "ratio 3.53% outside 5-500% at all trial scales; country dropped from credit features",
+      "detail": "ratio 3.46% outside 5-500% at all trial scales; country dropped from credit features",
       "feature": "private_credit_to_gdp",
       "heuristic": "credit_to_gdp_unit_mismatch_drop"
     },
     {
       "country_code": "BEL",
       "detail": "ratio -334.7 clipped to [-100, 100]",
+      "feature": "bank_liability_to_nfa",
+      "heuristic": "bank_liability_to_nfa_clip"
+    },
+    {
+      "country_code": "COL",
+      "detail": "ratio -101.3 clipped to [-100, 100]",
       "feature": "bank_liability_to_nfa",
       "heuristic": "bank_liability_to_nfa_clip"
     },
@@ -104,6 +110,18 @@
       "detail": "missing value filled with securities_to_assets",
       "feature": "sovereign_exposure_ratio",
       "heuristic": "sovereign_exposure_securities_proxy"
+    },
+    {
+      "country_code": "ARG",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
+    },
+    {
+      "country_code": "AUS",
+      "detail": "observed value < 2% overwritten with securities_to_assets (> 5%)",
+      "feature": "sovereign_exposure_ratio",
+      "heuristic": "sovereign_exposure_low_value_overwrite"
     },
     {
       "country_code": "BOL",

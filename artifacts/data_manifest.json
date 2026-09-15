@@ -1,76 +1,166 @@
 {
   "artifacts": {
+    "artifacts/government_liquidity_features_report.json": {
+      "bytes": 3140,
+      "sha256": "90adf55e8d250d26b7d4b45883d9a280c898ce776b73ee8eeb1a2e03b1dddc41"
+    },
     "artifacts/model_policy_audit.json": {
-      "bytes": 1458,
-      "sha256": "abbb842a0a272dd1eb9fccd3cb19073046ea0b7a48fa978e98d6fed2aa4e8d54"
+      "bytes": 1457,
+      "sha256": "d5cce8e5777c1457e048450c46b56149b1da80b0b4f1e608a4f0717a5296c811"
     },
     "cache/FSIBSIS_cache.parquet": {
-      "bytes": 9842035,
-      "sha256": "ebf1a44b1629bfd878dfedaa4ee9d967cca7d323a48da90404f47eff287fdc1f"
+      "bytes": 10027399,
+      "sha256": "730b4a56d498c3dcc514a6198e1f6a8bed561ff445ab483e3e3b12d59d6625d0"
+    },
+    "cache/FSIC_cache.parquet": {
+      "bytes": 8209586,
+      "sha256": "ba4dcff8536a06f7627cd45a7291baa4aeb86c4ae666d93dc94d937a56ed9532"
+    },
+    "cache/MFS_cache.parquet": {
+      "bytes": 24856398,
+      "sha256": "bb2cf2ec1af3e3bccf7c3aa5112b15ca31cb4d5306dbd9f041eb6cdf0bc7e7e8"
+    },
+    "cache/WEO_cache.parquet": {
+      "bytes": 3172484,
+      "sha256": "23f378b8322a194281e4808d16777fa72648927131f0d98849df644870ba810e"
     },
     "cache/WGI_cache.parquet": {
       "bytes": 303132,
-      "sha256": "f1ee465f915b4de1ec8600d4eb54256120d404589fb42f96ae96a5cd94eb23a5"
+      "sha256": "ac65e8cf1b833421a844c7d9dfb204c7dce1fa01d5114db02d2c0e39c69d6ece"
     },
     "cache/crisis_classifier.pkl": {
       "bytes": 52580,
       "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
     },
     "cache/crisis_features.parquet": {
-      "bytes": 161501,
-      "sha256": "c68907381bc871364c0fb2e7b8d6e11f8497b973ffc81d230483a35f9c41f9a9"
+      "bytes": 155278,
+      "sha256": "a57a8873df548c982c86e97aad0b9fc71a7c9f42bbbbbf02809fea0cc33f7cd0"
     },
     "cache/imputed_features.parquet": {
-      "bytes": 172173,
-      "sha256": "184fbeba58b355a87eb9b4b4a3e786a8d99b8cd3a1a41e0927e2da1add161324"
+      "bytes": 170019,
+      "sha256": "65c5fcc39092d0a787d7488dc1afac0c0c3e17304adff286bfe07927a1825602"
     },
     "cache/inference_pipeline.pkl": {
-      "bytes": 166857,
-      "sha256": "71ddfe7765ed3c3d2e20fbfd99fe549c85d690d8d3ecf93d265b908158a235ce"
+      "bytes": 170666,
+      "sha256": "eda77072fd58a7264d9fb06e7096491104ae2d224e6ec3bbc63ad47179207325"
     },
     "cache/risk_model.pkl": {
-      "bytes": 185504,
-      "sha256": "a80e05a53f017b157777a7efb0d949b02b56cd7c74155091e672adb14589e3c5"
+      "bytes": 206349,
+      "sha256": "46e88409782f0e879c26e64b73a058ea4867d2cc22185df2adbe1ba5aa6da060"
+    },
+    "data/reference/government_liquidity_features.parquet": {
+      "bytes": 38055,
+      "sha256": "2f0bf6116b1cb51616e3f42ca796e37e24fbf085f248bfb91ca0b59845798e89"
+    },
+    "data/reference/government_liquidity_features_report.json": {
+      "bytes": 3140,
+      "sha256": "90adf55e8d250d26b7d4b45883d9a280c898ce776b73ee8eeb1a2e03b1dddc41"
+    },
+    "data/reference/government_liquidity_observations.parquet": {
+      "bytes": 361195,
+      "sha256": "a0d683b5700e76525ff574eafcd1e241f66cf48a1840751ec175dd8404f90891"
     }
   },
-  "as_of_date": "2026-06-30",
-  "generated_at": "2026-07-12T14:39:35.619879+00:00",
+  "as_of_date": "2026-09-15",
+  "classifier_preservation": {
+    "human_promotion_approved": false,
+    "mode": "preserved",
+    "pillar_policy": "Pillar pipeline is refitted by the existing build; review the frozen-pipeline comparison separately.",
+    "verified_baseline": {
+      "baseline_commit": "860cfd64d795458a871f1a654e7497bf3a360012",
+      "bytes": 52580,
+      "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
+    }
+  },
+  "generated_at": "2026-09-15T15:44:03.282490+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
-    "snapshot_date": "2026-06-30",
-    "training_date": "2026-07-12T17:39:26.498692"
+    "snapshot_date": "2026-09-15",
+    "training_date": "2026-09-15T15:43:57.440342"
   },
-  "schema_version": 1,
-  "snapshot_id": "2026-06-30",
-  "snapshot_status": "verified",
-  "source_mode": "local_cached_sources",
-  "sources": {
+  "retrieval": {
     "FSIBSIS": {
-      "countries": 141,
-      "indicator_basis": "unique INDICATOR labels with observations by cutoff",
-      "indicators": 289,
-      "latest_observation": "2026-05-31",
-      "latest_period_label": "2026-M05",
-      "rows": 11460
+      "bytes": 140043424,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-09-15T142407Z.csv",
+      "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
+      "retrieval_method": "sdmx_api",
+      "retrieved_at": "2026-09-15T14:24:23.075167+00:00",
+      "sha256": "5bdbcd39b5f7011ba7aedc8e4eaecdd2370c1f0ec917c67947519e49d536404d",
+      "source": "FSIBSIS"
     },
     "FSIC": {
-      "countries": 155,
-      "indicators": 398,
-      "latest_observation": "2026-05-31",
-      "observation_status_counts": {
-        "unknown": 1258965
-      },
-      "rows": 1258965
+      "bytes": 148397632,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-09-15T142203Z.csv",
+      "remote_version": "IMF.STA:FSIC(13.0.1)",
+      "retrieval_method": "sdmx_api",
+      "retrieved_at": "2026-09-15T14:22:25.253997+00:00",
+      "sha256": "1c5d521b883827c47b4046547cfdbb203d9fbf749b3b267c1a7a4753321c4870",
+      "source": "FSIC"
     },
     "MFS": {
-      "countries": 180,
-      "indicators": 91,
-      "latest_observation": "2026-05-31",
+      "bytes": 486966685,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-09-15T142246Z.csv",
+      "remote_version": "IMF.STA:MFS_DC(8.0.0)",
+      "retrieval_method": "sdmx_api",
+      "retrieved_at": "2026-09-15T14:23:53.971813+00:00",
+      "sha256": "0222da30d9650ac331d7afd87e249b73f280e6861566d021904a42faae5238a6",
+      "source": "MFS"
+    },
+    "WEO": {
+      "bytes": 36738338,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-09-15T142158Z.csv",
+      "remote_version": "IMF.RES:WEO(9.0.0)",
+      "retrieval_method": "sdmx_api",
+      "retrieved_at": "2026-09-15T14:22:00.906783+00:00",
+      "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
+      "source": "WEO"
+    },
+    "WGI": {
+      "bytes": 2060170,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-09-15T142515Z.csv",
+      "remote_version": null,
+      "retrieval_method": "worldbank_api",
+      "retrieved_at": "2026-09-15T14:25:15.507226+00:00",
+      "sha256": "f69df5978649612597245434ecde6331fda0face4c96090b696aaa4d4585f6e4",
+      "source": "WGI"
+    }
+  },
+  "schema_version": 1,
+  "snapshot_id": "2026-09-15",
+  "snapshot_status": "verified",
+  "source_mode": "verified_candidate_cache_rebuild",
+  "source_reuse": {
+    "note": "Source retrieval dates are original, not the rebuild date. Only the five source caches were reused.",
+    "original_as_of_date": "2026-09-15",
+    "original_generated_at": "2026-09-15T14:25:56.899630+00:00"
+  },
+  "sources": {
+    "FSIBSIS": {
+      "countries": 143,
+      "indicator_basis": "unique INDICATOR labels with observations by cutoff",
+      "indicators": 289,
+      "latest_observation": "2026-07-31",
+      "latest_period_label": "2026-M07",
+      "rows": 11598
+    },
+    "FSIC": {
+      "countries": 157,
+      "indicators": 398,
+      "latest_observation": "2026-07-31",
       "observation_status_counts": {
-        "unknown": 4509993
+        "unknown": 1282064
       },
-      "rows": 4509993
+      "rows": 1282064
+    },
+    "MFS": {
+      "countries": 181,
+      "indicators": 91,
+      "latest_observation": "2026-08-31",
+      "observation_status_counts": {
+        "unknown": 4593410
+      },
+      "rows": 4593410
     },
     "WEO": {
       "countries": 208,
