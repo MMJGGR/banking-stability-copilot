@@ -41,7 +41,7 @@ def replay(root, model, *, saved_imputation=False, threads=2):
         indexed = pipe._index_features(features)
         numeric = indexed[pipe.numeric_columns_].apply(pd.to_numeric, errors='coerce')
         eligible = numeric[numeric.notna().mean(axis=1) >= pipe.minimum_data_coverage]
-        saved = sidecar.reindex(eligible.index)[pipe.numeric_columns_]
+        saved = sidecar.reindex(eligible.index)[pipe.numeric_columns_].astype(float)
         assert sidecar.index.is_unique and set(saved.index) == set(eligible.index)
         # Display sidecars intentionally retain missing observation dates.
         # Dates are not pillar inputs; reconstruct only those unused metadata
