@@ -121,40 +121,15 @@ jobs:
               shutil.copy2(Path('release-output')/name,docs/name)
           shutil.copy2('review/2026-09-15/fsic-source-diagnostic.json',docs/'official-series-diagnostic.json')
           r=json.loads((docs/'validation.json').read_text())
-          text=f'''# September 15, 2026 FSIC-corrected serving release
-
-User authorization: fix the independently reproduced source-selection defect and promote after successful validation.
-
-## Controls and evidence
-- Source cutoff and retrieval vintage: 2026-09-15, reused without redownloading from verified artifact 10402061259.
-- All five source caches remain byte-identical to that candidate.
-- Existing served crisis classifier preserved byte-for-byte; no retraining authorized or performed.
-- Canonical Tier 1: FSI626_CFSI_PT. Common Equity Tier 1 (FSI15_CFSI_PT) is a distinct measure and never a substitute.
-- Duplicate observations at a period end can be coalesced only when their finite values agree exactly. Conflicting values or extra economic dimensions stop the build; no arbitrary frequency precedence.
-- {r['tests']['passed']} tests passed, {r['tests']['skipped']} skipped, no failures. Original/reversed/three shuffled complete FSIC frames yield identical extracted features.
-- Exact score replay checked for baseline, previous candidate and release; raw/model features and policy audit reconcile.
-- {r['countries']} countries retained; all {r['manifest_files_verified']} manifest artifacts verified.
-- Vietnam Tier 1: {r['vnm_tier1']}; derived capital quality: {r['vnm_capital_quality']}.
-- Maximum score movement caused by this repair: {r['max_score_change_due_to_repair']}; versus production: {r['max_score_change_vs_production']}.
-- Build/evidence run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}
-
-## Approval and rollback
-This branch contains both the tested source fix and complete serving bundle. The workflow prepares the branch; it does not merge it. Final approval is recorded in the release PR after inspecting these gates.
-
-Rollback baseline: 860cfd64d795458a871f1a654e7497bf3a360012. Revert the atomic release commit through a reviewed PR and rerun serving smoke checks; do not restore only part of the bundle.
-
-## Scope limitations
-Preservation is not predictive-model recertification. Existing PCA/imputation refits remain part of refresh methodology. Validation of selected model inputs does not certify unused ambiguous raw series. Historical crisis-reference corrections are not current economic shocks.
-'''
-          (docs/'README.md').write_text(text)
-          Path('release-output/staged-paths.txt').write_text('\n'.join(paths+['docs/releases/2026-09-15']))
+          lines=['# September 15, 2026 FSIC-corrected serving release','', 'User authorization: fix the independently reproduced source-selection defect and promote after successful validation.','', '## Controls and evidence', '- Source cutoff/retrieval vintage: 2026-09-15, reused without redownloading from verified artifact 10402061259.', '- All five source caches remain byte-identical to that candidate.', '- Existing served crisis classifier preserved byte-for-byte; no retraining authorized or performed.', '- Canonical Tier 1: FSI626_CFSI_PT. Common Equity Tier 1 (FSI15_CFSI_PT) is a distinct measure, never a substitute.', '- Duplicate observations can be coalesced only when finite values agree exactly. Conflicting values or extra economic dimensions stop the build; no arbitrary frequency precedence.', f"- Tests: {r['tests']['passed']} passed, {r['tests']['skipped']} skipped, no failures. Original/reversed/three shuffled complete FSIC frames yield identical features.", '- Exact score replay checked for baseline, previous candidate and release; raw/model features and policy audit reconcile.', f"- {r['countries']} countries retained; all {r['manifest_files_verified']} manifest artifacts verified.", f"- Vietnam Tier 1: {r['vnm_tier1']}; capital quality: {r['vnm_capital_quality']}.", f"- Maximum score movement caused by repair: {r['max_score_change_due_to_repair']}; versus production: {r['max_score_change_vs_production']}.", f"- Evidence run: https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}", '', '## Approval and rollback', 'This branch contains both the tested source fix and complete serving bundle. The workflow prepares the branch; it does not merge it. Final approval is recorded in the release PR after inspecting these gates.', '', 'Rollback baseline: 860cfd64d795458a871f1a654e7497bf3a360012. Revert the atomic release commit through a reviewed PR and rerun serving smoke checks; never restore only part of the bundle.', '', '## Scope limitations', 'Preservation is not predictive-model recertification. Existing PCA/imputation refits remain part of refresh methodology. Validation of selected model inputs does not certify unused ambiguous raw series. Historical crisis-reference corrections are not current economic shocks.']
+          (docs/'README.md').write_text('\n'.join(lines)+'\n')
+          Path('release-output/staged-paths.txt').write_text('\n'.join(paths+['docs/releases/2026-09-15'])+'\n')
           PY
           cd /tmp/release
           git lfs checkout
           python -m src.scripts.smoke_test_artifacts > "$GITHUB_WORKSPACE/release-output/clean-tree-smoke.txt"
           python -m pytest -q --junitxml="$GITHUB_WORKSPACE/release-output/clean-tree-tests.xml" > "$GITHUB_WORKSPACE/release-output/clean-tree-tests.txt"
           while IFS= read -r path; do git add -- "$path"; done < "$GITHUB_WORKSPACE/release-output/staged-paths.txt"
-          git add -- docs/releases/2026-09-15
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix and promote: canonical FSIC selection and validated September 15 serving snapshot'
           git push origin HEAD:promote/fsic-2026-09-15
           git rev-parse HEAD > "$GITHUB_WORKSPACE/release-output/release-commit.txt"
@@ -181,6 +156,7 @@ Preservation is not predictive-model recertification. Existing PCA/imputation re
             artifacts/government_liquidity_features_report.json
             data/reference/government_liquidity_features.parquet
             data/reference/government_liquidity_observations.parquet
+            data/reference/government_liquidity_features_report.json
             data/reference/government_liquidity_features_report.json
             cache/FSIBSIS_cache.parquet
             cache/FSIC_cache.parquet
