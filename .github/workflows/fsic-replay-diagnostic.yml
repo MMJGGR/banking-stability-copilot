@@ -1,0 +1,67 @@
+name: Diagnose FSIC release replay
+on:
+  push:
+    branches: [fix/fsic-selection-promotion-2026-09-15]
+    paths: [.github/workflows/fsic-replay-diagnostic.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+      - name: Read verified baseline and candidate artifacts
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="cache/risk_model.pkl,cache/inference_pipeline.pkl" --exclude=""
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10402061259/zip > /tmp/candidate.zip
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10403046735/zip > /tmp/audit.zip
+          echo '02c873f47946ffd2d1710d85598a9d53977b4e1b1c798dc3d56552b1e059e683  /tmp/candidate.zip' | sha256sum -c -
+          echo '4d43479a643abefd0f04d4dbf162cbbfdb9fe28740f68f33a0aa7306d7f8680c  /tmp/audit.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile, pickle, json, hashlib
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          from threadpoolctl import threadpool_limits, threadpool_info
+          import train_model
+          for name in ['candidate','audit']:
+              root=Path('/tmp')/name
+              with zipfile.ZipFile(f'/tmp/{name}.zip') as z:
+                  for member in z.namelist():
+                      assert (root/member).resolve().is_relative_to(root.resolve())
+                  z.extractall(root)
+          roots={'repo_baseline':Path('cache'),'audited_baseline':Path('/tmp/audit/baseline'),'candidate':Path('/tmp/candidate/cache')}
+          result={'default_threadpools':threadpool_info(),'artifacts':{},'replays':[]}
+          for name,root in roots.items():
+              result['artifacts'][name]={f:hashlib.sha256((root/f).read_bytes()).hexdigest() for f in ['risk_model.pkl','inference_pipeline.pkl']}
+              m=pickle.loads((root/'risk_model.pkl').read_bytes());p=pickle.loads((root/'inference_pipeline.pkl').read_bytes())['pillar_pipeline']
+              f=m['feature_values'];stored=m['country_scores'].set_index('country_code')
+              for limit in [None,1,2,4]:
+                  with threadpool_limits(limits=limit):
+                      s=p.transform(f).set_index('country_code')
+                      prob=f.set_index('country_code').crisis_prob.reindex(s.index)
+                      s['risk_score']=(s.risk_score+0.1*((1+9*prob)-s.risk_score).clip(lower=0)).clip(1,10)
+                      d=s.risk_score.reindex(stored.index)-stored.risk_score
+                      imputed=p.impute(f)
+                      differences=[{'country_code':cc,'stored':float(stored.loc[cc,'risk_score']),'replayed':float(s.loc[cc,'risk_score']),'difference':float(d.loc[cc])} for cc in d.index[d.abs()>1e-10]]
+                      result['replays'].append({'artifact':name,'thread_limit':limit,'max_abs_delta':float(d.abs().max()),'differences':differences,'THA_imputed':json.loads(imputed.loc[['THA']].to_json(orient='records',double_precision=15))[0],'THA_score':json.loads(s.loc[['THA']].to_json(orient='records',double_precision=15))[0]})
+          out=Path('review/2026-09-15/replay-diagnostic.json');out.write_text(json.dumps(result,indent=2))
+          print(json.dumps({k:v for k,v in result.items() if k!='replays'},indent=2))
+          print(json.dumps([{k:v for k,v in r.items() if not k.startswith('THA_')} for r in result['replays']],indent=2))
+          PY
+          git add review/2026-09-15/replay-diagnostic.json
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'audit: compare identical baseline artifacts and thread-dependent score replay'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
