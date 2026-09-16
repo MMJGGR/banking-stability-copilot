@@ -54,3 +54,22 @@ def test_incompatible_measure_scale_is_not_silently_accepted():
     raw,records=fixture();raw.loc[0,'value']=-2.5;records[0]['value']=-2.5
     with pytest.raises(ForecastDataError,match='0-100'):
         recover_wgi(raw,records_from_pages([[{},records]]),retrieved_at='2026-09-16')
+
+
+from src.forecasting.wgi import source_country_ids
+
+
+def test_official_country_dimension_recovers_both_empty_main_ids():
+    raw,records=fixture()
+    records[1]['country']['id']='';records[2]['country']['id']=''
+    payload={'page':1,'pages':1,'total':3,'source':[{'id':'3','concept':[{'id':'country','variable':[
+        {'id':'KEN','value':'Kenya'},{'id':'TAA','value':'Territory A'},{'id':'TBB','value':'Territory B'}]}]}]}
+    ids=source_country_ids(payload)
+    obs,_,crosswalk,_=recover_wgi(raw,records_from_pages([[{},records]],ids),retrieved_at='2026-09-16')
+    assert set(obs.entity_code)=={'KEN','TAA','TBB'}
+    assert crosswalk.mapping_status.eq('verified_source_country_dimension').all()
+
+
+def test_incomplete_country_catalogue_fails_closed():
+    with pytest.raises(ForecastDataError):
+        source_country_ids({'page':1,'pages':2,'total':216,'source':[]})
