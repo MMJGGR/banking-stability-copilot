@@ -18,7 +18,7 @@ import pandas as pd
 import requests
 from .inventory import ForecastDataError
 from .panel import annual_endpoints, build_retrospective_panel
-from .wgi import MEASURES, records_from_pages, recover_wgi
+from .wgi import MEASURES, records_from_pages, recover_wgi, source_country_ids
 from src.scripts.audit_forecasting_sources import sha256, output_destination
 
 ORIGINAL_CODE='b55adf71ac83d9c1cfa4186fe19b4954c53b875c'
@@ -32,10 +32,19 @@ def write_json(path, value):
 
 
 def recover_wgi_download(raw_path: Path, destination: Path, *, retrieved_at: str, cutoff: str):
-    """Keep original values; recover IDs from complete, archived API pages."""
+    """Keep original values; recover IDs from the official source dimension."""
     raw_hash=sha256(raw_path)
     pages_dir=destination/'identity-recovery-pages';pages_dir.mkdir(exist_ok=False)
     pages=[];receipts=[]
+    catalog_url='https://api.worldbank.org/v2/sources/3/country/data?format=json&per_page=1000'
+    catalog_response=requests.get(catalog_url,timeout=120)
+    catalog_response.raise_for_status()
+    catalog_path=destination/'source-country-dimension.json'
+    catalog_path.write_bytes(catalog_response.content)
+    catalog=source_country_ids(catalog_response.json())
+    receipts.append({'url':catalog_url,'checked_at':datetime.now(timezone.utc).isoformat(),
+                     'http_status':catalog_response.status_code,'bytes':len(catalog_response.content),
+                     'file':catalog_path.name,'sha256':sha256(catalog_path)})
     for measure in MEASURES:
         page=1
         while True:
@@ -58,7 +67,7 @@ def recover_wgi_download(raw_path: Path, destination: Path, *, retrieved_at: str
             page+=1
     write_json(destination/'identity-recovery-receipts.json',receipts)
     raw=pd.read_csv(raw_path,dtype={'country_code':str,'year':int},float_precision='round_trip')
-    canonical,registry,entities,summary=recover_wgi(raw,records_from_pages(pages),retrieved_at=retrieved_at)
+    canonical,registry,entities,summary=recover_wgi(raw,records_from_pages(pages,catalog),retrieved_at=retrieved_at)
     future=canonical.observation_period>pd.Timestamp(cutoff)
     summary['after_cutoff_rows']=int(future.sum())
     canonical=canonical.loc[~future].copy()
@@ -75,7 +84,7 @@ def recover_wgi_download(raw_path: Path, destination: Path, *, retrieved_at: str
     write_json(destination/'retrieval.json',{
         'source':'WGI','original_raw_file':raw_path.name,'sha256':raw_hash,
         'bytes':raw_path.stat().st_size,'original_export_timestamp':retrieved_at,
-        'identity_recovery':'Separate official API pages; every original value reconciled before IDs attached.',
+        'identity_recovery':'Separate official country-dimension and observation API pages; every original value reconciled before IDs attached.',
         'historical_publication_dates':'not recovered; retrieval dates are not first-publication dates'})
     if sha256(raw_path)!=raw_hash:raise ForecastDataError('WGI original raw download changed')
     return registry,endpoints,summary
@@ -111,8 +120,6 @@ def main():
     prior=json.loads((previous/'run.json').read_text())
     if prior['code_commit']!=ORIGINAL_CODE or prior['status']!='failed_incomplete' or prior['error']!='ForecastDataError: Nonunique WGI observation':
         raise ForecastDataError('Input is not the expected partial M2 source build')
-    # The IMF normalizer and annual panel definitions must match the completed
-    # source run. New WGI recovery utilities are separate and explicitly tested.
     subprocess.run(['git','diff','--exit-code',ORIGINAL_CODE,'HEAD','--',
                     'src/forecasting/canonical.py','src/forecasting/panel.py'],cwd=repo,check=True)
     for name,digest in prior['serving_sha256_before'].items():
