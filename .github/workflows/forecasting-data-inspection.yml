@@ -1,0 +1,42 @@
+name: Inspect live forecasting source semantics
+on:
+  push:
+    branches: [research/broad-feature-forecasting-2026-09-16]
+    paths: [.github/workflows/forecasting-data-inspection.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: Read official WGI country-concept catalogues without changing data
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import datetime,hashlib,json,requests
+          out=Path('wgi-identity-evidence');out.mkdir()
+          routes={'country-dimension':'https://api.worldbank.org/v2/sources/3/country/data?format=json&per_page=1000','country-metadata':'https://api.worldbank.org/v2/sources/3/country/metadata?format=json&per_page=1000','country-concept':'https://api.worldbank.org/v2/sources/3/concepts/country/data?format=json&per_page=1000'}
+          report={}
+          for label,url in routes.items():
+              try:
+                  r=requests.get(url,timeout=60);p=out/(label+'.json');p.write_bytes(r.content)
+                  report[label]={'url':url,'http_status':r.status_code,'bytes':len(r.content),'sha256':hashlib.sha256(r.content).hexdigest(),'retrieved_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+                  print(label,r.status_code,r.text[:1500])
+              except Exception as e:report[label]={'url':url,'error':str(e)}
+          (out/'receipts.json').write_text(json.dumps(report,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wgi-source-identities-${{ github.run_id }}
+          path: wgi-identity-evidence/
+          retention-days: 90
+          if-no-files-found: error
