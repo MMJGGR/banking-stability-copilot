@@ -1,0 +1,97 @@
+name: Inspect live forecasting source semantics
+on:
+  push:
+    branches: [research/broad-feature-forecasting-2026-09-16]
+    paths: [.github/workflows/forecasting-data-inspection.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'pyarrow==19.0.1' requests
+      - name: Hydrate immutable serving inputs
+        run: |
+          git lfs install --local
+          git lfs pull --include="cache/FSIC_cache.parquet,cache/FSIBSIS_cache.parquet,cache/MFS_cache.parquet,cache/WEO_cache.parquet,cache/WGI_cache.parquet" --exclude=""
+      - name: Inspect full caches and bounded live official samples
+        run: |
+          python - <<'PY'
+          import json, hashlib, datetime, shutil
+          from pathlib import Path
+          import pandas as pd
+          import numpy as np
+          import requests
+          out=Path('inspection-evidence');out.mkdir()
+          manifest=json.loads(Path('artifacts/data_manifest.json').read_text())
+          report={'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cutoff':manifest['as_of_date'],'cache_sha256':{},'sources':{},'live_probes':{}}
+          for source in ['FSIC','FSIBSIS','MFS','WEO','WGI']:
+              name=f'cache/{source}_cache.parquet';p=Path(name)
+              digest=hashlib.sha256(p.read_bytes()).hexdigest();assert digest==manifest['artifacts'][name]['sha256']
+              report['cache_sha256'][source]=digest
+              d=pd.read_parquet(p)
+              info={'shape':list(d.shape),'columns':list(d.columns),'dtypes':{c:str(t) for c,t in d.dtypes.items()},'countries':sorted(d.country_code.dropna().unique().tolist())}
+              for col in ['unit','frequency','observation_status','latest_actual_year','SECTOR']:
+                  if col in d:
+                      info[col+'_counts']={str(k):int(v) for k,v in d[col].value_counts(dropna=False).items()}
+              if 'period' in d:
+                  info['earliest']=str(d.period.min());info['latest']=str(d.period.max())
+                  info['period_year_counts']={str(k):int(v) for k,v in pd.to_datetime(d.period).dt.year.value_counts().sort_index().items()}
+                  cats=[c for c in ['indicator_code','indicator_name','unit','frequency'] if c in d]
+                  d[cats].drop_duplicates().to_csv(out/f'{source}-labels.csv',index=False)
+                  numeric=pd.to_numeric(d.value,errors='coerce');info['negative_values']=int((numeric<0).sum());info['zeros']=int((numeric==0).sum());info['nonfinite']=int((~np.isfinite(numeric)).sum())
+                  keys=['country_code','indicator_code','frequency','period']
+                  if 'unit' in d:keys.append('unit')
+                  grouped=d.groupby(keys,dropna=False).value.agg(['size','nunique','min','max']).reset_index()
+                  bad=grouped[grouped.nunique.gt(1)] if False else grouped[grouped['nunique']>1]
+                  info['conflicts']=len(bad);bad.head(40).to_csv(out/f'{source}-conflict-examples.csv',index=False)
+                  selected=d[d.country_code.isin(['KEN','VNM','LUX'])]
+                  selected.to_csv(out/f'{source}-cache-sample.csv.gz',index=False)
+              else:
+                  d[d.country_code.isin(['KEN','VNM','LUX'])].to_csv(out/f'{source}-cache-sample.csv.gz',index=False)
+              report['sources'][source]=info
+              del d
+          root='https://api.imf.org/external/sdmx/3.0'
+          specs={'FSIC':('IMF.STA','FSIC','KEN.*.*.*'),'FSIBSIS':('IMF.STA','FSIBSIS','KEN.*.*.*'),'MFS':('IMF.STA','MFS_DC','KEN.*.*.*'),'WEO':('IMF.RES','WEO','KEN.*.*')}
+          for source,(agency,flow,key) in specs.items():
+              entry={}
+              for kind,url,accept in [('structure',f'{root}/structure/dataflow/{agency}/{flow}/+?references=all','application/vnd.sdmx.structure+json'),('sample',f'{root}/data/dataflow/{agency}/{flow}/+/{key}','application/vnd.sdmx.data+csv')]:
+                  try:
+                      r=requests.get(url,headers={'Accept':accept},timeout=180);r.raise_for_status()
+                      assert len(r.content)<100_000_000,'Unexpectedly large bounded response'
+                      ext='json' if kind=='structure' else 'csv'
+                      p=out/f'{source}-live-{kind}.{ext}';p.write_bytes(r.content)
+                      entry[kind]={'url':url,'http_status':r.status_code,'bytes':len(r.content),'sha256':hashlib.sha256(r.content).hexdigest()}
+                      if kind=='sample':
+                          d=pd.read_csv(p,low_memory=False);entry[kind]['rows']=len(d);entry[kind]['columns']=list(d.columns)
+                          entry[kind]['dimension_examples']={c:d[c].dropna().astype(str).unique()[:15].tolist() for c in d if c not in ['OBS_VALUE','TIME_PERIOD']}
+                  except Exception as e:entry[kind]={'url':url,'error':str(e)}
+              report['live_probes'][source]=entry
+          url='https://api.worldbank.org/v2/country/KEN/indicator/GOV_WGI_GE.SC?source=3&format=json&per_page=1000'
+          try:
+              r=requests.get(url,timeout=90);r.raise_for_status();(out/'WGI-live-sample.json').write_bytes(r.content)
+              report['live_probes']['WGI']={'url':url,'http_status':r.status_code,'bytes':len(r.content),'sha256':hashlib.sha256(r.content).hexdigest()}
+          except Exception as e:report['live_probes']['WGI']={'url':url,'error':str(e)}
+          (out/'inspection.json').write_text(json.dumps(report,indent=2,default=str)+'\n')
+          shutil.copytree('src/forecasting',out/'code/src/forecasting')
+          for name in ['src/scripts/audit_forecasting_sources.py','tests/test_forecasting_foundation.py','docs/prd/broad-feature-forecasting.md','src/sources/sdmx.py']:
+              p=out/'code'/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(name,p)
+          for s,h in report['cache_sha256'].items():assert hashlib.sha256(Path(f'cache/{s}_cache.parquet').read_bytes()).hexdigest()==h
+          print(json.dumps({'cache_cutoff':report['cutoff'],'live_probes':report['live_probes']},indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-data-semantics-${{ github.run_id }}
+          path: inspection-evidence/
+          retention-days: 90
+          if-no-files-found: error
