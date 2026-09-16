@@ -1,8 +1,8 @@
 """Recover World Bank source entity IDs without changing the saved WGI values.
 
-Some WGI territories have an empty countryiso3code, but country.id identifies
-these entities. Preserve that ID. Do not combine all missing ISO codes, guess
-ISO mappings from names, or drop those records. Unmapped IDs stay namespaced.
+Some territories have both main-endpoint ID fields empty. Recover their
+published code from the WGI source-specific Country dimension; never combine
+blank IDs, guess mappings, or drop records. Archive the catalogue separately.
 """
 from __future__ import annotations
 import numpy as np
@@ -16,7 +16,27 @@ MEASURES = {
 }
 
 
-def records_from_pages(pages: list) -> pd.DataFrame:
+def source_country_ids(payload: dict) -> dict[str, str]:
+    """Read the complete official WGI source-3 Country dimension."""
+    if not isinstance(payload, dict) or int(payload.get('pages', 0)) != 1 or int(payload.get('page', 0)) != 1:
+        raise ForecastDataError('Incomplete source-country catalogue')
+    sources=[x for x in payload.get('source',[]) if str(x.get('id'))=='3']
+    if len(sources)!=1: raise ForecastDataError('Not the WGI source-country catalogue')
+    concepts=[c for c in sources[0].get('concept',[]) if str(c.get('id','')).lower()=='country']
+    if len(concepts)!=1: raise ForecastDataError('Missing country dimension')
+    rows=concepts[0].get('variable',[])
+    if not rows or len(rows)!=int(payload.get('total',-1)):
+        raise ForecastDataError('Truncated country dimension')
+    mapping={};codes=set()
+    for row in rows:
+        code=str(row.get('id') or '').strip();name=str(row.get('value') or '').strip()
+        if not code or not name or code in codes or name in mapping:
+            raise ForecastDataError('Ambiguous source-country catalogue')
+        mapping[name]=code;codes.add(code)
+    return mapping
+
+
+def records_from_pages(pages: list, country_catalog: dict[str,str] | None = None) -> pd.DataFrame:
     rows=[]
     for payload in pages:
         if not isinstance(payload,list) or len(payload)!=2 or not isinstance(payload[1],list):
@@ -26,11 +46,15 @@ def records_from_pages(pages: list) -> pd.DataFrame:
             country=record.get('country') or {}
             source_id=str(country.get('id') or '').strip()
             name=str(country.get('value') or '').strip()
+            basis='main_endpoint_country_id'
+            if country_catalog is not None:
+                source_id=country_catalog.get(name,'')
+                basis='source_country_dimension'
             measure=(record.get('indicator') or {}).get('id')
             date=str(record.get('date') or '')
             if not source_id or not name or measure not in MEASURES or not date.isdigit():
                 raise ForecastDataError('Missing/unrecognized World Bank entity or measure')
-            rows.append({'source_entity_id':source_id,'country_name':name,
+            rows.append({'source_entity_id':source_id,'source_id_basis':basis,'country_name':name,
                          'source_iso3':str(record.get('countryiso3code') or '').strip(),
                          'indicator_code':measure,'year':int(date),'verification_value':record['value']})
     if not rows: raise ForecastDataError('No populated WGI observations')
@@ -69,12 +93,20 @@ def recover_wgi(raw: pd.DataFrame, metadata: pd.DataFrame, *, retrieved_at: str)
     difference=(values-verification).abs()
     if not np.isfinite(verification).all() or (difference>1e-12).any():
         raise ForecastDataError('WGI values changed; cannot silently mix retrieval vintages')
+    basis=joined.source_id_basis if 'source_id_basis' in joined else pd.Series('main_endpoint_country_id',index=joined.index)
+    published=basis.eq('source_country_dimension')
+    if (published & original_iso.ne('') & original_iso.ne(joined.source_entity_id)).any():
+        raise ForecastDataError('Source-country code disagrees with reported ISO3')
     joined['entity_code']=original_iso.where(original_iso.ne(''),'WB:'+joined.source_entity_id)
-    identity_map=joined[['source_entity_id','entity_code','country_name','source_iso3']].drop_duplicates()
+    joined.loc[published,'entity_code']=joined.loc[published,'source_entity_id']
+    joined['source_id_basis']=basis
+    identity_map=joined[['source_entity_id','source_id_basis','entity_code','country_name','source_iso3']].drop_duplicates()
     if identity_map.source_entity_id.duplicated().any() or identity_map.entity_code.duplicated().any():
         raise ForecastDataError('Ambiguous source entity crosswalk')
     identity_map['mapping_status']=np.where(identity_map.source_iso3.eq(''),
         'source_id_preserved_iso_mapping_unresolved','source_iso3')
+    recovered=identity_map.source_id_basis.eq('source_country_dimension')
+    identity_map.loc[recovered,'mapping_status']='verified_source_country_dimension'
     joined['feature_id']='WGI:'+joined.indicator_code
     joined['observation_period']=pd.to_datetime(joined.year.astype(str)+'-12-31')
     joined['status_code']='UNKNOWN'
