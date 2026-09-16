@@ -39,7 +39,7 @@ jobs:
           mkdir research-evidence
           cp docs/prd/broad-feature*.md research-evidence/
           python -m compileall -q src/forecasting src/scripts/build_forecasting_research_panel.py tests/test_forecasting*.py
-      - name: Run all research contract tests including territory recovery
+      - name: Run all research contracts including both missing WGI ID fields
         run: |
           set -o pipefail
           python -m pytest tests/test_forecasting*.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
@@ -62,7 +62,7 @@ jobs:
                   assert (member.external_attr >> 16) & 0o170000 != 0o120000
               z.extractall(root)
           PY
-      - name: Recover WGI identities and finish the fixed-vintage broad panel
+      - name: Recover dataset-level WGI identities and finish the fixed-vintage broad panel
         run: |
           set -o pipefail
           python -m src.forecasting.resume_m2 --previous /tmp/previous-m2/live --output research-evidence/live 2>&1 | tee research-evidence/execution.log
