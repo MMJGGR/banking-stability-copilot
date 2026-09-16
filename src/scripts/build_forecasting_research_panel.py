@@ -117,24 +117,14 @@ def process_imf(source, client, output, cutoff):
 
 
 def process_wgi(client,output,cutoff):
+    from src.forecasting.resume_m2 import recover_wgi_download
     dest=output/'WGI';dest.mkdir()
     result=client.fetch(dest,timeout=120,retries=2)
-    raw=Path(result.path);data=pd.read_csv(raw,dtype={'year':int,'country_code':str})
-    data=data.rename(columns={'country_code':'entity_code'})
-    data['observation_period']=pd.to_datetime(data.year.astype(str)+'-12-31')
-    data=data.loc[data.observation_period<=pd.Timestamp(cutoff)].copy()
-    data['feature_id']='WGI:'+data.indicator_code
-    data['status_code']='UNKNOWN'
-    data['available_at']=pd.NaT;data['vintage_at']=pd.NaT;data['retrieved_at']=result.retrieved_at
-    if data.duplicated(['entity_code','feature_id','observation_period']).any():raise ForecastDataError('Nonunique WGI observation')
-    registry=data[['feature_id','indicator_code','feature_name']].drop_duplicates().rename(columns={'indicator_code':'INDICATOR','feature_name':'indicator_label'})
-    if not registry.INDICATOR.str.fullmatch(r'GOV_WGI_[A-Z]{2}\.SC').all():raise ForecastDataError('Unreviewed WGI measure scale')
-    registry=registry.assign(source='WGI',FREQUENCY='A',UNIT='SCORE_0_100',SCALE='0',unit_resolution='official_SC_measure_definition',library_state='canonical_retrospective_not_model_validated')
-    data.to_parquet(dest/'canonical.parquet',index=False);registry.to_csv(dest/'registry.csv',index=False)
-    endpoints=annual_endpoints(data);endpoints.to_parquet(dest/'annual-endpoints.parquet',index=False)
-    summary={'source':'WGI','raw_rows':len(data),'canonical_cells':len(data),'features':len(registry),'entities':int(data.entity_code.nunique()),'conflicting_cells':0,'unresolved_unit_features':0,'source_response_sha256':result.sha256,'retrieved_at':result.retrieved_at}
-    write_json(dest/'retrieval.json',asdict(result));write_json(dest/'summary.json',summary)
-    return registry,endpoints,summary
+    raw=Path(result.path)
+    # Preserve the original receipt as well as the separate metadata-recovery
+    # ledger. The values stay in their original download vintage.
+    write_json(dest/'original-download-receipt.json',asdict(result))
+    return recover_wgi_download(raw,dest,retrieved_at=result.retrieved_at,cutoff=cutoff)
 
 
 def main():
