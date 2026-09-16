@@ -3,11 +3,11 @@ on:
   pull_request:
     paths:
       - 'src/forecasting/**'
-      - 'src/scripts/audit_forecasting_sources.py'
-      - 'tests/test_forecasting_foundation.py'
-      - 'docs/prd/broad-feature-forecasting.md'
-      - 'docs/research/forecasting-implementation.md'
-      - '.github/workflows/forecasting-source-schema.yml'
+      - 'src/scripts/*forecasting*.py'
+      - 'tests/test_forecasting*.py'
+      - 'docs/prd/broad-feature*.md'
+      - 'docs/research/forecasting*.md'
+      - '.github/workflows/forecasting*.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,19 +38,20 @@ jobs:
           from pathlib import Path
           baseline='5957ca779dafa21f2e098c819bfb060f43243206'
           changes=subprocess.check_output(['git','diff','--name-only',baseline,'HEAD'],text=True).splitlines()
-          exact={'src/scripts/audit_forecasting_sources.py','tests/test_forecasting_foundation.py','.github/workflows/forecasting-source-schema.yml','docs/prd/broad-feature-forecasting.md','docs/research/forecasting-implementation.md'}
+          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py','tests/test_forecasting_foundation.py','tests/test_forecasting_canonical.py','.github/workflows/forecasting-source-schema.yml','.github/workflows/forecasting-data-inspection.yml','.github/workflows/forecasting-m2.yml','docs/prd/broad-feature-forecasting.md','docs/prd/broad-feature-data-contract-v0.2.md','docs/research/forecasting-implementation.md','docs/research/forecasting-live-data-review-2026-09-16.md'}
           assert all(p in exact or p.startswith('src/forecasting/') for p in changes),changes
           root=Path('research-evidence');root.mkdir()
           report={'baseline':baseline,'checked_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'changed_paths':changes,'production_paths_unchanged':True,'file_sha256':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in changes if Path(p).is_file()}}
           (root/'scope-and-code.json').write_text(json.dumps(report,indent=2)+'\n')
-          (root/'PRD.md').write_text(Path('docs/prd/broad-feature-forecasting.md').read_text())
+          for p in Path('docs/prd').glob('broad-feature*.md'):
+              (root/p.name).write_text(p.read_text())
           (root/'implementation-status.md').write_text(Path('docs/research/forecasting-implementation.md').read_text())
           PY
-      - name: Run adversarial foundation tests
+      - name: Run adversarial foundation and M2 tests
         run: |
           set -o pipefail
-          python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py tests/test_forecasting_foundation.py
-          python -m pytest tests/test_forecasting_foundation.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
+          python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py src/scripts/build_forecasting_research_panel.py tests/test_forecasting_foundation.py tests/test_forecasting_canonical.py
+          python -m pytest tests/test_forecasting_foundation.py tests/test_forecasting_canonical.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
       - name: Hydrate only the committed raw source caches
         run: |
           set -euo pipefail
