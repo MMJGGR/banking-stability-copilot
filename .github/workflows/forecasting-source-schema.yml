@@ -38,7 +38,7 @@ jobs:
           from pathlib import Path
           baseline='5957ca779dafa21f2e098c819bfb060f43243206'
           changes=subprocess.check_output(['git','diff','--name-only',baseline,'HEAD'],text=True).splitlines()
-          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py','tests/test_forecasting_foundation.py','tests/test_forecasting_canonical.py','.github/workflows/forecasting-source-schema.yml','.github/workflows/forecasting-data-inspection.yml','.github/workflows/forecasting-m2.yml','docs/prd/broad-feature-forecasting.md','docs/prd/broad-feature-data-contract-v0.2.md','docs/research/forecasting-implementation.md','docs/research/forecasting-live-data-review-2026-09-16.md'}
+          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py','tests/test_forecasting_foundation.py','tests/test_forecasting_canonical.py','tests/test_forecasting_wgi.py','.github/workflows/forecasting-source-schema.yml','.github/workflows/forecasting-data-inspection.yml','.github/workflows/forecasting-m2.yml','docs/prd/broad-feature-forecasting.md','docs/prd/broad-feature-data-contract-v0.2.md','docs/research/forecasting-implementation.md','docs/research/forecasting-live-data-review-2026-09-16.md'}
           assert all(p in exact or p.startswith('src/forecasting/') for p in changes),changes
           root=Path('research-evidence');root.mkdir()
           report={'baseline':baseline,'checked_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'changed_paths':changes,'production_paths_unchanged':True,'file_sha256':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in changes if Path(p).is_file()}}
@@ -50,8 +50,8 @@ jobs:
       - name: Run adversarial foundation and M2 tests
         run: |
           set -o pipefail
-          python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py src/scripts/build_forecasting_research_panel.py tests/test_forecasting_foundation.py tests/test_forecasting_canonical.py
-          python -m pytest tests/test_forecasting_foundation.py tests/test_forecasting_canonical.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
+          python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py src/scripts/build_forecasting_research_panel.py tests/test_forecasting*.py
+          python -m pytest tests/test_forecasting*.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
       - name: Hydrate only the committed raw source caches
         run: |
           set -euo pipefail
