@@ -1,5 +1,5 @@
 name: Phase 2 measurement and transition checkpoint
-# Final consolidated Phase 2 checkpoint after expanding the rank boundary and recalibrating state uncertainty.
+# Final consolidated checkpoint. Reuses validated lower-rank evidence and fits only unresolved higher ranks.
 on:
   push:
     branches: [research/broad-feature-phase2-transition-2026-09-22]
@@ -53,40 +53,52 @@ jobs:
             tests/test_forecasting_phase2_measurement.py \
             tests/test_forecasting_phase2_execution.py \
             tests/test_forecasting_phase2_transition.py \
+            tests/test_forecasting_phase2_uncertainty.py \
             -q --junitxml=phase2-evidence/tests.xml | tee phase2-evidence/tests.txt
           ! grep -R -q 'target-pairs.csv' \
             src/forecasting/phase2_measurement.py \
             src/forecasting/phase2_measurement_execution.py \
             src/forecasting/phase2_full_execution.py \
-            src/forecasting/phase2_transition.py
+            src/forecasting/phase2_resolved_execution.py \
+            src/forecasting/phase2_transition.py \
+            src/forecasting/phase2_uncertainty.py
 
-      - name: Retrieve and verify immutable September 16 research data
+      - name: Retrieve immutable data and prior rank-boundary evidence
         run: |
           set -euo pipefail
           gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
           echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10701178100/zip > /tmp/prior.zip
+          echo 'a1df1c17c326b889453918a71ba9c4a072c295e0c9c4c5ad37bff22e5a610ae7  /tmp/prior.zip' | sha256sum -c -
           python - <<'PY'
           import zipfile
           from pathlib import Path
-          root=Path('/tmp/m2')
-          with zipfile.ZipFile('/tmp/m2.zip') as archive:
-              for member in archive.infolist():
-                  destination=(root/member.filename).resolve()
-                  assert destination.is_relative_to(root.resolve())
-                  assert (member.external_attr >> 16) & 0o170000 != 0o120000
-              archive.extractall(root)
+          for archive_name, root_name in [('m2','/tmp/m2'),('prior','/tmp/prior')]:
+              root=Path(root_name)
+              with zipfile.ZipFile(f'/tmp/{archive_name}.zip') as archive:
+                  for member in archive.infolist():
+                      destination=(root/member.filename).resolve()
+                      assert destination.is_relative_to(root.resolve())
+                      assert (member.external_attr >> 16) & 0o170000 != 0o120000
+                  archive.extractall(root)
+          matches=list(Path('/tmp/prior').rglob('phase2a-selection.json'))
+          assert len(matches)==1, matches
+          prior_results=matches[0].parent
+          Path('/tmp/prior-results-path.txt').write_text(str(prior_results))
           PY
 
-      - name: Execute complete Phase 2 research checkpoint
+      - name: Execute resolved Phase 2 research checkpoint
         run: |
           set -o pipefail
-          python -m src.forecasting.phase2_full_execution \
+          PRIOR_RESULTS="$(cat /tmp/prior-results-path.txt)"
+          python -m src.forecasting.phase2_resolved_execution \
             --snapshot /tmp/m2/live \
+            --prior-results "$PRIOR_RESULTS" \
             --output phase2-evidence/results \
             --max-selection-cells 1200000 \
-            --selection-epochs 5 \
-            --mode-epochs 6 \
-            --final-epochs 8 \
+            --extension-epochs 5 \
+            --mode-epochs 4 \
+            --final-epochs 6 \
             2>&1 | tee phase2-evidence/execution.log
 
       - name: Verify Phase 2 completion and production isolation
@@ -107,7 +119,9 @@ jobs:
               'status':report['status'],
               'state_rank':report['phase2a']['state_rank'],
               'measurement_mode':report['phase2a']['measurement_mode'],
+              'phase2a_gates':report['phase2a']['gates'],
               'coverage_geometry':report['phase2a']['coverage_geometry'],
+              'uncertainty_masking':report['phase2a']['uncertainty_masking'],
               'transition_winners':report['phase2b']['winners'],
               'next_phase':report['next_phase'],
           },indent=2))
