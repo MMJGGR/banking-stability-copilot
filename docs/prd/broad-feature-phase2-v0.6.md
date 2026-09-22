@@ -265,3 +265,23 @@ The implementation is required to:
 - canonicalize the otherwise arbitrary factor rotation/sign before storing states;
 - expose held-out reconstruction error, feature residual variance and state-information diagnostics;
 - stop rather than declare a rank if the best reconstruction remains at the largest rank tested.
+
+
+## 10. Phase 2A evidence-driven clarification: state uncertainty versus reconstruction error
+
+The first full real-data Phase 2A execution showed that the proposed state-identification uncertainty score can decline strongly as information coverage rises while still being negatively correlated with held-out measurement reconstruction error.
+
+These quantities answer different questions:
+
+- **State-identification uncertainty:** how strongly the observed feature set pins down the latent banking-system state.
+- **Held-out reconstruction error:** how well the shared measurement model reconstructs omitted observed indicators.
+
+A dense country-year may be well pinned down in latent-state space while also containing more idiosyncratic/noisy indicators that are harder to reconstruct. Conversely, a sparse row may contain only a small set of easy-to-reconstruct indicators while its latent state is still weakly identified.
+
+Therefore:
+- both diagnostics remain mandatory and are reported separately;
+- Phase 2A requires state-identification uncertainty to worsen as information becomes materially sparser/noisier;
+- held-out reconstruction must beat a transparent zero-state baseline;
+- Phase 2A no longer requires a positive cross-sectional correlation between state-identification uncertainty and held-out reconstruction error.
+
+Future probabilistic forecasting must still calibrate forecast intervals separately; the Phase 2A uncertainty score is an information/identification diagnostic, not yet a fully calibrated posterior interval.
