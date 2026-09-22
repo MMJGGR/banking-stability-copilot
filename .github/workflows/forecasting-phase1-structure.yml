@@ -1,4 +1,5 @@
 name: Phase 1 target-independent structure
+# Single consolidated rerun after firewall-test correction.
 on:
   push:
     branches: [research/broad-feature-phase1-structure-2026-09-22]
