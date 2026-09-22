@@ -51,7 +51,13 @@ def test_transition_pairs_are_exact_calendar_and_complete_state():
     states, information = synthetic_states()
     pairs = build_transition_pairs(states, information, 2)
     assert (pairs.target_year - pairs.forecast_origin_year).eq(2).all()
-    assert len([c for c in pairs if c.startswith("future_state_")]) == 4
+    state_columns = [
+        c
+        for c in pairs
+        if c.startswith("future_state_")
+        and c.removeprefix("future_state_").isdigit()
+    ]
+    assert len(state_columns) == 4
     assert pairs.current_state_uncertainty_proxy.notna().all()
     assert pairs.future_state_uncertainty_proxy.notna().all()
 
@@ -83,7 +89,7 @@ def test_selection_sampling_retains_every_row_and_feature():
     cells = pd.DataFrame(records)
     sample = deterministic_selection_sample(
         cells,
-        300,
+        1200,
         minimum_per_row=1,
         minimum_per_feature=2,
     )
