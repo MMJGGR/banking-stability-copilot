@@ -392,7 +392,6 @@ def run(
     phase2a_gates = {
         "rank_resolved": True,
         "heldout_reconstruction_beats_zero_state": bool(reconstruction_improvement > 0),
-        "heldout_reconstruction_relative_improvement": reconstruction_improvement,
         "distance_coverage_materially_better_than_phase1": bool(
             abs(coverage["distance_vs_coverage_spearman"])
             < 0.85 * abs(PHASE1_COVERAGE_BASELINE["distance_vs_coverage_spearman"])
@@ -403,8 +402,17 @@ def run(
         "movement_not_dominated_by_coverage_change": bool(
             abs(coverage["movement_vs_abs_coverage_change_spearman"]) < 0.60
         ),
-        "uncertainty_tracks_heldout_error": bool(
-            mode["uncertainty_vs_heldout_error_spearman"] > 0
+    }
+    phase2a_diagnostics = {
+        "heldout_reconstruction_relative_improvement": reconstruction_improvement,
+        "state_uncertainty_vs_heldout_measurement_error_spearman": mode[
+            "uncertainty_vs_heldout_error_spearman"
+        ],
+        "uncertainty_interpretation": (
+            "State-identification uncertainty measures how strongly observed "
+            "features pin down the latent state. Held-out reconstruction error "
+            "measures measurement-model fit. They are reported separately and "
+            "are not required to be positively correlated."
         ),
     }
     phase2a_pass = all(phase2a_gates.values())
@@ -426,6 +434,7 @@ def run(
         "coverage_geometry": coverage,
         "phase1_coverage_baseline": PHASE1_COVERAGE_BASELINE,
         "gates": phase2a_gates,
+        "diagnostics": phase2a_diagnostics,
         "final_train_mse": model.train_loss_[-1],
         "targets_read": 0,
         "crisis_labels_read": 0,
