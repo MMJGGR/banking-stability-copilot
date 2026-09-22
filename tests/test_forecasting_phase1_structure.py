@@ -109,8 +109,17 @@ def test_column_permutation_does_not_change_yearly_spectrum():
 
 
 def test_phase1_source_has_no_target_file_dependency():
+    import ast
     from pathlib import Path
     source=Path("src/forecasting/phase1_structure.py").read_text()
+    tree=ast.parse(source)
+    imported=[]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            imported.append((node.module or "") + ":" + ",".join(alias.name for alias in node.names))
     assert "target-pairs.csv" not in source
-    assert "from .panel import TARGETS" not in source
-    assert "crisis_labels" not in source
+    assert all("TARGETS" not in item for item in imported)
+    assert all("crisis_labels" not in item for item in imported)
+    assert all("crisis_classifier" not in item for item in imported)
