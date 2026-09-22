@@ -122,8 +122,8 @@ def masked_state_calibration(
     torch.nn.init.zeros_(state.weight)
     loadings = torch.as_tensor(model.loadings_, dtype=torch.float32)
     bias = torch.as_tensor(model.feature_bias_, dtype=torch.float32)
-    row_index = torch.as_tensor(retained._row.to_numpy(), dtype=torch.long)
-    col_index = torch.as_tensor(retained._col.to_numpy(), dtype=torch.long)
+    row_index = torch.as_tensor(retained["_row"].to_numpy(), dtype=torch.long)
+    col_index = torch.as_tensor(retained["_col"].to_numpy(), dtype=torch.long)
     observed = torch.as_tensor(retained.z.to_numpy(), dtype=torch.float32)
     weights = torch.as_tensor(observation_weight, dtype=torch.float32)
     optimizer = torch.optim.Adam([state.weight], lr=learning_rate)
@@ -153,12 +153,16 @@ def masked_state_calibration(
 
     information = np.full((len(rows), model.rank), model.l2, dtype=float)
     retained_count = np.zeros(len(rows), dtype=int)
-    for row in retained.itertuples():
-        feature_variance = max(float(variance[row.predictor_id]), 1e-4)
-        information[row._row] += (
-            model.loadings_[row._col] ** 2 / feature_variance
+    for row_number, column_number, predictor in zip(
+        retained["_row"].to_numpy(dtype=int),
+        retained["_col"].to_numpy(dtype=int),
+        retained.predictor_id,
+    ):
+        feature_variance = max(float(variance[predictor]), 1e-4)
+        information[row_number] += (
+            model.loadings_[column_number] ** 2 / feature_variance
         )
-        retained_count[row._row] += 1
+        retained_count[row_number] += 1
     uncertainty = np.sqrt(
         np.mean(1 / np.maximum(information, 1e-9), axis=1)
     )
