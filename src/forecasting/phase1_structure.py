@@ -405,9 +405,14 @@ def run(snapshot: Path, output: Path) -> dict:
 
     cutoff_year = int(pd.Timestamp(prior["cutoff"]).year)
     panel = build_structure_panel(endpoints, members, max_origin_year=cutoff_year)
-    panel.predictors.to_parquet(output / "phase1-predictors.parquet", index=False)
-    panel.context.to_parquet(output / "phase1-context.parquet", index=False)
     write_json(output / "panel-summary.json", panel.summary)
+    context_summary = (
+        panel.context.groupby("entity_code", observed=True)
+        .agg(cells=("predictor_id", "size"), features=("feature_id", "nunique"),
+             first_origin=("forecast_origin_year", "min"), last_origin=("forecast_origin_year", "max"))
+        .reset_index()
+    )
+    context_summary.to_csv(output / "context-entity-summary.csv", index=False)
 
     x, ledger, preprocessing = prepare_matrix(panel.predictors, registry)
     ledger.to_csv(output / "all-predictor-ledger.csv", index=False)
