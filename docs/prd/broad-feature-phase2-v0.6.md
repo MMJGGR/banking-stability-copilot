@@ -285,3 +285,58 @@ Therefore:
 - Phase 2A no longer requires a positive cross-sectional correlation between state-identification uncertainty and held-out reconstruction error.
 
 Future probabilistic forecasting must still calibrate forecast intervals separately; the Phase 2A uncertainty score is an information/identification diagnostic, not yet a fully calibrated posterior interval.
+
+
+## 11. Phase 2 execution status — completed development milestone
+
+Phase 2A and Phase 2B have completed on the immutable September 16 retrospective research dataset.
+
+Primary completed modelling evidence:
+- run `35745530960`;
+- artifact `10702494849`;
+- artifact SHA256 `5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e`.
+
+The workflow itself ended with a serialization error while writing a JSON summary because a metric contained NaN. All Phase 2A state fitting, uncertainty masking and Phase 2B transition fitting/evaluation had already completed and their tabular outputs were preserved in the evidence artifact. The serializer is fixed on the research branch without rerunning the models.
+
+### Phase 2A result
+
+- selected state rank: **96**;
+- raw best reconstruction rank: **128**;
+- rank search extended through **320**, so the selected 96-dimensional state is not an artificial upper-bound result;
+- selected measurement mode: **balanced reliability**;
+- 14,652 model-eligible representations and 4,539,769 observed cells;
+- no missing cell was inserted into the measurement objective;
+- held-out reconstruction improved by approximately **9.9%** relative to the zero-state benchmark;
+- state-distance/coverage Spearman correlation improved from approximately **0.948 in Phase 1 to 0.133**;
+- movement/coverage-change correlation improved from approximately **0.357 to 0.093**;
+- artificial masking gives state-error/uncertainty Spearman of approximately **0.712**.
+
+All registered Phase 2A gates therefore pass.
+
+### Phase 2B result
+
+The complete 96-dimensional learned state was forecast at one- and two-year horizons on the registered development windows.
+
+At one year:
+- no-change RMSE: **1.2254**;
+- best regularized challenger RMSE: **1.0130**;
+- relative improvement: approximately **17.3%**;
+- about **86.6%** of evaluated country-period rows beat no-change.
+
+At two years:
+- no-change RMSE: **1.3278**;
+- best challenger RMSE: **1.1032**;
+- relative improvement: approximately **16.9%**;
+- about **90.2%** of evaluated country-period rows beat no-change.
+
+The historical-analogue challenger improves on no-change but trails the regularized transition models; analogues should remain an explanatory layer rather than the primary forecasting engine.
+
+### Phase 2 conclusion
+
+The Phase 1 architecture correction is supported by development evidence:
+
+**broad observed data → missing-aware stable state → learned transition dynamics**
+
+performs materially better than using the original coverage-sensitive PCA geometry and materially better than assuming the state simply remains unchanged.
+
+This is retrospective development evidence, not a vintage-clean final confirmation. Phase 3 may proceed as a research milestone; no production promotion is authorized.
