@@ -360,9 +360,12 @@ def run(
             "tuning",
         }
     }
-    phase2b_summary["aggregate_metrics"] = phase2b[
-        "aggregate_metrics"
-    ].to_dict("records")
+    aggregate_json = phase2b["aggregate_metrics"].copy()
+    aggregate_json = aggregate_json.astype(object).where(
+        pd.notna(aggregate_json),
+        None,
+    )
+    phase2b_summary["aggregate_metrics"] = aggregate_json.to_dict("records")
     write_json(output / "phase2b-summary.json", phase2b_summary)
 
     report = {
