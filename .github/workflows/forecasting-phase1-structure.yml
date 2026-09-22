@@ -1,0 +1,109 @@
+name: Phase 1 target-independent structure
+on:
+  push:
+    branches: [research/broad-feature-phase1-structure-2026-09-22]
+    paths: [.github/workflows/forecasting-phase1-structure.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: forecasting-phase1-structure
+  cancel-in-progress: false
+
+jobs:
+  phase1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' 'scikit-learn==1.5.2' 'pyarrow==19.0.1' 'pytest==8.3.5' threadpoolctl
+          python -m pip check
+
+      - name: Verify phase plan and target firewall contracts
+        run: |
+          set -o pipefail
+          test -f docs/prd/broad-feature-phase-plan-v0.5.md
+          python -m compileall -q src/forecasting tests/test_forecasting_phase1_structure.py
+          python -m pytest tests/test_forecasting_phase1_structure.py tests/test_forecasting_discovery.py -q | tee phase1-tests.txt
+          ! grep -q 'target-pairs.csv' src/forecasting/phase1_structure.py
+          ! grep -q 'from .panel import TARGETS' src/forecasting/phase1_structure.py
+
+      - name: Retrieve the immutable completed M2 research artifact
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
+          echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          root=Path('/tmp/m2')
+          with zipfile.ZipFile('/tmp/m2.zip') as z:
+              for member in z.infolist():
+                  destination=(root/member.filename).resolve()
+                  assert destination.is_relative_to(root.resolve())
+                  assert (member.external_attr >> 16) & 0o170000 != 0o120000
+              z.extractall(root)
+          PY
+
+      - name: Execute target-independent Phase 1
+        run: |
+          set -o pipefail
+          python -m src.forecasting.phase1_structure --snapshot /tmp/m2/live --output phase1-evidence/results | tee phase1-execution.log
+
+      - name: Verify Phase 1 boundaries and unchanged production paths
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('phase1-evidence/results/phase1-summary.json').read_text())
+          assert r['status']=='completed_phase1_target_independent_structure'
+          assert r['targets_read']==0
+          assert r['crisis_labels_read']==0
+          assert r['production_scores_read']==0
+          assert not r['production_modified']
+          assert not r['crisis_classifier_retrained']
+          assert r['latest_fitted_origin']==2026
+          assert r['phase1_panel']['feature_count_cap'] is None
+          assert r['trajectory']['targets_read']==0
+          print(json.dumps({
+              'latest_origin':r['latest_fitted_origin'],
+              'origins_fitted':r['yearly_origins_fitted'],
+              'feature_stability_rows':r['feature_stability_rows'],
+              'subspace_comparisons':r['subspace_comparisons'],
+              'trajectory_rows':r['trajectory']['trajectory_rows'],
+              'reference_components_90':r['trajectory']['reference_components_90'],
+          },indent=2))
+          PY
+          git diff --exit-code 5957ca779dafa21f2e098c819bfb060f43243206 -- app.py train_model.py cache artifacts data src/pillar_pipeline.py src/feature_engineering.py src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+
+      - name: Preserve compact Phase 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-target-independent-structure-${{ github.run_id }}
+          path: |
+            phase1-evidence/
+            phase1-tests.txt
+            phase1-execution.log
+            docs/prd/broad-feature-phase-plan-v0.5.md
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error
