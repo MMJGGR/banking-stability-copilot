@@ -1,0 +1,109 @@
+name: Broad-feature discovery and development
+on:
+  push:
+    branches: [research/broad-feature-forecasting-2026-09-16]
+    paths: [.github/workflows/forecasting-discovery.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: broad-feature-discovery-development
+  cancel-in-progress: false
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' 'scikit-learn==1.5.2' 'pyarrow==19.0.1' 'pytest==8.3.5' requests
+          python -m pip check
+      - name: Verify registration and unchanged production source/bundle
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor f32010f62417c21eac88e90f003b3454278753e6 HEAD
+          git diff --exit-code 5957ca779dafa21f2e098c819bfb060f43243206 HEAD -- app.py train_model.py cache artifacts data src/pillar_pipeline.py src/feature_engineering.py src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+          git lfs install --local
+          git lfs pull --include="cache/crisis_classifier.pkl" --exclude=""
+          echo '054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee  cache/crisis_classifier.pkl' | sha256sum -c -
+          test "$(wc -c < cache/crisis_classifier.pkl)" = 52580
+          mkdir execution-evidence
+          cp docs/prd/broad-feature*.md execution-evidence/
+          cp docs/research/forecasting-implementation.md execution-evidence/
+          python -m pip freeze > execution-evidence/environment.txt
+      - name: Run all research regression tests
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_forecasting*.py -q --junitxml=execution-evidence/tests.xml | tee execution-evidence/tests.txt
+      - name: Retrieve immutable completed September 16 research dataset
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
+          echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          root=Path('/tmp/m2')
+          with zipfile.ZipFile('/tmp/m2.zip') as z:
+              for member in z.infolist():
+                  assert (root/member.filename).resolve().is_relative_to(root.resolve())
+                  assert (member.external_attr >> 16) & 0o170000 != 0o120000
+              z.extractall(root)
+          PY
+      - name: Execute registered broad discovery and nested forward development
+        run: |
+          set -o pipefail
+          python -u -m src.forecasting.discovery_execution --snapshot /tmp/m2/live --output execution-evidence/results 2>&1 | tee execution-evidence/execution.log
+      - name: Reconcile evidence and selected production classifier
+        run: |
+          set -euo pipefail
+          echo '054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee  cache/crisis_classifier.pkl' | sha256sum -c -
+          git diff --exit-code -- app.py train_model.py cache artifacts data src/pillar_pipeline.py src/feature_engineering.py src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+          python - <<'PY'
+          import json,hashlib,subprocess
+          from pathlib import Path
+          import pandas as pd
+          root=Path('execution-evidence/results')
+          report=json.loads((root/'run.json').read_text())
+          assert report['status']=='completed_discovery_and_development'
+          assert report['inputs_unchanged'] and not report['new_source_retrieval_performed']
+          assert not report['development']['final_confirmation_evaluated']
+          assert not report['development']['crisis_classifier_retrained']
+          for relative,digest in json.loads((root/'output-checksums.json').read_text()).items():
+              path=(root/relative).resolve()
+              assert path.is_relative_to(root.resolve())
+              assert hashlib.sha256(path.read_bytes()).hexdigest()==digest
+          ledger=pd.read_csv(root/'development/out-of-fold-predictions.csv.gz')
+          keys=['entity_code','forecast_origin_year','target','horizon','outer_start']
+          assert not ledger.duplicated(keys+['model']).any()
+          assert ledger.groupby(keys).model.nunique().eq(4).all()
+          assert ledger.forecast_origin_year.max()<=2021
+          result={'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+                  'production_paths_unchanged':True,'source_archive_sha256':'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b',
+                  'classifier_bytes':Path('cache/crisis_classifier.pkl').stat().st_size,
+                  'classifier_sha256':hashlib.sha256(Path('cache/crisis_classifier.pkl').read_bytes()).hexdigest(),
+                  'matched_prediction_rows':len(ledger),'final_confirmation_evaluated':False}
+          Path('execution-evidence/validation.json').write_text(json.dumps(result,indent=2)+'\n')
+          PY
+      - name: Preserve complete evidence, including failed runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: broad-discovery-development-${{ github.run_id }}
+          path: execution-evidence/
+          retention-days: 90
+          if-no-files-found: error
