@@ -1,0 +1,168 @@
+name: Refresh latest banking data 2026-09-22
+on:
+  push:
+    branches: [refresh/latest-data-2026-09-22]
+    paths: [.github/workflows/refresh-latest-2026-09-22.yml]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+concurrency:
+  group: refresh-latest-2026-09-22
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      SNAPSHOT_DATE: "2026-09-22"
+      EXPECTED_CLASSIFIER_SHA: "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
+      EXPECTED_CLASSIFIER_BYTES: "52580"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install -r requirements-dev.txt -c constraints-dev.txt
+          python -m pip check
+
+      - name: Hydrate current serving bundle and preserve baseline
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="cache/*.pkl,cache/*_cache.parquet,cache/crisis_features.parquet,cache/imputed_features.parquet,data/reference/*.parquet" --exclude=""
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, shutil, json
+          p=Path("cache/crisis_classifier.pkl")
+          assert p.stat().st_size == 52580
+          assert hashlib.sha256(p.read_bytes()).hexdigest() == "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
+          root=Path("/tmp/baseline")
+          (root/"cache").mkdir(parents=True,exist_ok=True)
+          (root/"artifacts").mkdir(parents=True,exist_ok=True)
+          for name in ["FSIC","FSIBSIS","MFS","WEO","WGI"]:
+              shutil.copy2(f"cache/{name}_cache.parquet",root/f"cache/{name}_cache.parquet")
+          for name in ["risk_model.pkl","inference_pipeline.pkl","crisis_classifier.pkl","crisis_features.parquet","imputed_features.parquet"]:
+              shutil.copy2(f"cache/{name}",root/f"cache/{name}")
+          for name in ["data_manifest.json","model_policy_audit.json","validated_classifier.json"]:
+              shutil.copy2(f"artifacts/{name}",root/f"artifacts/{name}")
+          PY
+
+      - name: Run repository tests before refresh
+        run: python -m pytest -q
+
+      - name: Fetch complete sources and build classifier-preserving candidate
+        run: |
+          set -o pipefail
+          mkdir -p review/latest-data-2026-09-22
+          python -m src.scripts.refresh_data --as-of "$SNAPSHOT_DATE" 2>&1 | tee review/latest-data-2026-09-22/refresh.log
+
+      - name: Verify candidate and compare against current serving snapshot
+        run: |
+          set -euo pipefail
+          python -m src.scripts.smoke_test_artifacts | tee review/latest-data-2026-09-22/smoke.txt
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, pickle, pandas as pd, numpy as np
+          here=Path("."); base=Path("/tmp/baseline")
+          manifest=json.loads(Path("artifacts/data_manifest.json").read_text())
+          previous=json.loads((base/"artifacts/data_manifest.json").read_text())
+
+          classifier=Path("cache/crisis_classifier.pkl")
+          assert classifier.stat().st_size == 52580
+          assert hashlib.sha256(classifier.read_bytes()).hexdigest() == "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
+          assert hashlib.sha256((base/"cache/crisis_classifier.pkl").read_bytes()).hexdigest() == hashlib.sha256(classifier.read_bytes()).hexdigest()
+
+          source_changes={}
+          for name in ["FSIC","FSIBSIS","MFS","WEO","WGI"]:
+              old=base/f"cache/{name}_cache.parquet"; new=Path(f"cache/{name}_cache.parquet")
+              source_changes[name]={
+                  "changed": hashlib.sha256(old.read_bytes()).hexdigest()!=hashlib.sha256(new.read_bytes()).hexdigest(),
+                  "old_sha256": hashlib.sha256(old.read_bytes()).hexdigest(),
+                  "new_sha256": hashlib.sha256(new.read_bytes()).hexdigest(),
+                  "old_bytes": old.stat().st_size,
+                  "new_bytes": new.stat().st_size,
+                  "old_source": previous["sources"].get(name,{}),
+                  "new_source": manifest["sources"].get(name,{})
+              }
+
+          old_model=pickle.loads((base/"cache/risk_model.pkl").read_bytes())
+          new_model=pickle.loads(Path("cache/risk_model.pkl").read_bytes())
+          old_scores=old_model["country_scores"].set_index("country_code")
+          new_scores=new_model["country_scores"].set_index("country_code")
+          assert set(old_scores.index)==set(new_scores.index)
+          comp=pd.DataFrame(index=old_scores.index)
+          comp["old_score"]=old_scores.risk_score
+          comp["new_score"]=new_scores.risk_score
+          comp["delta"]=comp.new_score-comp.old_score
+          for col in ["risk_category","risk_tier","country_name"]:
+              if col in old_scores: comp[f"old_{col}"]=old_scores[col]
+              if col in new_scores: comp[f"new_{col}"]=new_scores[col]
+          category_changes=int((comp.get("old_risk_category",pd.Series(index=comp.index,dtype=object)) != comp.get("new_risk_category",pd.Series(index=comp.index,dtype=object))).sum()) if "old_risk_category" in comp and "new_risk_category" in comp else None
+          comp.sort_values("delta",key=lambda s:s.abs(),ascending=False).to_csv("review/latest-data-2026-09-22/country-score-review.csv")
+
+          changed_sources=[k for k,v in source_changes.items() if v["changed"]]
+          report={
+            "status":"candidate_built_for_review",
+            "cutoff":"2026-09-22",
+            "baseline_commit":"5957ca779dafa21f2e098c819bfb060f43243206",
+            "classifier_preserved":True,
+            "classifier_sha256":"054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee",
+            "classifier_bytes":52580,
+            "source_changes":source_changes,
+            "changed_sources":changed_sources,
+            "countries":len(new_scores),
+            "category_changes_vs_current_serving":category_changes,
+            "max_abs_score_change":float(comp.delta.abs().max()),
+            "score_countries_changed":int(comp.delta.abs().gt(1e-10).sum()),
+            "pillar_pipeline_refit": hashlib.sha256((base/"cache/inference_pipeline.pkl").read_bytes()).hexdigest()!=hashlib.sha256(Path("cache/inference_pipeline.pkl").read_bytes()).hexdigest(),
+            "risk_model_refit": hashlib.sha256((base/"cache/risk_model.pkl").read_bytes()).hexdigest()!=hashlib.sha256(Path("cache/risk_model.pkl").read_bytes()).hexdigest(),
+            "imputed_features_changed": hashlib.sha256((base/"cache/imputed_features.parquet").read_bytes()).hexdigest()!=hashlib.sha256(Path("cache/imputed_features.parquet").read_bytes()).hexdigest(),
+            "manifest":manifest
+          }
+          Path("review/latest-data-2026-09-22/report.json").write_text(json.dumps(report,indent=2,default=str)+"\n")
+          print(json.dumps({k:report[k] for k in ["changed_sources","countries","category_changes_vs_current_serving","max_abs_score_change","score_countries_changed","pillar_pipeline_refit","risk_model_refit","imputed_features_changed"]},indent=2))
+          PY
+
+      - name: Commit candidate serving bundle only if observations changed
+        run: |
+          set -euo pipefail
+          CHANGED=$(python - <<'PY'
+          import json
+          r=json.load(open("review/latest-data-2026-09-22/report.json"))
+          print("1" if r["changed_sources"] else "0")
+          PY
+          )
+          if [ "$CHANGED" = "0" ]; then
+            echo "No normalized source-cache changes; no serving-data commit needed."
+            exit 0
+          fi
+          git add artifacts/data_manifest.json artifacts/validated_classifier.json artifacts/model_policy_audit.json artifacts/feature_heuristics.json artifacts/government_liquidity_features_report.json
+          git add data/reference/government_liquidity_features.parquet data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_features_report.json
+          git add cache/FSIBSIS_cache.parquet cache/FSIC_cache.parquet cache/MFS_cache.parquet cache/WEO_cache.parquet cache/WGI_cache.parquet cache/crisis_features.parquet cache/imputed_features.parquet cache/risk_model.pkl cache/inference_pipeline.pkl cache/crisis_classifier.pkl
+          git add review/latest-data-2026-09-22/report.json review/latest-data-2026-09-22/country-score-review.csv review/latest-data-2026-09-22/smoke.txt
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "data: classifier-preserving refresh through 2026-09-22"
+          git push origin HEAD:refresh/latest-data-2026-09-22
+
+      - name: Upload review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: banking-copilot-latest-data-2026-09-22
+          path: |
+            review/latest-data-2026-09-22/
+            artifacts/data_manifest.json
+            artifacts/validated_classifier.json
+            artifacts/model_policy_audit.json
+          retention-days: 90
+          if-no-files-found: error
