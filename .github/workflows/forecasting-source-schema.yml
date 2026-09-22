@@ -35,11 +35,12 @@ jobs:
         run: |
           python - <<'PY'
           import hashlib,json,subprocess
-          from pathlib import Path
+          from pathlib import Path, PurePosixPath
           baseline='5957ca779dafa21f2e098c819bfb060f43243206'
           changes=subprocess.check_output(['git','diff','--name-only',baseline,'HEAD'],text=True).splitlines()
-          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py','tests/test_forecasting_foundation.py','tests/test_forecasting_canonical.py','tests/test_forecasting_wgi.py','.github/workflows/forecasting-source-schema.yml','.github/workflows/forecasting-data-inspection.yml','.github/workflows/forecasting-m2.yml','docs/prd/broad-feature-forecasting.md','docs/prd/broad-feature-data-contract-v0.2.md','docs/research/forecasting-implementation.md','docs/research/forecasting-live-data-review-2026-09-16.md'}
-          assert all(p in exact or p.startswith('src/forecasting/') for p in changes),changes
+          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py'}
+          patterns=('src/forecasting/*.py','tests/test_forecasting*.py','docs/prd/broad-feature*.md','docs/research/forecasting*.md','.github/workflows/forecasting*.yml')
+          assert all(p in exact or any(PurePosixPath(p).match(pattern) for pattern in patterns) for p in changes),changes
           root=Path('research-evidence');root.mkdir()
           report={'baseline':baseline,'checked_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'changed_paths':changes,'production_paths_unchanged':True,'file_sha256':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in changes if Path(p).is_file()}}
           (root/'scope-and-code.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -47,7 +48,7 @@ jobs:
               (root/p.name).write_text(p.read_text())
           (root/'implementation-status.md').write_text(Path('docs/research/forecasting-implementation.md').read_text())
           PY
-      - name: Run adversarial foundation and M2 tests
+      - name: Run adversarial foundation, M2 and discovery tests
         run: |
           set -o pipefail
           python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py src/scripts/build_forecasting_research_panel.py tests/test_forecasting*.py
