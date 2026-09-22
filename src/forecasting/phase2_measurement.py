@@ -565,8 +565,17 @@ def row_information(
     model: MaskedLinearStateModel,
     cells: pd.DataFrame,
     reliability: pd.DataFrame,
+    *,
+    residual_prior_strength: float = 25.0,
 ) -> pd.DataFrame:
-    """Diagonal information approximation; uncertainty rises with sparse/noisy data."""
+    """Information plus row-specific misfit for a practical state-uncertainty proxy.
+
+    The earlier diagonal-information-only proxy captured how many reliable
+    measurements were observed, but not whether a particular country-year was
+    intrinsically hard for the shared measurement model to reconstruct. We
+    therefore scale the information term by a shrunk row residual RMSE. This
+    remains target-independent and uses only observed measurement cells.
+    """
     variance = (
         reliability.set_index("predictor_id")
         .shrunk_residual_variance.to_dict()
@@ -576,13 +585,28 @@ def row_information(
         sort=False,
     ).predictor_id.agg(list)
 
+    prediction = model.predict(cells)
+    residual = cells[
+        ["entity_code", "forecast_origin_year", "z"]
+    ].copy()
+    residual["prediction"] = prediction
+    residual = residual[np.isfinite(residual.prediction)].copy()
+    residual["sq_error"] = (residual.z - residual.prediction) ** 2
+    row_residual = residual.groupby(
+        ["entity_code", "forecast_origin_year"],
+        observed=True,
+    ).sq_error.agg(["mean", "size"])
+    global_mse = float(residual.sq_error.mean())
+    row_residual["shrunk_mse"] = (
+        row_residual["size"] * row_residual["mean"]
+        + residual_prior_strength * global_mse
+    ) / (row_residual["size"] + residual_prior_strength)
+
     records = []
     total_features = len(model.features_)
     for row in model.rows_.itertuples():
-        features = observed.get(
-            (row.entity_code, row.forecast_origin_year),
-            [],
-        )
+        key = (row.entity_code, int(row.forecast_origin_year))
+        features = observed.get(key, [])
         information = np.full(model.rank, model.l2, dtype=float)
         used = 0
         for feature in features:
@@ -597,17 +621,23 @@ def row_information(
                 model.loadings_[column] ** 2 / feature_variance
             )
             used += 1
+
+        information_uncertainty = float(
+            np.sqrt(np.mean(1 / np.maximum(information, 1e-9)))
+        )
+        if key in row_residual.index:
+            row_rmse = float(np.sqrt(row_residual.loc[key, "shrunk_mse"]))
+        else:
+            row_rmse = float(np.sqrt(global_mse))
         records.append(
             {
                 "entity_code": row.entity_code,
                 "forecast_origin_year": int(row.forecast_origin_year),
                 "observed_model_features": used,
                 "observed_share": used / max(total_features, 1),
-                "state_uncertainty_proxy": float(
-                    np.sqrt(
-                        np.mean(1 / np.maximum(information, 1e-9))
-                    )
-                ),
+                "row_reconstruction_rmse": row_rmse,
+                "information_uncertainty": information_uncertainty,
+                "state_uncertainty_proxy": row_rmse * information_uncertainty,
                 "effective_information": float(np.mean(information)),
             }
         )
