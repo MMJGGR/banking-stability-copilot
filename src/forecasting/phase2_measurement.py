@@ -481,6 +481,16 @@ def select_measurement_spec(
     if results.empty:
         raise ForecastDataError("No candidate measurement specification fitted")
 
+    baseline_sq = validation.z.to_numpy(dtype=float) ** 2
+    baseline_row = validation.assign(_sq=baseline_sq).groupby(
+        ["entity_code", "forecast_origin_year"],
+        observed=True,
+    )._sq.mean().pow(0.5)
+    baseline = {
+        "cell_rmse": float(np.sqrt(np.mean(baseline_sq))),
+        "row_rmse_mean": float(baseline_row.mean()),
+    }
+
     best = results.loc[results.row_rmse_mean.idxmin()]
     eligible = results.loc[
         results.row_rmse_mean <= best.row_rmse_mean + best.row_rmse_se
@@ -498,6 +508,7 @@ def select_measurement_spec(
         "results": results,
         "holdout_mask": holdout,
         "scaler": scaler,
+        "zero_state_baseline": baseline,
     }
 
 
