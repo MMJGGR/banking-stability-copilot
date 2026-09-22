@@ -1,4 +1,5 @@
 name: Phase 2 measurement and transition checkpoint
+# Consolidated rerun after correcting two synthetic test assertions; the first run stopped before data execution.
 on:
   push:
     branches: [research/broad-feature-phase2-transition-2026-09-22]
