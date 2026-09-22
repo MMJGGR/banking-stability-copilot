@@ -38,6 +38,7 @@ def build_structure_panel(
     member_entities: set[str],
     *,
     information_lag_years: int = 1,
+    max_origin_year: int | None = None,
 ) -> StructurePanel:
     """Build an uncapped annual structural panel with no target construction.
 
@@ -97,6 +98,10 @@ def build_structure_panel(
     delta["representation"] = "change_1y"
 
     values = pd.concat([level, lag, delta], ignore_index=True)
+    if max_origin_year is not None:
+        if not isinstance(max_origin_year, int) or isinstance(max_origin_year, bool):
+            raise ForecastDataError("max_origin_year must be an integer or None")
+        values = values.loc[values.forecast_origin_year <= max_origin_year].copy()
     values["predictor_id"] = values.feature_id + "::" + values.representation
     values["information_age_years"] = values.forecast_origin_year - values.observation_year
     values["experiment_mode"] = "retrospective_target_independent_structure"
@@ -113,6 +118,7 @@ def build_structure_panel(
     summary = {
         "status": "phase1_target_independent_structure_panel",
         "information_lag_years_assumed": information_lag_years,
+        "maximum_origin_year": max_origin_year,
         "member_entities": len(member_entities),
         "entities_with_predictors": int(predictors.entity_code.nunique()),
         "context_entities": int(context.entity_code.nunique()),
@@ -397,7 +403,8 @@ def run(snapshot: Path, output: Path) -> dict:
         endpoint_frames.append(frame)
     endpoints = pd.concat(endpoint_frames, ignore_index=True)
 
-    panel = build_structure_panel(endpoints, members)
+    cutoff_year = int(pd.Timestamp(prior["cutoff"]).year)
+    panel = build_structure_panel(endpoints, members, max_origin_year=cutoff_year)
     panel.predictors.to_parquet(output / "phase1-predictors.parquet", index=False)
     panel.context.to_parquet(output / "phase1-context.parquet", index=False)
     write_json(output / "panel-summary.json", panel.summary)
