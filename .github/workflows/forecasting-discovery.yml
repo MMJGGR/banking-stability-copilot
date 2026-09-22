@@ -1,0 +1,35 @@
+name: Broad-feature discovery and development
+on:
+  push:
+    branches: [research/broad-feature-forecasting-2026-09-16]
+    paths: [.github/workflows/forecasting-discovery.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Package pinned reader and current source for independent offline execution
+        run: |
+          set -euo pipefail
+          mkdir -p offline-reader
+          python -m pip download --no-deps --only-binary=:all: --platform manylinux_2_28_x86_64 --python-version 313 --implementation cp --abi cp313 pyarrow==19.0.1 -d offline-reader
+          echo '1b93ef2c93e77c442c979b0d596af45e4665d8b96da598db145b0fec014b9136  offline-reader/pyarrow-19.0.1-cp313-cp313-manylinux_2_28_x86_64.whl' | sha256sum -c -
+          tar -czf offline-reader/research-source.tar.gz src tests docs/prd requirements-dev.txt requirements.txt constraints-dev.txt
+          git rev-parse HEAD > offline-reader/source-commit.txt
+          sha256sum offline-reader/* > offline-reader/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forecasting-offline-reader-${{ github.run_id }}
+          path: offline-reader/
+          retention-days: 7
+          if-no-files-found: error
