@@ -257,7 +257,7 @@ def run(
     snapshot: Path,
     output: Path,
     *,
-    ranks=(8, 16, 32, 64, 96),
+    ranks=(8, 16, 32, 64, 96, 128, 160, 192, 256),
     l2_grid=(1e-3, 1e-2),
     max_selection_cells=1_200_000,
     holdout_fraction=0.05,
@@ -292,7 +292,7 @@ def run(
     )
     selection["results"].to_csv(output / "rank-selection.csv", index=False)
 
-    rank_boundary = selection["chosen_rank"] == max(ranks)
+    rank_boundary = bool(selection["rank_search_boundary_reached"])
     mode = _measurement_mode_selection(
         selection_cells,
         selection,
