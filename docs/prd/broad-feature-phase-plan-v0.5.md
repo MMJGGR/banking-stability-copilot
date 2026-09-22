@@ -2,7 +2,7 @@
 
 Date: 2026-09-22
 Status: active research requirements
-Branch: `research/broad-feature-phase1-structure-2026-09-22`
+Branch: `research/broad-feature-phase2-transition-2026-09-22`
 Parent research branch: `research/broad-feature-forecasting-2026-09-16`
 Production changes: none authorized
 
@@ -40,7 +40,9 @@ Purpose:
 No modelling conclusion is implied by Phase 0.
 
 ### Phase 1 — target-independent structural and trajectory discovery
-Status: authorized now.
+Status: **complete**. Validated run `35727510691`, evidence artifact `10694820381`.
+
+Phase 1 showed that the information set is materially high-dimensional, annual PCA axes rotate through time, and the first frozen-PCA geometry is too strongly related to data coverage to be used directly as the transition state.
 
 Purpose:
 Discover the geometry and temporal organization of the full eligible information set without reading supervised targets, crisis labels, production risk scores or the production pillar definitions.
@@ -57,20 +59,18 @@ Phase 1 answers:
 
 No feature is selected because it predicts a chosen outcome in Phase 1.
 
-### Phase 2 — dynamic state transition modelling
+### Phase 2 — stable measurement state, then predictable transitions
+Status: **active**. Detailed requirements: [broad-feature-phase2-v0.6.md](broad-feature-phase2-v0.6.md).
 
-Purpose:
-Model how the full discovered state evolves through time.
+Phase 2 is deliberately split:
 
-Candidate model families:
-- dynamic-factor / state-space models;
-- regularized latent-state transition models;
-- low-rank dynamic panel models;
-- analogue transition distributions;
-- multivariate autoregressive challengers;
-- nonlinear sequence challengers where the panel supports them.
+#### Phase 2A — missing-aware measurement state
+Estimate a stable underlying banking-system state directly from observed cells. Missing values remain missing rather than becoming median-filled pseudo-observations. Loadings are initially fixed across time so a state coordinate has a consistent meaning across years. State dimension is selected from target-independent held-out-observation reconstruction, not a fixed component count.
 
-The target is the future state / vector or its transition distribution, not a preselected small set of variables.
+#### Phase 2B — predictable transition state
+After 2A produces a defensible state, determine which combinations of that state actually move predictably. Compare no-change, simple pooled dynamics, reduced-rank transitions, dynamic/state-space transitions and analogue-transition distributions.
+
+The descriptive state dimension and the predictable transition dimension are separate quantities and are both determined from data.
 
 ### Phase 3 — multivariate future-state forecasting
 
@@ -284,3 +284,18 @@ Development should avoid repeated GitHub Actions execution.
 Phase 1 implementation occurs on the child research branch without a PR-triggered workflow. Use local/static testing while developing. When the code and PRD are stable, use one consolidated Phase 1 execution/validation run against the existing immutable September 16 research artifact.
 
 No fresh five-source retrieval is required for Phase 1 unless a separate data-refresh decision is made.
+
+
+## Phase 1 evidence carried into Phase 2
+
+Validated Phase 1 result:
+- 46 annual structural origins through 2026;
+- 15,470 predictor representations with no feature-count cap;
+- 10,098 learnable representations in the 2026 reference;
+- 68 / 97 / 120 components for 80% / 90% / 95% transformed variance;
+- first component share about 13.2%;
+- 11,549 feature-stability records;
+- 8,819 entity trajectory rows;
+- production unchanged and no supervised target/crisis/risk-score reads.
+
+These findings are requirements for Phase 2 design, not predictive results. In particular, Phase 2 must reduce coverage-driven geometry before historical analogues or future-state forecasts are treated as economically meaningful.
