@@ -253,3 +253,15 @@ Phase 2 may not modify or retrain:
 - deployed country scores.
 
 Any future production proposal is a separate owner-approved milestone.
+
+
+## 9. Implementation note
+
+The first Phase 2A implementation uses PyTorch only as an efficient optimizer for a **linear** masked matrix-factorization model. The model itself remains a transparent low-rank measurement equation with feature loadings, country-year state coordinates and feature intercepts. This does not introduce a nonlinear neural-network architecture or change the model family described above.
+
+The implementation is required to:
+- use only genuinely observed cells in the fit objective;
+- keep missing values absent from the loss;
+- canonicalize the otherwise arbitrary factor rotation/sign before storing states;
+- expose held-out reconstruction error, feature residual variance and state-information diagnostics;
+- stop rather than declare a rank if the best reconstruction remains at the largest rank tested.
