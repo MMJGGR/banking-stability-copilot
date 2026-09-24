@@ -1,6 +1,6 @@
 # Broad-feature forecasting: execution status
 
-Updated 24 September 2026. Active branch: `research/broad-feature-phase4-interpretation-overlays-2026-09-24`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
+Updated 24 September 2026. Active branch: `research/broad-feature-phase5-shadow-confirmation-2026-09-24`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
 
 ## Governing requirements
 
@@ -12,11 +12,12 @@ The binding requirements are:
 - Phase 2 measurement/transition PRD v0.6;
 - Phase 3 probabilistic PRD v0.7;
 - provider-projection separation amendment v0.8;
-- Phase 4 interpretation/overlay PRD v0.9.
+- Phase 4 interpretation/overlay PRD v0.9;
+- Phase 5 shadow/confirmation PRD v1.0.
 
 No variable, source, feature family, target or outcome receives artificial importance merely because it appeared in an earlier model.
 
-## Phase status
+## Completed research phases
 
 ### Phase 0 — canonical data foundation
 
@@ -26,109 +27,138 @@ No variable, source, feature family, target or outcome receives artificial impor
 
 **Complete.** The information set is materially high-dimensional, while the original frozen-PCA geometry was too closely related to data coverage to use directly as the forecasting state.
 
-### Phase 2A — missing-aware measurement state
+### Phase 2 — missing-aware state and state transitions
 
 **Complete as retrospective development evidence.**
 
-- 14,652 eligible representations;
-- 4,539,769 genuinely observed cells;
+- 14,652 eligible representations and 4,539,769 genuinely observed cells;
 - no missing cells inserted into the fitting objective;
-- 8,783 country-year states;
-- selected state rank: 96;
+- 8,783 country-year states and a selected 96-dimensional state;
 - state-distance/coverage correlation reduced from 0.948 to 0.133;
-- artificial-masking state-error/uncertainty correlation: 0.712.
-
-### Phase 2B — target-independent state transitions
-
-**Complete as retrospective development evidence.**
-
 - one-year state RMSE improvement over no change: approximately 17.3%;
-- two-year state RMSE improvement over no change: approximately 16.9%;
-- historical analogues beat no change but remained weaker than regularized transition models.
+- two-year state RMSE improvement over no change: approximately 16.9%.
 
 ### Phase 3 — probabilistic future-state forecasting
 
 **Complete as retrospective development evidence.** Detailed report: `docs/research/phase3-completion-2026-09-24.md`.
 
-- rolling out-of-time forecast rows: 15,290;
-- target years represented: 40;
-- leave-target-year-out calibration rows: 30,580;
-- latest country states simulated: 213;
-- one-year transition regions are approximately 24.7% narrower at 80% and 26.0% narrower at 95% than calibrated no change;
-- two-year transition regions are approximately 19.0% narrower at 80% and 19.8% narrower at 95%;
+- 15,290 rolling out-of-time forecasts and 30,580 leave-target-year-out calibration rows;
+- 213 latest country states;
+- one-year transition regions approximately 24.7% narrower at 80% and 26.0% narrower at 95% than calibrated no change;
+- two-year transition regions approximately 19.0% narrower at 80% and 19.8% narrower at 95%;
 - all registered calibration gates passed.
 
-### Phase 4A — interpretation
+### Phase 4 — interpretation and separately governed overlays
 
-**Complete as retrospective research evidence.** Detailed report: `docs/research/phase4-completion-2026-09-24.md`.
+**Complete as retrospective research/development evidence.** Detailed report: `docs/research/phase4-completion-2026-09-24.md`.
 
-A 96-dimensional orthogonal interpretation rotation preserves country distances and measurement reconstruction to numerical precision. It provides country-specific observable attribution without changing the state or forecasts.
+- an orthogonal interpretation rotation preserves state geometry and reconstruction;
+- 4,924 annual level identities were registered and 1,847 observed identities evaluated;
+- only 14 outcome/horizon evaluations across 13 identities passed both-window stability and false-discovery controls;
+- the state is not a universal raw-indicator forecasting engine;
+- state-only and state-plus-velocity crisis challengers underperformed the historical event-rate baseline on Brier score and log loss;
+- no state-based crisis overlay advances;
+- the production classifier remains locked and unchanged.
 
-The rotation does not justify publishing 96 fixed theme names: dimensions remain broad, overlapping and dominated by the largest banking balance-sheet source. Machine labels require analyst review.
+## Phase 5 — shadow integration and prospective confirmation
 
-### Phase 4B — broad observable validation
+### Phase 5A — deterministic shadow-serving bundle
 
-**Complete as retrospective development evidence.**
+**Complete.** The first research batch is frozen as:
 
-- registered annual level identities: 4,924;
-- observed/evaluated identities: 1,847;
-- observed historical cells: 692,406;
-- outcome/horizon evaluations admitted in both windows: 1,061;
-- stable outcome/horizon evaluations after both-window consistency and FDR control: 14;
-- unique stable identities: 13;
-- provider projections used: zero.
+`shadow-1ef71a2f20bb20b625d5`
 
-The state is useful for system-level condition and trajectory but is not a universal raw-indicator forecasting engine. Stable observable value is concentrated in selected GDP growth, profitability, primary-balance/output-gap, trade-volume and one monetary-balance-sheet outcome, mainly at two years.
+Freeze record: `docs/research/phase5-shadow-freeze-2026-09-24.json`.
 
-### Phase 4C — systemic-crisis overlay
+The bundle contains:
 
-**Complete with a negative advancement decision.**
+- 213 research countries;
+- 426 one-/two-year country-horizon records;
+- current 96-dimensional states and state-information diagnostics;
+- coordinate-level future quantiles;
+- calibrated movement regions and future peer distributions;
+- historical analogues;
+- country-specific current-state and movement explanations;
+- standardized observable implications and the Phase 4 stable-outcome catalog;
+- an append-only 426-row prospective forecast ledger.
 
-Official Laeven–Valencia systemic labels produced 6,980 eligible country-year rows and 378 positive onset rows after active-crisis, cooldown and right-censoring exclusions.
+Population reconciliation is explicit:
 
-Aggregate later-window results:
+- 200 countries overlap production and research;
+- 13 are research-only;
+- one production country (`SXM`) has no current research forecast.
 
-- event-rate baseline Brier score: **0.0342**;
-- state-only overlay Brier score: **0.0446**;
-- state + velocity + uncertainty Brier score: **0.0512**.
+Production score/category/crisis probability remain a separate read-only benchmark lane. They are not blended into the research state or forecast.
 
-Neither state challenger improved Brier score or log loss. No state-based crisis overlay advances, and no Phase 4 latest crisis probabilities are admissible. The production crisis classifier remains locked and unchanged.
+### Phase 5B — separate shadow viewer
+
+**Engineering complete; not deployed.**
+
+`research_shadow_app.py` is a separate, read-only Streamlit entry point. It:
+
+- verifies bundle hashes;
+- labels all output as research/not production;
+- displays production and research in separate panels;
+- exposes uncertainty, peer movement, analogues and explanations;
+- suppresses the rejected Phase 4 research crisis probability;
+- displays WEO availability only as a separate provider-scenario lane;
+- makes no network writes and no production artifact writes.
+
+### Phase 5C — prospective confirmation
+
+**Open and necessarily incomplete.**
+
+The 2027 and 2028 forecasts have been locked before eligible future realizations are available. The scoring harness is append-only and rejects provider projections as realized outcomes.
+
+Prospective confirmation can only be evaluated when later source vintages contain verified observed data for the target years. The original forecast records and hashes must remain unchanged.
+
+Local engineering validation completed:
+
+- two independent bundle executions produced the same batch identifier and identical accepted file hashes;
+- five focused unit tests passed;
+- all 426 normalized rows and 426 nested country records reconciled;
+- provider projections were rejected as realizations;
+- duplicate realization records were rejected;
+- shadow bundle hash validation passed.
+
+No GitHub Actions workflow was used for iterative Phase 5 development.
 
 ## WEO provider projections
 
-The current WEO response contains 46,388 provider-projection rows for 2026–2031. They remain in a separate provider-projection lane and are prohibited from historical state fitting, targets, calibration, realized outcomes and model selection.
+The current WEO response contains 46,388 provider-projection rows for 2026–2031. They remain in a separate provider lane and are prohibited from historical state fitting, targets, calibration, realized outcomes and model selection.
 
-Phases 1–4 used zero provider-projection rows in their baseline historical evidence. Optional WEO-conditioned scenarios remain separate from the model-only baseline.
+Phases 1–5 baseline evidence uses zero provider-projection rows. Optional WEO-conditioned scenarios remain separate from the model-only baseline.
 
-## Current architecture
+## Supported architecture
 
-The supported research architecture is now:
+The supported research architecture is:
 
-**broad observed data → missing-aware state → learned transition → calibrated future-state distribution → coherent peer simulation → country-specific interpretation**
+**broad observed data → missing-aware state → learned transition → calibrated future-state distribution → coherent peer simulation → country-specific interpretation → frozen shadow forecast**
 
-Exact observable forecasts and rare-event probabilities remain separately governed overlays. Phase 4 shows that neither should be assumed to work universally merely because the common state forecasts well.
+Exact observable forecasts and rare-event probabilities remain separately governed overlays. The current state-based crisis overlay is rejected.
 
 ## Next milestone
 
-The next natural milestone is **shadow integration and prospective confirmation**, not another wholesale model redesign:
+The architecture is now frozen for prospective observation rather than immediate redesign.
 
-1. freeze and version the completed research stack;
-2. define a research serving contract beside production;
-3. expose current state, trajectory, probability regions and observable attribution in shadow mode;
-4. preserve current production scores and crisis classifier as independent benchmarks;
-5. evaluate future incoming source vintages against frozen forecasts;
-6. maintain WEO-conditioned scenarios as a visibly separate provider lane;
-7. require explicit owner approval before any production substitution.
+Next work should be limited to:
+
+1. analyst review of the shadow interface and explanations;
+2. operational monitoring of bundle integrity and source-vintage arrival;
+3. generation of visibly separate WEO-conditioned scenarios if authorized;
+4. prospective scoring when verified 2027/2028 observations become available;
+5. comparison with unchanged production benchmarks;
+6. explicit owner approval before any production substitution or deployment.
 
 ## Production firewall
 
-Phases 1–4 did not alter:
+Phases 1–5 did not alter:
 
 - the selected production crisis classifier;
 - the serving risk model;
 - the production pillar pipeline;
 - production source caches;
-- Streamlit production code;
+- production `app.py`;
 - deployed country scores.
 
 No merge, promotion or deployment is authorized.
