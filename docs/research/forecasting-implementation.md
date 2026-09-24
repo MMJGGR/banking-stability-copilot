@@ -1,128 +1,134 @@
 # Broad-feature forecasting: execution status
 
-Updated 2026-09-22. Active branch: `research/broad-feature-phase2-transition-2026-09-22`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
+Updated 24 September 2026. Active branch: `research/broad-feature-phase3-probabilistic-2026-09-23`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
 
 ## Governing requirements
 
-The active requirements are:
+The binding requirements are:
+
 - original broad-feature PRD;
 - source-grounded data contract v0.2;
 - target-independent discovery plan v0.5;
-- Phase 2 PRD v0.6.
+- Phase 2 measurement/transition PRD v0.6;
+- Phase 3 probabilistic PRD v0.7;
+- provider-projection separation amendment v0.8.
 
-The owner requirement remains binding: no variable, source, feature family, target or outcome receives artificial emphasis or artificial exclusion merely because it appeared in an earlier model.
+No variable, source, feature family, target or outcome receives artificial importance merely because it appeared in an earlier model.
 
-## Completed phases
+## Phase status
 
 ### Phase 0 — canonical data foundation
-Complete enough for current research use. Source identities, dimensions, units, status, conflicts and exact annual endpoints are retained with retrospective-vintage caveats.
+
+**Complete enough for research use.** Source identities, units, transformations, status, conflicts and exact annual endpoints are retained with explicit retrospective-vintage caveats.
 
 ### Phase 1 — target-independent structural discovery
-**Complete.** Validated run `35727510691`; artifact `10694820381`; ZIP SHA256 `e561ab5caa7896ea17172b98b8d85f9bd4269533a4da4702ef0a72dd66c4eb43`.
 
-Key results:
-- 46 annual origins through 2026;
-- 15,470 predictor representations;
-- 10,098 learnable representations in the 2026 reference;
-- 68 / 97 / 120 components for 80% / 90% / 95% transformed variance;
-- first component share about 13.2%;
-- frozen-PCA geometry was too strongly related to data coverage to use directly as the transition state.
+**Complete.**
+
+Key result: the information set is materially high-dimensional, while the original frozen-PCA geometry was too closely related to data coverage to use directly as the forecasting state.
 
 ### Phase 2A — missing-aware measurement state
-**Complete on retrospective development evidence.**
 
-Real-data evidence comes from the completed modelling outputs in run `35745530960`, artifact `10702494849`, SHA256 `5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e`. The workflow failed only after modelling, when writing JSON containing a NaN metric; the serialization bug is fixed on the branch without rerunning the models.
+**Complete as retrospective development evidence.**
 
-Measurement-state result:
-- 15,470 representations registered;
-- 14,652 eligible model features;
+- 14,652 eligible representations;
 - 4,539,769 genuinely observed cells;
-- 0 missing cells imputed into the fit objective;
+- no missing cells inserted into the fitting objective;
 - 8,783 country-year states;
-- selected state rank: **96**;
-- raw best held-out reconstruction rank: **128**;
-- rank search extended through **320** and no longer ended at the boundary;
-- selected measurement mode: **balanced reliability**;
-- held-out reconstruction improvement versus zero-state baseline: about **9.9%**.
-
-The Phase 1 coverage problem was materially reduced:
-- state distance vs observed coverage: **0.948 → 0.133** Spearman;
-- movement vs absolute coverage change: **0.357 → 0.093** Spearman;
-- state uncertainty vs coverage: **-0.960** Spearman, as expected when richer information tightens state identification;
-- artificial-masking calibration: state error vs uncertainty **0.712** Spearman.
-
-All Phase 2A gates passed.
-
-No supervised banking target, crisis label, production score or production pillar was used to construct the state.
+- selected state rank: 96;
+- state-distance/coverage correlation reduced from 0.948 to 0.133;
+- artificial-masking state-error/uncertainty correlation: 0.712.
 
 ### Phase 2B — target-independent state transitions
-**Complete on retrospective development evidence.**
 
-The transition layer forecasts the complete 96-dimensional learned state rather than selected banking variables.
+**Complete as retrospective development evidence.**
 
-Development design:
-- one- and two-year exact-calendar state transitions;
-- two outer development windows: 2016–2018 and 2019–2021;
-- strict earlier training/inner tuning;
-- 1,271 matched development transitions per horizon;
-- no-change baseline;
-- diagonal autoregression;
-- ridge delta;
-- reduced-rank delta;
-- shared/global-state ridge delta;
-- historical-analogue delta.
+- one-year state RMSE improvement over no change: approximately 17.3%;
+- two-year state RMSE improvement over no change: approximately 16.9%;
+- historical analogues beat no change but remained weaker than regularized transition models.
 
-Aggregate development results:
+### Phase 3 — probabilistic future-state forecasting
 
-**1-year horizon**
-- no-change state RMSE: **1.2254**
-- best challenger: **reduced-rank delta** (numerically tied with full ridge delta)
-- best state RMSE: **1.0130**
-- relative RMSE improvement: **17.3%**
-- challenger beats no-change on about **86.6%** of country-period rows
-- average movement-direction cosine: about **0.54**
+**Complete as retrospective development evidence.** Detailed report: `docs/research/phase3-completion-2026-09-24.md`.
 
-**2-year horizon**
-- no-change state RMSE: **1.3278**
-- best challenger: **diagonal autoregression**
-- best state RMSE: **1.1032**
-- relative RMSE improvement: **16.9%**
-- challenger beats no-change on about **90.2%** of country-period rows
-- average movement-direction cosine: about **0.54**
+Phase 3 kept the 96-dimensional measurement state fixed and reproduced the Phase 2 point models with maximum absolute metric difference `1.607329824793169e-10`.
 
-The historical-analogue transition model also beat no-change in aggregate but materially underperformed the regularized transition models. That means analogue paths remain useful as an explanatory layer, not the primary forecasting engine at this stage.
+Execution evidence:
 
-These results are retrospective development evidence, not an untouched real-time confirmation. Phase 2A loadings are fitted using the retrospective research panel, so Phase 2B is not yet a vintage-clean historical forecast exercise.
+- rolling out-of-time forecast rows: 15,290;
+- target years represented: 40;
+- leave-target-year-out calibration rows: 30,580;
+- latest country states simulated: 213;
+- 800 joint draws per horizon;
+- 250 peer-neighbour draws per horizon.
 
-## Phase 2 interpretation
+Calibration results:
 
-Phase 2 supports the architecture proposed after Phase 1:
-- use the broad data to estimate a stable missing-aware state;
-- distinguish descriptive state dimension from forecastable dynamics;
-- forecast the state rather than a hand-picked outcome list;
-- keep historical analogues as a secondary explanatory distribution;
-- move next to probabilistic future-state forecasting and uncertainty, subject to later vintage-clean confirmation.
+- one-year transition coverage: 79.95% at the nominal 80% level and 94.95% at 95%;
+- two-year transition coverage: 79.93% at 80% and 94.91% at 95%;
+- compared with calibrated no change, one-year transition regions are approximately 24.7% narrower at 80% and 26.0% narrower at 95%;
+- two-year transition regions are approximately 19.0% narrower at 80% and 19.8% narrower at 95%.
 
-The important empirical result is that the learned state has non-trivial persistence/dynamics beyond simple no-change: regularized transition models improve state RMSE by roughly 17% at both one- and two-year horizons in the registered development windows.
+All registered Phase 3 calibration gates passed.
 
-## Next phase
+## Execution failure and correction
 
-Phase 3 should build probabilistic one- and two-year future-state distributions from the Phase 2 state/transition architecture, including:
-- forecast uncertainty;
-- shared/global shocks;
-- country-specific transition uncertainty;
-- reconstructed observable implications;
-- relative peer-state simulation;
-- historical analogue paths as explanation, not primary forecast.
+The first complete local Phase 3 attempt exceeded the execution window because BLAS/OpenMP libraries created excessive CPU-thread fan-out while holding the joint-simulation arrays. The model and dataset did not fail.
 
-A future clean confirmation design remains necessary before any production proposal.
+The identical 800-draw run completed in approximately 34.6 seconds after limiting numerical libraries to two threads. `scripts/run_phase3_research.sh` now applies those deterministic resource limits.
+
+## WEO provider projections
+
+Audit report: `docs/research/weo-projection-audit-2026-09-24.md`.
+
+The current WEO response contains 46,388 provider-projection rows for 2026–2031, representing 204 entities and 145 indicators.
+
+They are kept in a separate provider-projection lane and are prohibited from:
+
+- historical state fitting;
+- transition targets;
+- transition calibration;
+- realized outcomes;
+- model selection;
+- historical backtests using the current vintage.
+
+Phase 1, Phase 2 and the Phase 3 baseline read zero provider-projection rows. Optional WEO-conditioned scenarios remain separate from the model-only baseline.
+
+WEO observations at or before the cutoff, especially 2025, remain `historical_or_estimate_unverified` because the feed does not expose a complete actual/estimate boundary for every indicator.
+
+## Current architecture
+
+The research architecture is now:
+
+**broad observed data → missing-aware state → learned transition → calibrated future-state distribution → coherent peer simulation**
+
+Outputs include:
+
+- one- and two-year point forecasts;
+- calibrated 50%/80%/95% state regions;
+- joint common-shock simulations;
+- future peer-position distributions;
+- historical analogue paths;
+- standardized observable implications.
+
+## Remaining work
+
+The next major milestone is not another architecture-expansion phase. It is a clean confirmation and productization programme:
+
+1. register a genuinely untouched confirmation design;
+2. obtain historical source vintages where feasible;
+3. build analyst-facing interpretation of the 96-dimensional state;
+4. introduce supervised crisis/observable overlays only as separate layers;
+5. run the new architecture in shadow beside production;
+6. consider integration only after explicit owner approval.
 
 ## Production firewall
 
-Phase 2 did not alter:
-- production crisis classifier;
-- current serving risk model;
-- current pillar pipeline;
+Phases 1–3 did not alter:
+
+- the selected production crisis classifier;
+- the serving risk model;
+- the production pillar pipeline;
 - production source caches;
 - Streamlit production code;
 - deployed country scores.
