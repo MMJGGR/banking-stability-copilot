@@ -1,6 +1,6 @@
 # Broad-feature forecasting: execution status
 
-Updated 24 September 2026. Active branch: `research/broad-feature-phase3-probabilistic-2026-09-23`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
+Updated 24 September 2026. Active branch: `research/broad-feature-phase4-overlays-2026-09-24`. Parent research PR #28 remains draft. Production baseline `5957ca779dafa21f2e098c819bfb060f43243206` is unchanged.
 
 ## Governing requirements
 
@@ -11,7 +11,8 @@ The binding requirements are:
 - target-independent discovery plan v0.5;
 - Phase 2 measurement/transition PRD v0.6;
 - Phase 3 probabilistic PRD v0.7;
-- provider-projection separation amendment v0.8.
+- provider-projection separation amendment v0.8;
+- Phase 4 interpretation/overlay PRD v0.9.
 
 No variable, source, feature family, target or outcome receives artificial importance merely because it appeared in an earlier model.
 
@@ -51,80 +52,99 @@ Key result: the information set is materially high-dimensional, while the origin
 
 **Complete as retrospective development evidence.** Detailed report: `docs/research/phase3-completion-2026-09-24.md`.
 
-Phase 3 kept the 96-dimensional measurement state fixed and reproduced the Phase 2 point models with maximum absolute metric difference `1.607329824793169e-10`.
+Phase 3 kept the 96-dimensional state fixed and converted the registered point forecasts into calibrated joint future-state distributions.
 
-Execution evidence:
-
-- rolling out-of-time forecast rows: 15,290;
+- rolling historical forecast rows: 15,290;
 - target years represented: 40;
-- leave-target-year-out calibration rows: 30,580;
 - latest country states simulated: 213;
-- 800 joint draws per horizon;
-- 250 peer-neighbour draws per horizon.
+- one-year transition regions approximately 24.7% narrower at 80% and 26.0% narrower at 95% than calibrated no change;
+- two-year transition regions approximately 19.0% narrower at 80% and 19.8% narrower at 95%;
+- nominal 80% and 95% empirical coverage gates passed.
 
-Calibration results:
+WEO 2026–2031 provider projections remain in a separate scenario-only lane and were not used in state fitting, transition fitting, calibration or realized outcomes.
 
-- one-year transition coverage: 79.95% at the nominal 80% level and 94.95% at 95%;
-- two-year transition coverage: 79.93% at 80% and 94.91% at 95%;
-- compared with calibrated no change, one-year transition regions are approximately 24.7% narrower at 80% and 26.0% narrower at 95%;
-- two-year transition regions are approximately 19.0% narrower at 80% and 19.8% narrower at 95%.
+### Phase 4A — interpretation
 
-All registered Phase 3 calibration gates passed.
+**First slice complete as retrospective development evidence.** Detailed report: `docs/research/phase4-first-slice-2026-09-24.md`.
 
-## Execution failure and correction
+All 96 state dimensions now have auditable interpretation cards. A post-hoc orthogonal rotation improves display concentration without changing state-space distances or forecasts.
 
-The first complete local Phase 3 attempt exceeded the execution window because BLAS/OpenMP libraries created excessive CPU-thread fan-out while holding the joint-simulation arrays. The model and dataset did not fail.
+A compact-theme test did not support replacing the engine with a small pillar set:
 
-The identical 800-draw run completed in approximately 34.6 seconds after limiting numerical libraries to two threads. `scripts/run_phase3_research.sh` now applies those deterministic resource limits.
+- best candidate groups: 6;
+- silhouette: 0.0785;
+- bootstrap adjusted-Rand stability: 0.8917;
+- largest group: 86 of 96 dimensions;
+- singleton groups: 2.
 
-## WEO provider projections
+The interpretation layer should therefore use dimension cards and observable contributors rather than claiming that the state naturally reduces to a few clean themes.
 
-Audit report: `docs/research/weo-projection-audit-2026-09-24.md`.
+### Phase 4B — broad continuous-observable overlays
 
-The current WEO response contains 46,388 provider-projection rows for 2026–2031, representing 204 entities and 145 indicators.
+**First slice complete as retrospective development evidence.**
 
-They are kept in a separate provider-projection lane and are prohibited from:
+The outcome registry was data-led and included all sufficiently supported historical observables. No named banking outcome was privileged.
 
-- historical state fitting;
-- transition targets;
-- transition calibration;
-- realized outcomes;
-- model selection;
-- historical backtests using the current vintage.
+- registered feature-horizon cases: 3,713;
+- globally eligible: 780;
+- executed in at least one registered development window: 639;
+- executed in both windows: 349;
+- provider-projection rows used: 0.
 
-Phase 1, Phase 2 and the Phase 3 baseline read zero provider-projection rows. Optional WEO-conditioned scenarios remain separate from the model-only baseline.
+Each case compared no change, own history, state only and own history plus a regularized state correction.
 
-WEO observations at or before the cutoff, especially 2025, remain `historical_or_estimate_unverified` because the feed does not expose a complete actual/estimate boundary for every indicator.
+Across the 639 executed cases:
+
+- hybrid state overlay beat own history on RMSE in 443 cases;
+- hybrid overlay beat state only in 563 cases;
+- median incremental RMSE improvement versus own history was 0.27%;
+- 79 cases met the material/stable threshold;
+- material/stable cases had median incremental improvement of 3.40% and maximum improvement of 21.99%;
+- 38 cases were materially harmed by adding the state.
+
+The architectural conclusion is selective hybrid use: the state is an incremental information layer, not a universal substitute for each observable's own history.
+
+### Phase 4C — crisis/event overlays
+
+**Deferred pending verified alignment.**
+
+Before fitting a challenger, the following must be aligned on identical country-origin rows:
+
+- verified systemic-event dates;
+- right-censoring, active-crisis and cooldown rules;
+- the frozen production-classifier benchmark;
+- rare-event calibration and false-alert metrics.
+
+The production classifier remains byte-locked and unchanged. Event labels do not feed back into the state.
 
 ## Current architecture
 
 The research architecture is now:
 
-**broad observed data → missing-aware state → learned transition → calibrated future-state distribution → coherent peer simulation**
+**broad observed data → missing-aware state → learned transition → calibrated future-state distribution → dimension/observable interpretation → selectively validated observable and event overlays**
 
-Outputs include:
+The 96 dimensions remain internal. User-facing outputs should show evidence-backed observable implications, uncertainty, movement and separately governed overlays rather than 96 raw coordinates or a forced small pillar set.
 
-- one- and two-year point forecasts;
-- calibrated 50%/80%/95% state regions;
-- joint common-shock simulations;
-- future peer-position distributions;
-- historical analogue paths;
-- standardized observable implications.
+## Validation and execution policy
+
+Phase 4 targeted local engineering tests: 4 passed.
+
+No GitHub Actions workflow was used for iterative Phase 4 development. The measurement state and Phase 3 engine were not refitted.
 
 ## Remaining work
 
-The next major milestone is not another architecture-expansion phase. It is a clean confirmation and productization programme:
+The major remaining programme is:
 
-1. register a genuinely untouched confirmation design;
+1. align and execute the crisis/event overlay against the frozen production classifier;
 2. obtain historical source vintages where feasible;
-3. build analyst-facing interpretation of the 96-dimensional state;
-4. introduce supervised crisis/observable overlays only as separate layers;
-5. run the new architecture in shadow beside production;
+3. register a genuinely untouched confirmation design;
+4. build analyst-facing product views from the Phase 3/4 contracts;
+5. run the architecture in shadow beside production;
 6. consider integration only after explicit owner approval.
 
 ## Production firewall
 
-Phases 1–3 did not alter:
+Phases 1–4 did not alter:
 
 - the selected production crisis classifier;
 - the serving risk model;
