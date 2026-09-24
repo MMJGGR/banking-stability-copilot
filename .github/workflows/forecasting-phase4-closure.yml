@@ -1,0 +1,128 @@
+name: Phase 4 interpretation and overlays
+# One closure checkpoint; not an iterative development workflow.
+on:
+  push:
+    branches: [research/broad-feature-phase4-interpretation-overlays-2026-09-24]
+    paths: [.github/workflows/forecasting-phase4-closure.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: forecasting-phase4-closure
+  cancel-in-progress: false
+
+jobs:
+  closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      NUMEXPR_NUM_THREADS: "2"
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_CLASSIFIER_SHA: 054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' 'scikit-learn==1.5.2' 'pytest==8.3.5'
+          python -m pip check
+
+      - name: Run Phase 4 safety tests
+        run: |
+          set -o pipefail
+          python -m compileall -q src/forecasting/phase4_interpretation.py src/forecasting/phase4_outcomes.py src/forecasting/phase4_crisis.py
+          python -m pytest tests/test_forecasting_phase4.py -q | tee phase4-tests.txt
+
+      - name: Retrieve immutable M2 and Phase 2 evidence
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
+          echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10702494849/zip > /tmp/phase2.zip
+          echo '5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e  /tmp/phase2.zip' | sha256sum -c -
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          for archive, root in [('/tmp/m2.zip', Path('/tmp/m2')), ('/tmp/phase2.zip', Path('/tmp/phase2'))]:
+              root.mkdir()
+              with zipfile.ZipFile(archive) as z:
+                  for member in z.infolist():
+                      destination=(root/member.filename).resolve()
+                      assert destination.is_relative_to(root.resolve())
+                      assert (member.external_attr >> 16) & 0o170000 != 0o120000
+                  z.extractall(root)
+          PY
+
+      - name: Execute broad observable validation
+        run: |
+          python -m src.forecasting.phase4_outcomes \
+            --snapshot /tmp/m2/live \
+            --phase2 /tmp/phase2/phase2-evidence/results \
+            --output phase4-evidence/phase4b
+
+      - name: Execute official-label crisis overlay
+        run: |
+          python -m src.forecasting.phase4_crisis \
+            --states /tmp/phase2/phase2-evidence/results/country-year-states.csv.gz \
+            --information /tmp/phase2/phase2-evidence/results/country-year-information.csv.gz \
+            --episodes data/reference/systemic_banking_crises_1970_2025.csv \
+            --output phase4-evidence/phase4c
+
+      - name: Verify gates and production firewall
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          b=json.loads(Path('phase4-evidence/phase4b/phase4b-summary.json').read_text())
+          c=json.loads(Path('phase4-evidence/phase4c/phase4c-summary.json').read_text())
+          assert b['status']=='completed_phase4b_broad_observable_validation'
+          assert b['feature_count_cap'] is None
+          assert b['provider_projection_rows_read']==0
+          assert b['registered_level_identities']==4924
+          assert b['observed_level_identities']==1847
+          assert b['stable_state_predictable_evaluations']==14
+          assert c['status'] in {
+              'completed_phase4c_crisis_overlay_development',
+              'crisis_overlay_stopped_insufficient_time_ordered_events',
+          }
+          assert c['provider_projection_rows_read']==0
+          assert not c['production_classifier_retrained']
+          assert not c['state_refit_with_crisis_labels']
+          print(json.dumps({'phase4b':b,'phase4c':c},indent=2))
+          PY
+          git lfs install --local
+          git lfs pull --include='cache/crisis_classifier.pkl' --exclude=''
+          test "$(stat -c%s cache/crisis_classifier.pkl)" = '52580'
+          echo "$EXPECTED_CLASSIFIER_SHA  cache/crisis_classifier.pkl" | sha256sum -c -
+          git diff --exit-code 5957ca779dafa21f2e098c819bfb060f43243206 -- \
+            app.py train_model.py cache artifacts data src/pillar_pipeline.py \
+            src/feature_engineering.py src/crisis_classifier.py src/crisis_panel.py \
+            src/crisis_hazard.py
+
+      - name: Preserve compact closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-interpretation-overlays-${{ github.run_id }}
+          path: |
+            phase4-evidence/
+            phase4-tests.txt
+            docs/prd/broad-feature-phase4-v0.9.md
+          retention-days: 90
+          compression-level: 6
+          if-no-files-found: error
