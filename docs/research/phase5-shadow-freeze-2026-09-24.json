@@ -1,0 +1,80 @@
+{
+  "schema_version": "banking-copilot-shadow-v1.0",
+  "status": "phase5_shadow_bundle_frozen_prospective_confirmation_open",
+  "forecast_batch_id": "shadow-1ef71a2f20bb20b625d5",
+  "issued_at": "2026-09-24",
+  "source_cutoff": "2026-09-16",
+  "state_origin_year": 2026,
+  "forecast_years": [2027, 2028],
+  "horizons": [1, 2],
+  "vintage_mode": "retrospective_latest_vintage_research",
+  "research_model_commit": "31968c9596d928df9a12e29b5ea2ea442853213d",
+  "production_commit": "5957ca779dafa21f2e098c819bfb060f43243206",
+  "phase2_artifact": {
+    "id": 10702494849,
+    "sha256": "5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e"
+  },
+  "phase4_artifact": {
+    "id": 10801867846,
+    "sha256": "ab55f002f34fa992d3ade9dc27acdc32bdee379b4b586010dd1357d3b8844e6d"
+  },
+  "research_countries": 213,
+  "country_horizon_rows": 426,
+  "production_reference_countries": 201,
+  "research_production_overlap": 200,
+  "research_only_countries": [
+    "ASM", "BMU", "CUB", "CYM", "GRL", "GUM", "MCO", "NCL",
+    "PRK", "PSE", "PYF", "VIR", "XKX"
+  ],
+  "production_only_countries": ["SXM"],
+  "provider_projection_rows_read_by_baseline": 0,
+  "provider_projection_policy": "separate_scenario_lane_only",
+  "research_crisis_overlay_status": "not_approved",
+  "research_crisis_probabilities_served": 0,
+  "production_classifier": {
+    "bytes": 52580,
+    "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee",
+    "action": "preserve_unchanged"
+  },
+  "prospective_confirmation_status": "open_pending_future_realizations",
+  "weo_2025_status_caveat": "WEO values dated 2025 may include estimates; actual/estimate status is not fully verified for every indicator.",
+  "local_execution": {
+    "independent_builds_compared": 2,
+    "forecast_batch_ids_identical": true,
+    "accepted_file_hashes_identical": true,
+    "unit_tests_passed": 5,
+    "bundle_contract_rows_checked": 426,
+    "country_records_checked": 426,
+    "prospective_append_only_test_passed": true,
+    "provider_projection_realization_rejection_test_passed": true,
+    "shadow_loader_hash_validation_passed": true
+  },
+  "packaging_code_sha256": {
+    "phase5_shadow.py": "90e33726c854384197f8dca951354acabdf4f59e51e9cd2151b03995521dbded",
+    "phase5_prospective.py": "b704a0f806e40480365d8047b664571ec678676fe407968661d6fa639f271b96",
+    "phase5_shadow_view.py": "ec57cfd356122cececc9d1c0fe3df4fa6306c24910be6e36f058e8cf767f3dc9",
+    "research_shadow_app.py": "5aed69e79808b3ba25129196f8ad4c608859653080748747742a7ead1320e530"
+  },
+  "bundle_manifest_sha256": "1c0cf4133b7cb92d63a6c16a3dc96891566d70036991059eb846ad58cb328149",
+  "bundle_file_checksums_sha256": "ef1b7d6df729009fa81e93253baefbd41479e07a9d8567e5f71db0b8b7143df9",
+  "accepted_file_sha256": {
+    "prospective-forecast-ledger.csv": "938cd1ff44fe5140e9889a809dc73e67d1da438b0dda2e5e72d6bc6b051f1c48",
+    "rejected-overlays.json": "14372392b52b316c8b2fb3e4a955e2ac6c6f96a81405f0f7d1a05ff56b707c56",
+    "shadow-country-horizon-summary.csv": "4573c7d38a5f1f91c0672d0cb37c81c2a225caf2b86f6b8386adfe452caadda4",
+    "shadow-country-record-schema.json": "8cc54973c3d91aee4da271c26e36b1f4abe15ec8977db8ee2aac5e67df11d7d4",
+    "shadow-country-records.jsonl.gz": "d4913652e88af6c39d355d02016a549aed110989eaf92108deee1ceab0dec606",
+    "shadow-current-state-coordinates.csv.gz": "458f9e0e033fcbf0102a345dedaeaa5b415ccf3eb1c1fc427a7c1732ba091a16",
+    "shadow-current-state-explanations.csv.gz": "250eb08f9f7055fc9b1c5a53717353fb8ceb025c5f40f952ac7d5aeb9b38b4c6",
+    "shadow-forecast-coordinate-quantiles.csv.gz": "d3eefe68da529a1c25ea1a22b90ca1d958f2486dec9b9df2c7afb471e4b63826",
+    "shadow-future-peer-frequencies.csv.gz": "7c5d55750bdf8d02db9feb8daaa979fe484f8c941da7ed95149a06900605f9f4",
+    "shadow-historical-analogues.csv.gz": "5b095de9a3be57ce5974b64f30e4ce869e7d81671a4028ab62d2a15ad7e4bbb4",
+    "shadow-movement-explanations.csv.gz": "537b8838613481e8da8621ca4435aa8502e028391d4069289068bec151707e9a",
+    "shadow-observable-implications.csv.gz": "0bb4141f8af208bda41ba60cd59e6895c6ea331ee2419f46006c096350239b50",
+    "shadow-population-reconciliation.csv": "cf1bb4c71d69c24990fa784658d096dadb57c5dc7033f2ec2b23d3a67b72664e",
+    "shadow-provider-scenario-availability.csv": "78500928aa6d31f8a7c13594a4196d266f7039161e31993e95e696a87b296ffe",
+    "shadow-stable-observable-catalog.csv": "42e72cbd922c4eb4df5fd96f2f899fc5b301f105aadfafab79b6ea8082f22b36"
+  },
+  "production_modified": false,
+  "deployed": false,
+  "merged": false
+}
