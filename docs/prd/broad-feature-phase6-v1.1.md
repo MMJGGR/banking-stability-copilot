@@ -1,4 +1,4 @@
-# PRD v1.1 — Phase 6: production replacement challenge
+# PRD v1.2 — Phase 6: replacement rating and production challenge
 
 Date: 2026-09-24  
 Status: active research requirements  
@@ -20,14 +20,15 @@ Phases 1–5 built and froze a stronger analytical backbone:
 - country-specific explanation;
 - deterministic shadow contract and prospective ledger.
 
-That backbone has not yet produced and validated a complete replacement for production's core decision outputs:
+Phase 6 builds the missing decision layer. The new rating must answer three separate questions:
 
-- a 1–10 country risk score;
-- five risk categories;
-- a calibrated banking-system stress/crisis probability;
-- an operating threshold and analyst-review policy.
+1. **Peer-relative risk:** how risky is the country compared with other countries at the same date?
+2. **Own-history stress:** how abnormal or adverse is the country compared with its own prior history?
+3. **Event imminence:** how likely is a systemic banking crisis or sovereign default/distress episode within the decision horizon?
 
-Phase 6 builds that final decision layer and subjects it to a direct replacement contest. A challenger advances only if it beats the production architecture on the registered decision objectives and operational safeguards. Complementarity is the fallback outcome, not the assumed objective.
+Those components remain visible. The final score may combine them only through a registered, monotone policy. An imminent event may raise risk but may never be averaged away by an otherwise average peer position.
+
+A challenger advances only if it beats the production architecture on registered decision objectives and operational safeguards. Complementarity is the fallback outcome, not the assumed objective.
 
 ## 2. Production decision being challenged
 
@@ -38,7 +39,7 @@ The current production system provides:
 3. an equal pillar blend;
 4. KNN imputation and confidence regression toward median risk;
 5. risk floors and critical-field missingness penalties;
-6. an upward-only legacy crisis-probability uplift;
+6. an upward-only legacy banking-crisis probability uplift;
 7. a 1–10 score and five fixed categories.
 
 The served classifier is locked but not cleanly revalidated. Its preservation is a governance requirement, not evidence that it is an unbeatable benchmark.
@@ -47,280 +48,366 @@ Phase 6 must distinguish:
 
 - **served-production snapshot:** the actual current 2026 score and category;
 - **production-architecture historical reconstruction:** the production pillar and crisis-overlay rules re-executed under time-ordered historical conditions;
-- **replacement challenger:** the new broad-state decision layer.
+- **replacement challenger:** the new three-axis broad-state decision layer.
 
-The historical reconstruction is a benchmark for the architecture. It must not be described as a vintage-clean reproduction of what the deployed app displayed at every historical date.
+The historical reconstruction is an architecture benchmark. It must not be described as a vintage-clean reproduction of what the deployed app displayed at every historical date.
 
 ## 3. Replacement outputs
 
-The challenger must produce the following outputs on the same country-year rows used for evaluation.
+The challenger must produce the following on the same country-year rows used for evaluation.
 
-### 3.1 Forward system-stress probability
+### 3.1 Peer-relative risk
 
-`system_stress_probability_2y`
+`peer_relative_risk_index`
 
-A calibrated probability that the banking system experiences material deterioration over the next two years.
+A 0–1 same-year percentile of the challenger structural-stress signal. The ranking reference contains only the countries available at that forecast origin.
 
-### 3.2 Replacement risk score
+### 3.2 Own-history stress
 
-`replacement_risk_score`
+`own_history_stress_index`
 
-A 1–10 score derived from the calibrated forward stress probability against a frozen training-reference distribution. Higher means more risk.
+A 0–1 percentile of the same structural-stress signal against the country's **strictly prior** history. No current or future observation may enter its historical reference distribution.
 
-The score may be relative, as production is relative, but the mapping must be learned only from the training period of each validation fold.
+The output must include:
 
-### 3.3 Replacement risk category
+- prior years available;
+- first supported year;
+- support status;
+- recent velocity and acceleration diagnostics.
 
-Use the existing production labels for operational comparability:
+Sparse history affects confidence, not the risk score direction.
 
-- 1–2: Very Low Risk;
-- 3–4: Low Risk;
-- 5–6: Moderate Risk;
-- 7–8: High Risk;
-- 9–10: Very High Risk.
+### 3.3 Banking-crisis imminence
 
-The category mapping may not be altered after seeing an outer test period.
+`banking_crisis_probability_1_3y`
 
-### 3.4 Crisis probability
+A separately calibrated probability of official systemic banking-crisis onset in years 1–3, using the governed Laeven–Valencia 1970–2025 episode artifact.
 
-`replacement_crisis_probability_1_3y`
+### 3.4 Sovereign-crisis imminence
 
-A separately calibrated probability of official systemic banking-crisis onset in years 1–3. It is not automatically identical to the broader system-stress probability.
+`sovereign_crisis_probability_1_3y`
 
-### 3.5 Review policy
+A separately calibrated probability of sovereign default or distressed restructuring onset in years 1–3.
 
-A frozen analyst-review threshold with reported:
+The primary event source is the Bank of Canada–Bank of England Sovereign Default Database, current 2025 edition, which covers country-level sovereign obligations in default from 1960–2024. Before modelling, the source file must be:
 
-- event/stress recall;
-- precision;
-- false alerts per 100 country-years;
-- false alerts per true alert;
-- regional and data-coverage burden.
+- imported from the official Bank of Canada release;
+- stored or referenced through a pinned checksum;
+- transformed into an onset/episode ledger under a documented rule;
+- reviewed for domestic arrears, external private, external official and local-currency scope;
+- separated from provider projections and model inputs.
 
-## 4. Material system-deterioration target
+Until that governed episode ledger is present, the sovereign probability is **unavailable**, not zero, and a full replacement decision may not be approved.
 
-Production's structural score has no single directly observed ground-truth label. Phase 6 therefore registers a transparent forward decision target rather than fitting the new score to the existing production score.
+A Global Macro Database sovereign-crisis series may be used only as a research sensitivity if its licence permits the intended use. It is not the governed production label source.
+
+### 3.5 Combined event imminence
+
+`banking_or_sovereign_event_probability_1_3y`
+
+Preferred method: a directly calibrated composite-event model using the union of governed banking and sovereign event onsets.
+
+Mandatory sensitivities:
+
+- lower bound: `max(p_banking, p_sovereign)`;
+- conditional-independence union: `1 - (1-p_banking)(1-p_sovereign)`.
+
+The system may not silently assume independence. If only one governed event head is available, the combined output must be marked `partial_event_coverage`.
+
+### 3.6 Replacement risk score and category
+
+The final score retains operational comparability with production:
+
+- 1–10 score, higher is riskier;
+- 1–2 Very Low;
+- 3–4 Low;
+- 5–6 Moderate;
+- 7–8 High;
+- 9–10 Very High.
+
+Its components must remain separately visible.
+
+### 3.7 Evidence confidence
+
+`rating_confidence` and `rating_support_status`
+
+Confidence is reported separately from risk. Low coverage or short history may widen uncertainty or make a rating provisional; it may not automatically make a country safer or riskier unless a separately approved policy floor is applied after model validation.
+
+## 4. Three-axis score policy
+
+Let:
+
+- `R_peer` be peer-relative risk in [0,1];
+- `R_history` be own-history stress in [0,1];
+- `R_event` be the training-reference percentile of the calibrated combined event probability.
+
+The structural base is:
+
+`R_structural = w_peer * R_peer + (1 - w_peer) * R_history`
+
+The event overlay is monotone and upward-only:
+
+`R_final = R_structural + alpha * max(R_event - R_structural, 0)`
+
+where:
+
+- `w_peer` is selected inside the training sample from a registered grid;
+- `alpha` is selected inside the training sample from `{0.25, 0.50, 0.75, 1.00}`;
+- `alpha = 1` makes event imminence a full floor;
+- the outer test sample may not influence either choice.
+
+The displayed score is:
+
+`replacement_risk_score = 1 + 9 * R_final`
+
+The event probabilities remain displayed as probabilities. The 1–10 score is a relative decision index, not a literal probability.
+
+Mandatory alternatives:
+
+- constrained monotone logistic stack;
+- peer/history equal weighting;
+- full event floor `max(R_structural, R_event)`;
+- no-event structural score.
+
+The simplest policy that meets the advancement gates is preferred.
+
+## 5. Structural-stress signal
+
+The state itself is neutral and must not be relabelled as risk after the fact. A supervised decision head estimates the probability of material system deterioration over two years.
 
 A country-origin is positive for `material_system_deterioration_2y` when either:
 
-1. an official systemic banking-crisis onset occurs in years 1–3; or
+1. a governed systemic banking-crisis or sovereign-crisis onset occurs in years 1–3; or
 2. at least two evidence-backed observable families deteriorate materially within two years.
 
-The observable families are taken from the Phase 4 broad screen, not selected before that screen:
+The observable families come from the Phase 4 broad screen:
 
 - real activity: real GDP growth;
 - banking earnings: ROA, ROE and net-income measures;
 - fiscal position: primary balance and related validated fiscal measures;
 - external activity: export/import volume growth.
 
-Ambiguous-direction outcomes are not used to define the target merely because they passed an accuracy screen. They remain available for interpretation.
+Ambiguous-direction outcomes are not used merely because they passed an accuracy screen.
 
 For every outer fold:
 
-- family transformations, medians, dispersion and deterioration thresholds are estimated only from the outer training period;
+- transformations, medians, dispersion and deterioration thresholds are estimated only from outer training data;
 - a family is materially worse when its signed two-year change falls below the registered training-tail threshold;
 - the default tail is the worst 20% of training changes;
-- at least two families must be observed to classify non-crisis deterioration;
-- crisis onset remains positive regardless of observable coverage.
+- at least two observable families must be present for a non-event deterioration label;
+- a governed crisis onset remains positive regardless of observable coverage.
 
 Mandatory sensitivities:
 
-- crisis-only target;
+- event-only target;
 - observable-deterioration-only target;
-- one-family and three-family deterioration thresholds;
-- 15%, 20% and 25% training-tail thresholds.
+- one-family and three-family thresholds;
+- 15%, 20% and 25% deterioration tails.
 
-The default target advances only if its conclusion is not an artifact of one threshold choice.
+## 6. Model architecture
 
-## 5. Information available to the challenger
+The fixed 96-dimensional measurement state remains neutral. Event and deterioration labels do not refit or rotate it.
 
-The full broad measurement state remains fixed. Crisis/stress labels do not refit or rotate the 96-dimensional state.
+### 6.1 Structural-stress head
 
-Candidate decision features may include:
+Candidate features:
 
-- current 96-dimensional state;
+- current state;
 - exact one-year state velocity;
-- state acceleration where available;
-- state-information uncertainty and observed share;
-- registered one- and two-year point state changes;
-- forecast movement radii and relative-peer movement probabilities;
-- crisis-specific raw features constructed under the exact historical availability policy;
-- raw-feature missingness/age indicators;
-- country-independent global-state context.
+- acceleration where available;
+- state uncertainty and observed share;
+- registered one-/two-year expected state movement;
+- movement radii and relative-peer transition probabilities;
+- global-state context.
 
-No WEO 2026–2031 provider projection may enter baseline features, targets, calibration or realized outcomes. Provider-conditioned scenarios remain separate.
+### 6.2 Banking-crisis head
 
-## 6. Candidate decision models
+Candidate features:
 
-The initial ladder is deliberately limited and interpretable.
+- broad state and trajectory;
+- banking asset quality, capital, liquidity, earnings and funding indicators;
+- credit-cycle and property-cycle features;
+- sovereign-bank exposure;
+- raw-feature age, coverage and missingness.
 
-### A. State-only regularized logistic model
+### 6.3 Sovereign-crisis head
 
-Tests whether the broad state, trajectory and uncertainty are sufficient.
+Candidate features:
 
-### B. Crisis/raw-feature regularized logistic model
+- broad state and trajectory;
+- government debt/GDP and debt/revenue;
+- interest/revenue and debt-service burden;
+- primary/fiscal balance;
+- reserves/import and reserves/current-account-payment coverage;
+- external debt and public external financing need;
+- current account and exchange-rate stress;
+- sovereign-bank exposure and banking claims on government;
+- governance and institutional indicators;
+- raw-feature age, coverage and missingness.
 
-Uses the exact crisis-specific historical feature panel without the broad state.
+Debt/GDP alone is a mandatory simple benchmark. A more complex sovereign model may not advance unless it beats that benchmark on calibrated probability quality.
 
-### C. State-plus-raw regularized logistic model
+### 6.4 Candidate model ladder
 
-Combines the broad state with crisis-specific raw information.
+For each head, compare on identical rows:
 
-### D. Histogram gradient-boosting challenger
+1. historical event/deterioration rate;
+2. simple benchmark(s), including debt/GDP for sovereign risk;
+3. regularized logistic regression;
+4. state-only logistic model;
+5. raw-feature-only logistic model;
+6. state-plus-raw logistic model;
+7. histogram gradient boosting for nonlinear interactions.
 
-Tests nonlinear interactions without introducing a deep sequence model. It must use the same rows and outer folds as the regularized models.
-
-### E. Production-architecture reconstruction
-
-Rebuilds the constrained two-pillar score on each historical origin using only information available by that origin, then applies the locked production classifier where technically compatible.
-
-The reconstruction must preserve the production rules:
-
-- declared feature directions;
-- constrained components;
-- equal economic/industry blend;
-- confidence adjustment;
-- risk floors;
-- critical-field penalty;
-- upward-only crisis uplift.
-
-It is the direct architecture benchmark, not a target for challenger training.
+Deep sequence models are deferred unless this ladder leaves substantial, stable residual value.
 
 ## 7. Validation design
 
 ### 7.1 Time ordering
 
-Use expanding historical training and later outer test windows. The initial registered development windows are:
+Use expanding historical training and later outer test windows. Initial registered development windows:
 
 - 2014–2018;
 - 2019–2022.
 
-All features, target thresholds, preprocessing, calibration, probability-to-score mapping, category thresholds and alert thresholds are fitted inside the outer training period.
+All target thresholds, preprocessing, calibration, probability-to-score mapping, peer/history reference distributions, category thresholds and review thresholds are fitted inside the outer training period.
 
 ### 7.2 Country grouping
 
 Inner tuning and calibration must avoid placing the same country on both sides where practical. Time ordering takes precedence; country-grouped sensitivity is reported separately.
 
-### 7.3 Current-snapshot reconciliation
+### 7.3 Event contamination
 
-For the 2026 overlap population:
+For each event head:
 
-- compare challenger and served production score/category;
+- active event years are excluded;
+- post-event cooldown years are excluded;
+- right-censored origins are excluded;
+- borderline banking episodes are excluded by default;
+- event definitions and source versions are carried in every ledger.
+
+### 7.4 Current 2026 reconciliation
+
+For overlapping countries:
+
+- compare challenger and served production scores/categories;
+- show all three challenger components;
 - report score deltas and category migrations;
-- explain the largest changes using research and production attribution;
-- do not use current production values to fit the challenger.
+- explain the largest migrations;
+- do not use production scores to fit the challenger.
 
-### 7.4 No final-confirmation claim
+### 7.5 No final-confirmation claim
 
-The Phase 6 retrospective contest remains development evidence because historical source vintages are incomplete and the broad state uses latest-vintage history.
-
-The Phase 5 prospective batch remains the forward confirmation vehicle. Phase 6 may freeze a replacement challenger for later prospective evaluation but may not claim production victory from retrospective evidence alone.
+Retrospective Phase 6 evidence remains development evidence because complete historical source vintages are unavailable. The frozen Phase 5/Phase 6 prospective ledgers remain the forward confirmation vehicle.
 
 ## 8. Primary metrics
 
-### 8.1 System-deterioration probability
+### 8.1 Structural-stress probability
 
 - Brier score;
 - log loss;
 - PR-AUC;
 - ROC-AUC;
 - calibration slope/intercept;
-- 50%/80%/95% reliability bands where practical;
-- precision and recall at the frozen review threshold;
-- false alerts per 100 country-years;
-- event recall by deterioration family.
+- precision/recall and false-alert burden;
+- family-specific deterioration recall.
 
-### 8.2 Risk score and category
+### 8.2 Three-axis rating
 
-- monotonic deterioration/event rate across the five categories;
-- pairwise ranking concordance;
-- category stability under source/missingness perturbation;
-- category stability through adjacent annual origins;
-- correlation with data coverage and uncertainty;
-- regional and income-group concentration;
-- score/category movement relative to production.
+- monotonic event/deterioration rates across ordered categories;
+- peer-ranking concordance;
+- own-history lead/lag behavior before known events;
+- category stability across annual origins;
+- category stability under missingness and source perturbations;
+- relationship with data coverage and uncertainty;
+- region/income concentration;
+- production migration analysis.
 
-### 8.3 Crisis probability
+### 8.3 Banking and sovereign event heads
 
 - Brier score;
 - log loss;
 - PR-AUC;
 - ROC-AUC;
 - event recall;
-- false-alert burden;
-- calibration by crisis epoch and coverage group.
+- false alerts per 100 country-years;
+- false alerts per true event;
+- calibration by era, region and coverage group.
 
-## 9. Replacement advancement gates
+## 9. Advancement gates
 
-A challenger does not advance merely because it is the best challenger.
+A model does not advance merely because it is the best challenger.
 
-### 9.1 System-stress score gate
+### 9.1 Structural rating gate
 
 Against the production-architecture reconstruction on identical outer-test rows, the challenger must:
 
 1. improve aggregate Brier score by at least 5%;
 2. improve aggregate log loss by at least 5%;
 3. not reduce PR-AUC by more than 2%;
-4. show non-decreasing observed deterioration rates across ordered risk categories, allowing at most one adjacent statistical tie;
+4. show non-decreasing deterioration/event rates across ordered categories, allowing at most one adjacent statistical tie;
 5. not increase false alerts per true deterioration by more than 10% at the registered recall floor;
-6. retain the result in both registered outer windows;
-7. retain the conclusion across the mandatory target sensitivities;
+6. retain the result in both outer windows;
+7. retain the conclusion across target sensitivities;
 8. show materially lower dependence on data coverage than production.
 
-### 9.2 Crisis-probability gate
+### 9.2 Banking-crisis gate
 
-The replacement crisis model must:
+The banking head must beat the historical event-rate baseline on Brier score and log loss, preserve or improve PR-AUC, meet the recall floor with usable false-alert burden and pass both later windows.
 
-1. beat the historical event-rate baseline on Brier score and log loss;
-2. beat the production-architecture crisis benchmark where matched historical predictions are technically valid;
-3. preserve or improve PR-AUC;
-4. meet the registered recall floor without an unusable false-alert burden;
-5. pass both later outer windows.
+### 9.3 Sovereign-crisis gate
 
-If no crisis challenger passes, the production classifier remains separately locked and the structural replacement score may still be evaluated independently.
+The sovereign head must:
 
-### 9.3 Operational gate
+1. use the pinned governed sovereign event ledger;
+2. beat the event-rate baseline;
+3. beat debt/GDP alone on Brier score and log loss;
+4. preserve or improve PR-AUC;
+5. meet the recall floor with usable false-alert burden;
+6. pass both later windows.
+
+### 9.4 Combined-event gate
+
+The direct composite head must outperform the mandatory max-probability and independence-union sensitivities on calibrated probability metrics. Otherwise the system reports separate banking and sovereign probabilities without claiming a superior combined probability.
+
+### 9.5 Operational gate
 
 Before any promotion proposal:
 
-- all outputs reproduce from immutable inputs;
+- outputs reproduce from immutable inputs;
 - a rollback bundle exists;
-- production and challenger populations reconcile;
+- populations reconcile;
 - no provider projection entered baseline evidence;
 - largest score migrations have analyst-readable explanations;
+- all unavailable event heads remain null rather than zero;
 - owner approval is explicit.
 
-## 10. Possible Phase 6 conclusions
+## 10. Possible conclusions
 
-Phase 6 is allowed to conclude any of the following:
-
-1. **Full replacement candidate:** challenger score/category and crisis probability both pass.
-2. **Structural-score replacement candidate:** score/category pass, crisis model does not; retain production crisis classifier temporarily.
-3. **Partial component replacement:** only selected interpretation/forecast components pass.
-4. **No replacement:** challenger does not beat production; retain research as complementary.
-
-The conclusion is determined by evidence, not by the programme's desired destination.
+1. **Full replacement candidate:** structural rating, banking head and sovereign head pass.
+2. **Rating replacement candidate with partial event coverage:** structural rating passes but one event head remains unavailable or fails; retain the corresponding production/analyst process.
+3. **Structural-score replacement candidate:** score/category pass, event heads do not.
+4. **Partial component replacement:** only selected components pass.
+5. **No replacement:** challenger does not beat production.
 
 ## 11. Deliverables
 
-- historical production-architecture reconstruction ledger;
-- material-deterioration target ledger and sensitivity audit;
-- challenger out-of-time probability ledger;
-- risk-score/category ledger;
-- calibration and alert-burden reports;
-- current 2026 score/category migration report;
-- segment diagnostics;
+- peer-relative and own-history component ledger;
+- governed banking and sovereign event ledgers;
+- structural-deterioration target and sensitivity audit;
+- candidate probability ledgers;
+- three-axis score/category ledger;
+- production reconstruction and migration report;
+- calibration/alert-burden/segment diagnostics;
 - replacement gate decision;
-- frozen challenger bundle if and only if a gate passes;
-- explicit rejected-output ledger otherwise.
+- frozen challenger bundle only if a gate passes;
+- explicit rejected/unavailable output ledger otherwise.
 
 ## 12. Execution policy
 
-Develop and test locally/synthetically where possible.
+Develop and test locally/synthetically where possible. Do not use GitHub Actions as an iterative development loop. One consolidated real-data checkpoint is allowed only when closure-ready.
 
-Do not use GitHub Actions as an iterative development loop. One consolidated real-data checkpoint is allowed only when the Phase 6 implementation is closure-ready.
-
-No fresh source retrieval is required for the architecture challenge. Use the immutable research artifacts and current governed production artifacts.
+A fresh broad-source retrieval is not required for development. The official sovereign-default source acquisition is a separately logged data-governance step.
 
 ## 13. Production firewall
 
@@ -329,8 +416,8 @@ Phase 6 may not alter or deploy:
 - production `app.py`;
 - current country scores;
 - production source caches;
-- the selected production classifier;
-- the production inference pipeline;
-- the served risk model.
+- selected production classifier;
+- production inference pipeline;
+- served risk model.
 
 No merge, promotion or deployment is authorized by this PRD.
