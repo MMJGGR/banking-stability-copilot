@@ -7,6 +7,7 @@ from src.forecasting.phase6_score import (
     select_weights,
 )
 from src.forecasting.phase6_sovereign import (
+    EXCLUDED_NONCURRENT_ENTITIES,
     _derive_episodes,
     country_name_to_iso3,
     find_data_header,
@@ -33,6 +34,13 @@ def test_sovereign_rectangular_header_ignores_metadata_rows():
 def test_country_name_mapping_and_episode_derivation():
     assert country_name_to_iso3("Kenya") == "KEN"
     assert country_name_to_iso3("Côte d’Ivoire") == "CIV"
+    assert country_name_to_iso3("Bosnia & Herzegovina") == "BIH"
+    assert country_name_to_iso3("Dem. Rep. of Congo (Kinshasa)") == "COD"
+    assert country_name_to_iso3("Kosovo") == "XKX"
+    assert country_name_to_iso3("São Tomé and Príncipe") == "STP"
+    assert country_name_to_iso3("eSwatini (Swaziland)") == "SWZ"
+    assert country_name_to_iso3("Czechoslovakia") is None
+    assert "CZECHOSLOVAKIA" in EXCLUDED_NONCURRENT_ENTITIES
     status = pd.DataFrame({
         "country_code": ["AAA"] * 7 + ["BBB"] * 3,
         "year": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2000, 2001, 2002],
