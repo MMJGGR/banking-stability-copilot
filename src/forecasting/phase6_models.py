@@ -104,7 +104,7 @@ def candidate_feature_groups(
     return {
         "state_only": _unique([*states, *quality]),
         "state_trajectory": _unique([*states, *velocity, *summary]),
-        "raw_targeted": _unique([*raw, *summary]),
+        "raw_targeted": _unique([*raw, *quality]),
         "hybrid": _unique([*states, *velocity, *raw, *summary]),
     }
 
@@ -162,7 +162,7 @@ def fit_regularized_logit(
     transformed = imputer.fit_transform(active_values)
     scaler = StandardScaler()
     transformed = scaler.fit_transform(transformed)
-    solver = "liblinear" if transformed.shape[1] <= 500 else "saga"
+    solver = "liblinear"
     model = LogisticRegression(
         C=float(c_value),
         penalty="l2",
@@ -170,7 +170,7 @@ def fit_regularized_logit(
         max_iter=2500,
         tol=1e-4,
         random_state=17,
-        n_jobs=2 if solver == "saga" else None,
+        n_jobs=None,
     )
     model.fit(
         transformed,
