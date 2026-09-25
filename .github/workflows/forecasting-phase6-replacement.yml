@@ -1,5 +1,5 @@
 name: Phase 6 replacement challenge
-# Single closure checkpoint; ordinary Phase 6 commits do not retrigger this workflow.
+# Rerun after correcting the source-firewall test; the first run stopped before data retrieval.
 on:
   push:
     branches: [research/broad-feature-phase6-replacement-challenge-2026-09-25]
