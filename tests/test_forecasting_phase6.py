@@ -226,12 +226,17 @@ def test_time_ordered_challenger_and_replacement_score_run():
 
 def test_phase6_source_firewall():
     root = Path("src/forecasting")
-    for filename in (
-        "phase6_labels.py",
-        "phase6_features.py",
-        "phase6_models.py",
-        "phase6_execution.py",
-    ):
-        source = (root / filename).read_text()
-        assert "provider_projection_rows_read" in source or filename == "phase6_models.py"
+    labels = (root / "phase6_labels.py").read_text()
+    features = (root / "phase6_features.py").read_text()
+    models = (root / "phase6_models.py").read_text()
+    execution = (root / "phase6_execution.py").read_text()
+
+    # Labels are banking-crisis / sovereign-default files only; the decision
+    # feature frame and final audit explicitly report zero provider projections.
+    assert "WEO provider projections" in labels
+    assert "provider_projection_rows_read" in features
+    assert "provider_projection_rows_read" in execution
+
+    for source in (labels, features, models, execution):
         assert "train_model.py" not in source
+        assert "crisis_classifier.pkl" not in source
