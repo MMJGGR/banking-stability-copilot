@@ -1,0 +1,125 @@
+name: Phase 6 replacement score challenge
+# One consolidated real-data checkpoint after local/synthetic development.
+on:
+  push:
+    branches: [research/broad-feature-phase6-replacement-score-2026-09-25]
+    paths: [.github/workflows/phase6-replacement-closure.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: phase6-replacement-closure
+  cancel-in-progress: false
+jobs:
+  closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      NUMEXPR_NUM_THREADS: '2'
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_CLASSIFIER_SHA: 054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee
+      EXPECTED_SOVEREIGN_SHA: 5ed273650bed7d5c50cfdd04a28d2515856ae8786be52b8916af20af91cd2500
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install \
+            'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' \
+            'scikit-learn==1.5.2' 'pyarrow==19.0.1' \
+            'openpyxl==3.1.5' 'pycountry==24.6.1' 'pytest==8.3.5'
+          python -m pip check
+      - name: Run Phase 6 unit contracts
+        run: |
+          set -o pipefail
+          python -m compileall -q \
+            src/forecasting/phase6_sovereign.py \
+            src/forecasting/phase6_replacement.py \
+            src/forecasting/phase6_score.py \
+            src/forecasting/phase6_execution.py
+          python -m pytest tests/test_forecasting_phase6.py -q | tee phase6-tests.txt
+      - name: Retrieve immutable research inputs
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
+          echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10702494849/zip > /tmp/phase2.zip
+          echo '5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e  /tmp/phase2.zip' | sha256sum -c -
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          for archive, root in [('/tmp/m2.zip', Path('/tmp/m2')), ('/tmp/phase2.zip', Path('/tmp/phase2'))]:
+              root.mkdir()
+              with zipfile.ZipFile(archive) as z:
+                  for member in z.infolist():
+                      destination=(root/member.filename).resolve()
+                      assert destination.is_relative_to(root.resolve())
+                      assert (member.external_attr >> 16) & 0o170000 != 0o120000
+                  z.extractall(root)
+          PY
+      - name: Retrieve and pin official sovereign-default source
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --user-agent 'banking-stability-copilot-research/1.0' \
+            'https://www.bankofcanada.ca/wp-content/uploads/2025/10/BoC-BoE-Database-2025.xlsx' \
+            -o /tmp/sovereign-defaults.xlsx
+          echo "$EXPECTED_SOVEREIGN_SHA  /tmp/sovereign-defaults.xlsx" | sha256sum -c -
+      - name: Hydrate locked production references
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include='cache/risk_model.pkl,cache/crisis_classifier.pkl' --exclude=''
+          test "$(stat -c%s cache/crisis_classifier.pkl)" = '52580'
+          echo "$EXPECTED_CLASSIFIER_SHA  cache/crisis_classifier.pkl" | sha256sum -c -
+      - name: Execute replacement challenge
+        run: |
+          set -o pipefail
+          python -m src.forecasting.phase6_execution \
+            --snapshot /tmp/m2/live \
+            --phase2-results /tmp/phase2/phase2-evidence/results \
+            --sovereign-workbook /tmp/sovereign-defaults.xlsx \
+            --production-risk-model cache/risk_model.pkl \
+            --output phase6-evidence/results | tee phase6-execution.log
+      - name: Verify evidence and production firewall
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('phase6-evidence/results/phase6-summary.json').read_text())
+          assert report['status']=='completed_phase6_replacement_challenge'
+          assert report['provider_projection_rows_read']==0
+          assert not report['production_classifier_retrained']
+          assert not report['production_modified']
+          assert not report['gate']['replacement_authorized']
+          assert report['sovereign_source']['source_sha256']=='5ed273650bed7d5c50cfdd04a28d2515856ae8786be52b8916af20af91cd2500'
+          assert report['latest_score_rows'] >= 190
+          print(json.dumps(report,indent=2))
+          PY
+          git diff --exit-code 5957ca779dafa21f2e098c819bfb060f43243206 -- \
+            app.py train_model.py cache artifacts data \
+            src/pillar_pipeline.py src/feature_engineering.py \
+            src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+      - name: Upload compact review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-replacement-challenge-${{ github.run_id }}
+          path: |
+            phase6-evidence/
+            phase6-tests.txt
+            phase6-execution.log
+            docs/prd/broad-feature-phase6-v1.1.md
+          retention-days: 90
+          compression-level: 6
+          if-no-files-found: error
