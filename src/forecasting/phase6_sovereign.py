@@ -27,38 +27,53 @@ SOURCE_COVERAGE_START = 1960
 SOURCE_COVERAGE_END = 2024
 PRIMARY_STOCK_THRESHOLD_USD_M = 0.5
 
-# Historical/source naming aliases not resolved consistently by pycountry.
+# Current-country naming aliases not resolved consistently by pycountry.
+# Historical predecessors are deliberately not mapped to modern successors.
 COUNTRY_ALIASES = {
     "BOLIVIA": "BOL",
     "BOLIVIA PLURINATIONAL STATE OF": "BOL",
+    "BOSNIA HERZEGOVINA": "BIH",
+    "BOSNIA AND HERZEGOVINA": "BIH",
     "BRUNEI": "BRN",
     "CABO VERDE": "CPV",
     "CAPE VERDE": "CPV",
     "CHINA PEOPLES REPUBLIC OF": "CHN",
     "CONGO DEM REP": "COD",
     "CONGO DEMOCRATIC REPUBLIC OF THE": "COD",
+    "DEM REP OF CONGO KINSHASA": "COD",
     "CONGO REP": "COG",
     "CONGO REPUBLIC OF": "COG",
+    "REP OF CONGO BRAZZAVILLE": "COG",
     "COTE D IVOIRE": "CIV",
     "CZECH REPUBLIC": "CZE",
     "EGYPT ARAB REP": "EGY",
     "ESWATINI": "SWZ",
+    "ESWATINI SWAZILAND": "SWZ",
     "GAMBIA THE": "GMB",
+    "THE GAMBIA": "GMB",
     "HONG KONG SAR CHINA": "HKG",
     "IRAN ISLAMIC REP OF": "IRN",
     "KOREA DEM PEOPLE S REP": "PRK",
+    "KOREA DEMOCRATIC PEOPLE S REPUBLIC OF NORTH": "PRK",
     "KOREA REP": "KOR",
+    "KOSOVO": "XKX",
     "KYRGYZ REPUBLIC": "KGZ",
     "LAO PDR": "LAO",
     "MACAO SAR CHINA": "MAC",
     "MICRONESIA FED STATES OF": "FSM",
     "MOLDOVA": "MDA",
     "RUSSIA": "RUS",
+    "SAO TOME AND PRINCIPE": "STP",
+    "SINT MAARTEN": "SXM",
     "SLOVAK REPUBLIC": "SVK",
+    "ST KITTS NEVIS": "KNA",
+    "ST LUCIA": "LCA",
+    "ST VINCENT AND THE GRENADINES": "VCT",
     "SYRIA": "SYR",
     "TAIWAN PROVINCE OF CHINA": "TWN",
     "TANZANIA": "TZA",
     "TIMOR LESTE": "TLS",
+    "TRINIDAD TOBAGO": "TTO",
     "TURKEY": "TUR",
     "TURKIYE": "TUR",
     "VENEZUELA": "VEN",
@@ -66,6 +81,18 @@ COUNTRY_ALIASES = {
     "VIET NAM": "VNM",
     "WEST BANK AND GAZA": "PSE",
     "YEMEN REP": "YEM",
+}
+
+# These workbook rows are aggregates or historical political entities. Mapping
+# them into modern ISO countries would manufacture a label and can create
+# duplicate country-years. They are retained in the audit but excluded from the
+# modern-country label panel and from the mapping-rate denominator.
+EXCLUDED_NONCURRENT_ENTITIES = {
+    "CZECHOSLOVAKIA",
+    "NETHERLANDS ANTILLES",
+    "USSR RUSSIAN FEDERATION",
+    "WORLD",
+    "YUGOSLAVIA",
 }
 
 _HEADER_ALIASES = {
@@ -112,7 +139,7 @@ def _normalize_text(value: object) -> str:
 
 def country_name_to_iso3(value: object) -> str | None:
     text = _normalize_text(value)
-    if not text:
+    if not text or text in EXCLUDED_NONCURRENT_ENTITIES:
         return None
     if re.fullmatch(r"[A-Z]{3}", text):
         return text
@@ -236,25 +263,36 @@ def parse_sovereign_default_workbook(
         & selected.primary_default_stock_usd_m.notna()
     ].copy()
     selected["year"] = selected.year.astype(int)
+    selected["normalized_country_name"] = selected.country_name.map(_normalize_text)
+    selected["excluded_noncurrent_entity"] = selected.normalized_country_name.isin(
+        EXCLUDED_NONCURRENT_ENTITIES
+    )
     selected["country_code"] = selected.country_name.map(country_name_to_iso3)
 
     positive_rows = selected.primary_default_stock_usd_m.gt(primary_threshold_usd_m)
+    positive_eligible = positive_rows & ~selected.excluded_noncurrent_entity
     positive_mapping_rate = float(
-        selected.loc[positive_rows, "country_code"].notna().mean()
-    ) if positive_rows.any() else 0.0
+        selected.loc[positive_eligible, "country_code"].notna().mean()
+    ) if positive_eligible.any() else 0.0
     if positive_mapping_rate < 0.97:
         unmapped = sorted(
             selected.loc[
-                positive_rows & selected.country_code.isna(), "country_name"
+                positive_eligible & selected.country_code.isna(), "country_name"
             ].dropna().astype(str).unique().tolist()
         )
         raise ValueError(
-            "Sovereign positive-row country mapping below 97%; "
+            "Sovereign positive-row country mapping below 97% after governed "
+            "historical/aggregate exclusions; "
             f"rate={positive_mapping_rate:.3f}, unmapped={unmapped[:30]}"
         )
 
-    unmapped_rows = selected.loc[selected.country_code.isna()].copy()
-    status = selected.loc[selected.country_code.notna()].copy()
+    excluded_noncurrent_rows = selected.loc[selected.excluded_noncurrent_entity].copy()
+    unmapped_rows = selected.loc[
+        ~selected.excluded_noncurrent_entity & selected.country_code.isna()
+    ].copy()
+    status = selected.loc[
+        ~selected.excluded_noncurrent_entity & selected.country_code.notna()
+    ].copy()
     status["country_code"] = status.country_code.astype(str)
     if status.duplicated(["country_code", "year"]).any():
         duplicates = status.loc[
@@ -262,7 +300,7 @@ def parse_sovereign_default_workbook(
             ["country_code", "year", "country_name"],
         ]
         raise ValueError(
-            "Duplicate sovereign country-year rows: "
+            "Duplicate sovereign country-year rows after governed mapping: "
             + duplicates.head(20).to_dict("records").__repr__()
         )
     status["sovereign_default_active"] = status.primary_default_stock_usd_m.gt(
@@ -305,7 +343,15 @@ def parse_sovereign_default_workbook(
         "unmapped_names": sorted(
             unmapped_rows.country_name.dropna().astype(str).unique().tolist()
         ),
-        "positive_row_mapping_rate": positive_mapping_rate,
+        "excluded_noncurrent_rows": int(len(excluded_noncurrent_rows)),
+        "excluded_noncurrent_names": sorted(
+            excluded_noncurrent_rows.country_name.dropna().astype(str).unique().tolist()
+        ),
+        "excluded_noncurrent_policy": (
+            "aggregates and historical political entities are audited but not "
+            "mapped into modern country labels"
+        ),
+        "positive_row_mapping_rate_after_exclusions": positive_mapping_rate,
         "primary_default_country_years": int(status.sovereign_default_active.sum()),
         "primary_default_episodes": int(len(episodes)),
         "domestic_arrears_country_years": int(status.domestic_arrears_active.sum()),
