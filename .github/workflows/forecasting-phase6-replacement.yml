@@ -1,0 +1,193 @@
+name: Phase 6 replacement challenge
+# Single closure checkpoint; ordinary Phase 6 commits do not retrigger this workflow.
+on:
+  push:
+    branches: [research/broad-feature-phase6-replacement-challenge-2026-09-25]
+    paths: [.github/workflows/forecasting-phase6-replacement.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: forecasting-phase6-replacement
+  cancel-in-progress: false
+
+jobs:
+  replacement-challenge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      NUMEXPR_NUM_THREADS: "2"
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_CLASSIFIER_SHA: 054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          lfs: false
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install \
+            'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' \
+            'scikit-learn==1.5.2' 'pyarrow==19.0.1' 'pytest==8.3.5' \
+            'openpyxl==3.1.5' 'pycountry==24.6.1'
+          python -m pip check
+
+      - name: Compile and test Phase 6 contracts
+        run: |
+          set -o pipefail
+          python -m compileall -q \
+            src/forecasting/phase6_labels.py \
+            src/forecasting/phase6_features.py \
+            src/forecasting/phase6_models.py \
+            src/forecasting/phase6_execution.py
+          python -m pytest tests/test_forecasting_phase6.py -q | tee phase6-tests.txt
+
+      - name: Retrieve immutable research evidence
+        run: |
+          set -euo pipefail
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10463106988/zip > /tmp/m2.zip
+          echo 'f670f2e7caff532201c1a198130d0f8b34cb04784cb643dae2c5466af9359c9b  /tmp/m2.zip' | sha256sum -c -
+          gh api repos/MMJGGR/banking-stability-copilot/actions/artifacts/10702494849/zip > /tmp/phase2.zip
+          echo '5f841b497df55e3498bc799231deffad773caf578939a41fc5c11dbee6c49f7e  /tmp/phase2.zip' | sha256sum -c -
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          for archive, root in [('/tmp/m2.zip', Path('/tmp/m2')), ('/tmp/phase2.zip', Path('/tmp/phase2'))]:
+              root.mkdir(parents=True, exist_ok=False)
+              with zipfile.ZipFile(archive) as z:
+                  for member in z.infolist():
+                      destination=(root/member.filename).resolve()
+                      assert destination.is_relative_to(root.resolve())
+                      assert (member.external_attr >> 16) & 0o170000 != 0o120000
+                  z.extractall(root)
+          PY
+
+      - name: Hydrate and verify locked production benchmarks
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include='cache/risk_model.pkl,cache/crisis_classifier.pkl' --exclude=''
+          test "$(stat -c%s cache/crisis_classifier.pkl)" = '52580'
+          echo "$EXPECTED_CLASSIFIER_SHA  cache/crisis_classifier.pkl" | sha256sum -c -
+
+      - name: Retrieve and pin sovereign-distress sources
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sovereign
+          curl --fail --location --retry 3 --retry-delay 2 \
+            'https://www.bankofcanada.ca/wp-content/uploads/2025/10/BoC-BoE-Database-2025.xlsx' \
+            --output /tmp/sovereign/BoC-BoE-Database-2025.xlsx
+          sha256sum /tmp/sovereign/BoC-BoE-Database-2025.xlsx | tee /tmp/sovereign/source-checksums.txt
+
+          # Public World Bank reproducibility package is a governed fallback and
+          # sensitivity source. Failure to retrieve it does not alter the primary
+          # Bank of Canada/Bank of England label definition.
+          if curl --fail --location --retry 2 \
+            'https://reproducibility.worldbank.org/catalog/626/download/1862' \
+            --output /tmp/sovereign/world-bank-package.zip; then
+            sha256sum /tmp/sovereign/world-bank-package.zip | tee -a /tmp/sovereign/source-checksums.txt
+            python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          archive=Path('/tmp/sovereign/world-bank-package.zip')
+          root=Path('/tmp/sovereign/world-bank-package')
+          if zipfile.is_zipfile(archive):
+              root.mkdir(parents=True, exist_ok=True)
+              with zipfile.ZipFile(archive) as z:
+                  for member in z.infolist():
+                      destination=(root/member.filename).resolve()
+                      assert destination.is_relative_to(root.resolve())
+                      assert (member.external_attr >> 16) & 0o170000 != 0o120000
+                  z.extractall(root)
+              candidates=[]
+              for name in ('non_confidential_data_extract.dta','boc_boe_default.dta'):
+                  candidates.extend(root.rglob(name))
+              if candidates:
+                  Path('/tmp/sovereign/fallback-path.txt').write_text(str(candidates[0]))
+          PY
+          fi
+          if [ -f /tmp/sovereign/fallback-path.txt ]; then
+            echo "SOVEREIGN_FALLBACK=$(cat /tmp/sovereign/fallback-path.txt)" >> "$GITHUB_ENV"
+          else
+            echo 'SOVEREIGN_FALLBACK=' >> "$GITHUB_ENV"
+          fi
+
+      - name: Execute replacement challenge
+        run: |
+          set -o pipefail
+          mkdir -p phase6-evidence
+          FALLBACK_ARGS=()
+          if [ -n "${SOVEREIGN_FALLBACK:-}" ]; then
+            FALLBACK_ARGS=(--sovereign-fallback "$SOVEREIGN_FALLBACK")
+          fi
+          python -m src.forecasting.phase6_execution \
+            --snapshot /tmp/m2/live \
+            --phase2 /tmp/phase2/phase2-evidence/results \
+            --banking-episodes data/reference/systemic_banking_crises_1970_2025.csv \
+            --sovereign-primary /tmp/sovereign/BoC-BoE-Database-2025.xlsx \
+            "${FALLBACK_ARGS[@]}" \
+            --production-risk-model cache/risk_model.pkl \
+            --production-classifier cache/crisis_classifier.pkl \
+            --output phase6-evidence/results \
+            | tee phase6-evidence/execution.log
+          cp /tmp/sovereign/source-checksums.txt phase6-evidence/sovereign-source-checksums.txt
+
+      - name: Verify decision, boundaries, and production firewall
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('phase6-evidence/results/phase6-summary.json').read_text())
+          assert report['status']=='completed_phase6_replacement_challenge'
+          assert report['final_decision'] in {
+              'replacement_challenger_passes_development_gates_shadow_only',
+              'partial_components_pass_keep_hybrid',
+              'do_not_replace_production',
+              'blocked_by_missing_authoritative_labels_or_matched_benchmark',
+          }
+          assert report['provider_projection_rows_read']==0
+          assert not report['production_modified']
+          assert not report['production_classifier_retrained']
+          assert not report['merged']
+          assert not report['deployed']
+          assert report['production_classifier']['bytes']==52580
+          assert report['production_classifier']['sha256']=='054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee'
+          print(json.dumps({
+              'final_decision': report['final_decision'],
+              'latest_rating_rows': report['latest_rating_rows'],
+              'event_model_gates': report['event_model_gates'],
+              'category_diagnostics': report['category_diagnostics'],
+              'coverage_score_spearman': report['coverage_score_spearman'],
+              'sovereign_label_gate': report['sovereign_label_gate'],
+          }, indent=2))
+          PY
+          git diff --exit-code 5957ca779dafa21f2e098c819bfb060f43243206 -- \
+            app.py train_model.py cache artifacts data \
+            src/pillar_pipeline.py src/feature_engineering.py \
+            src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+
+      - name: Preserve closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-replacement-challenge-${{ github.run_id }}
+          path: |
+            phase6-evidence/
+            phase6-tests.txt
+            docs/prd/broad-feature-phase6-replacement-v1.1.md
+          retention-days: 90
+          compression-level: 6
+          if-no-files-found: error
