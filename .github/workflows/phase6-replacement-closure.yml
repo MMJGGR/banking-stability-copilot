@@ -1,5 +1,5 @@
 name: Phase 6 replacement score challenge
-# Final consolidated real-data checkpoint after governed sovereign-identity correction.
+# Final real-data execution using registered later-time rare-event windows.
 on:
   push:
     branches: [research/broad-feature-phase6-replacement-score-2026-09-25]
@@ -46,8 +46,13 @@ jobs:
             src/forecasting/phase6_sovereign.py \
             src/forecasting/phase6_replacement.py \
             src/forecasting/phase6_score.py \
-            src/forecasting/phase6_execution.py
-          python -m pytest tests/test_forecasting_phase6.py -q | tee phase6-tests.txt
+            src/forecasting/phase6_validation.py \
+            src/forecasting/phase6_execution.py \
+            src/forecasting/phase6_execution_v2.py
+          python -m pytest \
+            tests/test_forecasting_phase6.py \
+            tests/test_forecasting_phase6_validation.py \
+            -q | tee phase6-tests.txt
       - name: Retrieve immutable research inputs
         run: |
           set -euo pipefail
@@ -84,7 +89,7 @@ jobs:
       - name: Execute replacement challenge
         run: |
           set -o pipefail
-          python -m src.forecasting.phase6_execution \
+          python -m src.forecasting.phase6_execution_v2 \
             --snapshot /tmp/m2/live \
             --phase2-results /tmp/phase2/phase2-evidence/results \
             --sovereign-workbook /tmp/sovereign-defaults.xlsx \
