@@ -1,0 +1,38 @@
+name: Phase 6 sovereign source inspection
+on:
+  push:
+    branches: [research/broad-feature-phase6-replacement-score-2026-09-25]
+    paths: [.github/workflows/phase6-sovereign-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'pandas==2.2.3' 'openpyxl==3.1.5'
+      - name: Download and inspect official source
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --user-agent 'banking-stability-copilot-research/1.0' \
+            'https://www.bankofcanada.ca/wp-content/uploads/2025/10/BoC-BoE-Database-2025.xlsx' \
+            -o /tmp/sovereign-defaults.xlsx
+          sha256sum /tmp/sovereign-defaults.xlsx
+          python - <<'PY'
+          import json
+          import pandas as pd
+          path='/tmp/sovereign-defaults.xlsx'
+          book=pd.ExcelFile(path, engine='openpyxl')
+          print('SHEETS', json.dumps(book.sheet_names))
+          for sheet in book.sheet_names:
+              frame=pd.read_excel(path, sheet_name=sheet, header=None, engine='openpyxl')
+              print('\n=== SHEET', repr(sheet), 'SHAPE', frame.shape, '===')
+              sample=frame.iloc[:35,:20].copy().where(frame.notna(), None)
+              for i,row in sample.iterrows():
+                  values=[str(v)[:100] if v is not None else '' for v in row.tolist()]
+                  if any(values): print(i, '|'.join(values))
+          PY
