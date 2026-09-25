@@ -1,5 +1,5 @@
 name: Phase 6 replacement score challenge
-# One consolidated real-data checkpoint after local/synthetic development.
+# Final consolidated real-data checkpoint after governed sovereign-identity correction.
 on:
   push:
     branches: [research/broad-feature-phase6-replacement-score-2026-09-25]
