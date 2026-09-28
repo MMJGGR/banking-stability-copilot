@@ -3944,6 +3944,67 @@ def format_country_option(country_code: str) -> str:
     return f"{name} ({country_code})"
 
 
+MONITOR_SIGNALS_PATH = Path("data/monitor/signals.csv")
+MONITOR_CAPTION = (
+    "Daily monitor of free public data (IMF monthly/quarterly releases and official "
+    "exchange rates). Flags are fixed rule-of-thumb alerts for analyst review; they "
+    "do not change the risk score."
+)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def load_monitor_signals() -> pd.DataFrame:
+    if not MONITOR_SIGNALS_PATH.exists():
+        return pd.DataFrame()
+    return pd.read_csv(MONITOR_SIGNALS_PATH)
+
+
+def render_watchlist() -> None:
+    signals = load_monitor_signals()
+    if signals.empty:
+        return
+    flagged = signals[signals["flag"]]
+    with st.container(border=True):
+        st.markdown("## Stress Monitor")
+        st.caption(MONITOR_CAPTION)
+        if flagged.empty:
+            st.caption("No country currently trips a watch rule.")
+            return
+        table = (
+            flagged.groupby("country_code")
+            .agg(alerts=("rule", "size"), signals=("rule", "; ".join), latest_data=("period", "max"))
+            .reset_index()
+            .sort_values(["alerts", "country_code"], ascending=[False, True])
+        )
+        table.insert(0, "country", table.pop("country_code").map(format_country_option))
+        st.dataframe(table, hide_index=True, use_container_width=True)
+
+
+def render_country_watch(country_code: str) -> None:
+    signals = load_monitor_signals()
+    if signals.empty:
+        return
+    rows = signals[signals["country_code"] == country_code]
+    with st.container(border=True):
+        st.markdown("## Stress Monitor")
+        st.caption(MONITOR_CAPTION)
+        if rows.empty:
+            st.caption("No monitored public series cover this country.")
+            return
+        rows = rows.assign(value=[
+            f"{value:+.2f}" if signal in ("unrest_zscore", "npl_change_4q") else f"{value:+.1%}"
+            for signal, value in zip(rows["signal"], rows["value"])
+        ])
+        st.dataframe(
+            rows[["rule", "value", "period", "age_days", "flag"]].rename(columns={
+                "rule": "Watch rule", "value": "Latest value", "period": "Data period",
+                "age_days": "Age (days)", "flag": "Alert",
+            }),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+
 def safe_find_peers(
     target_country: str,
     scores: pd.DataFrame,
@@ -4076,6 +4137,7 @@ _sync_public_query_state()
 # ==============================================================================
 if primary_view == "Global":
     render_global_summary(scores_df, model_features, loader)
+    render_watchlist()
 
 # ==============================================================================
 # VIEW: Country Profile
@@ -4225,6 +4287,8 @@ if primary_view == "Country":
             )
         else:
             st.caption(str(prior_score_evidence.get("reason")))
+
+    render_country_watch(selected_country_code)
 
     with st.container(border=True):
         st.markdown("## Risk Components")
