@@ -17,6 +17,12 @@ The final CI run (`36123402026`) failed after validation had finished, in `fit_l
 
 The fix mirrors validation. The model is fitted on origins whose one-to-three-year labels resolved before the last forward block, and a sigmoid calibrator is fitted on that block (`cv="prefit"`). A regression test (`test_latest_probability_fits_with_forward_splits`) reproduces the failing condition. Validation code and metrics are unchanged by the fix.
 
+## Full run after the fix
+
+A local rerun on the pinned inputs (research snapshot artifact `10463106988`, Phase 2 artifact `10702494849`, sovereign workbook SHA-256 `5ed27365…c2500`; scikit-learn 1.5.2, pandas 2.2.3, numpy 1.26.4 as in CI) completed with status `completed_phase6_replacement_challenge`. Validation metrics are identical to the crashed CI run. The gate decision is `do_not_advance_replacement_challenger`: every Brier and log-loss check fails; only score monotonicity passes.
+
+The latest-origin output shows why the blend cannot serve as a score: all 213 countries fall between 1.1 and 2.9 on the 1–10 scale (107 "Very Low", 106 "Low"), because the blended index was never calibrated and its absolute component is a small probability (either-event mean 0.066).
+
 ## Result: the challenger loses to the base rate
 
 Registered later-time windows 1995–2000, 2001–07, 2008–14 and 2015–21; 2,265 matched test rows.
