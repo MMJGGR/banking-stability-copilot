@@ -54,3 +54,21 @@ def test_registered_windows_are_later_and_outcome_resolved():
         assert detail["inner_strategy"] == (
             "country_grouped_within_earlier_training_sample"
         )
+
+
+def test_latest_probability_fits_with_forward_splits():
+    """Regression: forward splits are not a partition (CI run 36123402026)."""
+    import numpy as np
+    import pandas as pd
+    from src.forecasting.phase6_execution import fit_latest_probability
+
+    rng = np.random.default_rng(0)
+    years = np.repeat(np.arange(1981, 2022), 20)
+    x = rng.normal(size=len(years))
+    y = (x + rng.normal(scale=2, size=len(years)) > 2.2).astype(int)
+    panel = pd.DataFrame({"forecast_origin_year": years, "x": x, "target": y})
+    latest = pd.DataFrame({"x": [-2.0, 0.0, 2.0]})
+    proba = fit_latest_probability(panel, latest, ["x"], "target")
+    assert proba.shape == (3,)
+    assert np.all((proba > 0) & (proba < 1))
+    assert proba[0] < proba[1] < proba[2]

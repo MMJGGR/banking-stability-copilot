@@ -222,17 +222,21 @@ def fit_latest_probability(
             ),
         ),
     ])
+    X = panel[features]
+    y = panel[target_column].astype(int)
     splits = _time_cv_splits(panel, target_column)
-    if len(splits) >= 2:
-        model = CalibratedClassifierCV(
-            estimator=numeric,
-            method="sigmoid",
-            cv=splits,
-            ensemble=False,
-        )
-    else:
-        model = numeric
-    model.fit(panel[features], panel[target_column].astype(int))
+    if not splits:
+        return numeric.fit(X, y).predict_proba(latest[features])[:, 1]
+    # Forward splits are not a partition, so CalibratedClassifierCV(cv=splits)
+    # cannot run. Mirror validation instead: fit on origins whose 1-3y labels
+    # resolved before the last block, then calibrate on that block.
+    # ponytail: the latest block trains only the calibrator, not the model.
+    _, valid = splits[-1]
+    origin = panel.forecast_origin_year.to_numpy(int)
+    train = np.flatnonzero(origin + 3 < origin[valid].min())
+    numeric.fit(X.iloc[train], y.iloc[train])
+    model = CalibratedClassifierCV(estimator=numeric, method="sigmoid", cv="prefit")
+    model.fit(X.iloc[valid], y.iloc[valid])
     return model.predict_proba(latest[features])[:, 1]
 
 
