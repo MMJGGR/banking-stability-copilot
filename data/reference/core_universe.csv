@@ -1,0 +1,80 @@
+country_code,country_name,un_ldc,wb_lending,wb_income,basis
+AFG,Afghanistan,True,IDA,Low income,both
+AGO,Angola,True,IBRD,Lower middle income,un_ldc
+BDI,Burundi,True,IDA,Low income,both
+BEN,Benin,True,IDA,Lower middle income,both
+BFA,Burkina Faso,True,IDA,Low income,both
+BGD,Bangladesh,True,IDA,Lower middle income,both
+BLZ,Belize,False,Blend,Upper middle income,wb_ida
+BTN,Bhutan,False,IDA,Lower middle income,wb_ida
+CAF,Central African Republic,True,IDA,Low income,both
+CIV,Cote d'Ivoire,False,Blend,Lower middle income,wb_ida
+CMR,Cameroon,False,Blend,Lower middle income,wb_ida
+COD,"Congo, Dem. Rep.",True,IDA,Low income,both
+COG,"Congo, Rep.",False,Blend,Lower middle income,wb_ida
+COM,Comoros,True,IDA,Lower middle income,both
+CPV,Cabo Verde,False,Blend,Upper middle income,wb_ida
+DJI,Djibouti,True,IDA,Lower middle income,both
+DMA,Dominica,False,Blend,Upper middle income,wb_ida
+ERI,Eritrea,True,IDA,Low income,both
+ETH,Ethiopia,True,IDA,Low income,both
+FJI,Fiji,False,Blend,Upper middle income,wb_ida
+FSM,"Micronesia, Fed. Sts.",False,IDA,Upper middle income,wb_ida
+GHA,Ghana,False,IDA,Lower middle income,wb_ida
+GIN,Guinea,True,IDA,Lower middle income,both
+GMB,"Gambia, The",True,IDA,Low income,both
+GNB,Guinea-Bissau,True,IDA,Low income,both
+GRD,Grenada,False,Blend,Upper middle income,wb_ida
+GUY,Guyana,False,IDA,High income,wb_ida
+HND,Honduras,False,IDA,Lower middle income,wb_ida
+HTI,Haiti,True,IDA,Lower middle income,both
+KEN,Kenya,False,Blend,Lower middle income,wb_ida
+KGZ,Kyrgyz Republic,False,IDA,Lower middle income,wb_ida
+KHM,Cambodia,True,IDA,Lower middle income,both
+KIR,Kiribati,True,IDA,Lower middle income,both
+KOS,Kosovo,False,IDA,Upper middle income,wb_ida
+LAO,Lao PDR,True,IDA,Lower middle income,both
+LBR,Liberia,True,IDA,Low income,both
+LCA,St. Lucia,False,Blend,Upper middle income,wb_ida
+LKA,Sri Lanka,False,IDA,Upper middle income,wb_ida
+LSO,Lesotho,True,IDA,Lower middle income,both
+MDG,Madagascar,True,IDA,Low income,both
+MDV,Maldives,False,IDA,Upper middle income,wb_ida
+MHL,Marshall Islands,False,IDA,Upper middle income,wb_ida
+MLI,Mali,True,IDA,Low income,both
+MMR,Myanmar,True,IDA,Lower middle income,both
+MOZ,Mozambique,True,IDA,Low income,both
+MRT,Mauritania,True,IDA,Lower middle income,both
+MWI,Malawi,True,IDA,Low income,both
+NER,Niger,True,IDA,Low income,both
+NGA,Nigeria,False,Blend,Lower middle income,wb_ida
+NIC,Nicaragua,False,IDA,Lower middle income,wb_ida
+NPL,Nepal,True,IDA,Lower middle income,both
+PAK,Pakistan,False,Blend,Lower middle income,wb_ida
+PNG,Papua New Guinea,False,Blend,Lower middle income,wb_ida
+RWA,Rwanda,True,IDA,Low income,both
+SDN,Sudan,True,IDA,Low income,both
+SEN,Senegal,True,IDA,Lower middle income,both
+SLB,Solomon Islands,True,IDA,Lower middle income,both
+SLE,Sierra Leone,True,IDA,Low income,both
+SOM,"Somalia, Fed. Rep.",True,IDA,Low income,both
+SSD,South Sudan,True,IDA,Low income,both
+STP,Sao Tome and Principe,False,IDA,Lower middle income,wb_ida
+SUR,Suriname,False,Blend,Upper middle income,wb_ida
+SWZ,Eswatini,False,Blend,Lower middle income,wb_ida
+SYR,Syrian Arab Republic,False,IDA,Low income,wb_ida
+TCD,Chad,True,IDA,Low income,both
+TGO,Togo,True,IDA,Lower middle income,both
+TJK,Tajikistan,False,IDA,Lower middle income,wb_ida
+TLS,Timor-Leste,True,Blend,Lower middle income,both
+TON,Tonga,False,IDA,Upper middle income,wb_ida
+TUV,Tuvalu,True,IDA,Upper middle income,both
+TZA,Tanzania,True,IDA,Lower middle income,both
+UGA,Uganda,True,IDA,Low income,both
+UZB,Uzbekistan,False,Blend,Lower middle income,wb_ida
+VCT,St. Vincent and the Grenadines,False,Blend,Upper middle income,wb_ida
+VUT,Vanuatu,False,IDA,Lower middle income,wb_ida
+WSM,Samoa,False,IDA,Upper middle income,wb_ida
+YEM,"Yemen, Rep.",True,IDA,Low income,both
+ZMB,Zambia,True,IDA,Lower middle income,both
+ZWE,Zimbabwe,False,Blend,Lower middle income,wb_ida
