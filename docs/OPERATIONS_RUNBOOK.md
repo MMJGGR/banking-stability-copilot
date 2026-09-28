@@ -38,6 +38,35 @@ python -m src.scripts.discover_external_sources
 python -m src.scripts.build_external_liquidity_features --fetch --start-period 2018
 ```
 
+## Daily Stress Monitor (unattended)
+
+`.github/workflows/monitor.yml` runs every day at 04:37 UTC with no keys,
+no paid data and no approval step. `python -m src.monitor` pulls:
+
+| Signal | Source | Cadence / typical lag |
+|---|---|---|
+| 90-day FX depreciation | fawazahmed0 currency API (official rates, jsDelivr CDN) | daily |
+| 12-month official FX depreciation | IMF `ER` | monthly, ~1 month |
+| FX reserves change | IMF `IL` | monthly, ~2 months |
+| IMF credit outstanding change (new programme money) | IMF `FA` | monthly, ~1 month |
+| Bank deposit change | IMF `MFS_DC` | monthly, ~2-4 months |
+| Social unrest z-score | IMF `RSUI` | monthly, ~4 months |
+| NPL ratio change | IMF `FSIC` | quarterly, ~1-2 quarters |
+
+Outputs are committed to `data/monitor/` (plain Git, not LFS): `signals.csv`,
+`fx_daily.csv` and `status.json`. The app shows them as a Global watchlist
+and per-country watch signals; they never change the risk score. The daily
+commit also keeps the public repository active, so GitHub does not disable
+scheduled workflows after 60 idle days.
+
+When a daily run sees new country periods in IMF `FSIC` or `MFS_DC`, it
+dispatches **Build candidate data snapshot** for that date. Promotion of the
+candidate remains the separate governed step.
+
+Watch thresholds are fixed heuristics in `src/monitor.py::RULES`, not
+validated early-warning cut-offs. Parallel-market FX premiums, spreads and
+ratings are not covered (no free source).
+
 ## Check Official Source Availability
 
 ```bash

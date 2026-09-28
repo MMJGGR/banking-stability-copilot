@@ -1,0 +1,60 @@
+name: Daily stress monitor
+
+# Free and unattended: keyless public sources, plain-Git outputs, and the daily
+# commit keeps the repository active so GitHub never disables scheduled runs.
+on:
+  schedule:
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: stress-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source only
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install monitor dependencies
+        run: python -m pip install pandas requests
+
+      - name: Fetch sources and compute watch signals
+        run: python -m src.monitor
+
+      - name: Commit monitor outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/monitor
+          if git diff --cached --quiet; then
+            echo "No monitor changes."
+          else
+            git commit -m "monitor: daily stress signals $(date -u +%F)"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Build a candidate snapshot when IMF publishes new banking data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python -c "import json,sys; sys.exit(0 if json.load(open('data/monitor/status.json'))['refresh_needed'] else 1)"; then
+            gh workflow run refresh-data.yml --ref "${GITHUB_REF_NAME}" -f as_of_date="$(date -u +%F)"
+          fi
