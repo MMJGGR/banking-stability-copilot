@@ -144,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           git lfs install --local
-          BRANCH="promote/${SNAPSHOT_DATE}"
+          BRANCH="promote/${SNAPSHOT_DATE}-${RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
@@ -175,7 +175,7 @@ jobs:
           git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
 
           Candidate bundle from Actions run ${RUN_ID}; manifest and smoke tests passed."
-          git push -u origin "$BRANCH" --force-with-lease
+          git push -u origin "$BRANCH"
           gh pr create \
             --title "Promote snapshot ${SNAPSHOT_DATE}" \
             --body "Automated promotion of the official-source candidate snapshot from Actions run ${RUN_ID}. Manifest provenance, cutoff, classifier preservation, artifact checksums, country-name completeness, score bounds, and raw/imputed sidecar coherence were verified. Review score movements and model-policy audit before merging. Merging redeploys the Streamlit app." \
