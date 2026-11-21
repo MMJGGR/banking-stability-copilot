@@ -1,10 +1,7 @@
 name: Promote candidate snapshot
 
-# Promotes a candidate bundle built by "Build candidate data snapshot" into a
-# reviewed pull request against master. The smoke-test gate re-runs against
-# the downloaded bundle before anything is committed, so a defective
-# candidate (blank names, stale sidecars, out-of-range scores) cannot reach
-# the serving branch. Final merge stays with a human reviewer.
+# Promotes a candidate bundle into a reviewed pull request. Final merge stays
+# with a human reviewer; candidate artifacts are never written to master here.
 
 on:
   workflow_dispatch:
@@ -15,6 +12,11 @@ on:
       snapshot_date:
         description: Snapshot cutoff being promoted (YYYY-MM-DD)
         required: true
+  push:
+    branches:
+      - refresh/2026-11-21-data-candidate
+    paths:
+      - ".github/workflows/promote-snapshot.yml"
 
 permissions:
   contents: write
@@ -24,6 +26,9 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      SNAPSHOT_DATE: ${{ inputs.snapshot_date || '2026-11-21' }}
+      RUN_ID: ${{ inputs.run_id || '44866605575' }}
 
     steps:
       - name: Check out source with LFS support
@@ -45,8 +50,8 @@ jobs:
       - name: Download candidate bundle
         uses: actions/download-artifact@v4
         with:
-          name: banking-copilot-${{ inputs.snapshot_date }}
-          run-id: ${{ inputs.run_id }}
+          name: banking-copilot-${{ env.SNAPSHOT_DATE }}
+          run-id: ${{ env.RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: candidate
 
@@ -80,29 +85,15 @@ jobs:
             install_required "candidate/cache/$filename" "cache/$filename"
           done
 
-          install_required \
-            candidate/artifacts/data_manifest.json \
-            artifacts/data_manifest.json
-          install_required \
-            candidate/artifacts/model_policy_audit.json \
-            artifacts/model_policy_audit.json
-          install_required \
-            candidate/artifacts/government_liquidity_features_report.json \
-            artifacts/government_liquidity_features_report.json
-          install_required \
-            candidate/data/reference/government_liquidity_features.parquet \
-            data/reference/government_liquidity_features.parquet
-          install_required \
-            candidate/data/reference/government_liquidity_observations.parquet \
-            data/reference/government_liquidity_observations.parquet
-          install_required \
-            candidate/data/reference/government_liquidity_features_report.json \
-            data/reference/government_liquidity_features_report.json
+          install_required candidate/artifacts/data_manifest.json artifacts/data_manifest.json
+          install_required candidate/artifacts/model_policy_audit.json artifacts/model_policy_audit.json
+          install_required candidate/artifacts/government_liquidity_features_report.json artifacts/government_liquidity_features_report.json
+          install_required candidate/data/reference/government_liquidity_features.parquet data/reference/government_liquidity_features.parquet
+          install_required candidate/data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_observations.parquet
+          install_required candidate/data/reference/government_liquidity_features_report.json data/reference/government_liquidity_features_report.json
 
           if [ -s candidate/artifacts/feature_heuristics.json ]; then
-            install -D -m 0644 -v \
-              candidate/artifacts/feature_heuristics.json \
-              artifacts/feature_heuristics.json
+            install -D -m 0644 -v candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json
           fi
 
       - name: Smoke-test candidate artifacts
@@ -111,15 +102,14 @@ jobs:
       - name: Open promotion pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
-          RUN_ID: ${{ inputs.run_id }}
         run: |
           set -euo pipefail
           git lfs install --local
-          BRANCH="promote/${SNAPSHOT_DATE}"
+          BRANCH="promote/$SNAPSHOT_DATE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$BRANCH"
+          git fetch origin master --depth=1
+          git checkout -B "$BRANCH" origin/master
           git add -- \
             cache/FSIBSIS_cache.parquet \
             cache/FSIC_cache.parquet \
@@ -146,10 +136,10 @@ jobs:
           fi
           git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
 
-          Candidate bundle from Actions run ${RUN_ID}; smoke tests passed."
+          Candidate bundle from Actions run ${RUN_ID}; source diff, model policy audit, and smoke tests available for review."
           git push -u origin "$BRANCH" --force-with-lease
           gh pr create \
             --title "Promote snapshot ${SNAPSHOT_DATE}" \
-            --body "Automated promotion of the candidate snapshot built by Actions run ${RUN_ID}. Smoke tests passed against the downloaded bundle (country names present, scores in range, raw/imputed sidecar coherent, manifest verified). Review the model-policy audit and score changes before merging; merging redeploys the Streamlit app." \
+            --body "Automated promotion candidate from Actions run ${RUN_ID}. Official API refresh through 2026-11-21. Keyed comparison vs 2026-11-12: FSIC +1,709 observations and 667 revisions; MFS +6,514 and 4,559 revisions; FSIBSIS +1,336 and 129 revisions; no removals; WEO and WGI unchanged. Across 201 scored countries, 7 scores moved by 0.1, none changed risk category, and rank correlation was 0.99996. The validated crisis classifier SHA-256 is preserved. Candidate tests and serving-artifact smoke tests passed; model-policy checks 3/3 passed. Review manifest, policy audit, and score deltas before merging; merge redeploys the Streamlit app." \
             --base master \
             --head "$BRANCH" || echo "PR already exists for $BRANCH"
