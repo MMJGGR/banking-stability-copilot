@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - master
-  # Keep this scheduled probe active while the production app remains deployed.
+  # GitHub disables public-repository schedules after 60 days without repository activity.
+  # Keep this probe staggered away from the top of the hour.
   schedule:
-    - cron: "23 */6 * * *"
+    - cron: "29 */6 * * *"
   workflow_dispatch:
     inputs:
       app_url:
