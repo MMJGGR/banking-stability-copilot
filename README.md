@@ -9,11 +9,11 @@
 # Methodology
 ## Banking System Stability Model
 
-> **Current release status:** The committed serving artifact is the owner-
-> approved official API-sourced `2026-11-21` snapshot. Its manifest records
-> IMF SDMX and World Bank API provenance, artifact checksums, and zero failed
-> model checks. The legacy crisis classifier is preserved unchanged; this
-> release is not external validation or classifier recertification. See
+> **Current release status:** The live app serves the official API-sourced
+> `2026-11-21` snapshot. Its manifest is integrity-verified; owner approval is
+> pending review of 29 risk-tier changes versus the prior live snapshot. The
+> legacy crisis classifier is preserved unchanged; this is not external
+> validation or classifier recertification. See
 > `BANKING_COPILOT_COMPREHENSIVE_REMEDIATION_AND_IMPLEMENTATION_PLAN.md`,
 > `docs/MODEL_CARD.md`, and `docs/DATA_CARD.md`.
 
@@ -79,7 +79,7 @@ graph TD
 | MFS | 4,637,184 | 181 | IMF Monetary & Financial Statistics; latest observation 2026-10-31 |
 | FSIBSIS | 11,631 | 143 | IMF Balance Sheet Data; latest observation 2026-09-30 |
 | WGI | 5,508 | 207 | World Bank Governance Indicators; latest observation 2025-12-31 |
-| **TOTAL** | **6,273,938** | **-** | Owner-approved `2026-11-21` serving manifest |
+| **TOTAL** | **6,273,938** | **-** | Verified `2026-11-21` serving manifest; owner review pending |
 
 ### Features Used in Model (33 After Correlation Filtering)
 
