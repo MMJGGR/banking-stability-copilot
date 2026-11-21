@@ -4,20 +4,26 @@
 
 | Field | Current position |
 |---|---|
-| Serving snapshot | `2026-06-30`, generated `2026-07-12` |
+| Master serving snapshot | `2026-06-30`, generated `2026-07-12` (until candidate PR is approved and merged) |\n| Candidate snapshot | `2026-11-21`, generated `2026-11-21T04:36:06Z`; verified, awaiting owner approval |
 | Countries scored | 201 |
 | Manifest status | `verified` and actively served; no recorded transition to the governance lifecycle state `approved` |
-| Source mode | `local_cached_sources` |
+| Master source mode | `local_cached_sources` |\n| Candidate source mode | `official_api_sdmx_worldbank` |
 | Governance policy | Approved by `@MMJGGR` on 2026-07-10 |
 | Crisis-validation status | `invalid_superseded`; legacy summary metrics and confusion matrix are withheld in the app |
 | Archived checkpoints | `artifacts/snapshots/2025-12-31`, `artifacts/snapshots/2026-06-30`, `artifacts/snapshots/2026-06-30-official-api` |
 
 `artifacts/data_manifest.json` is the authority for the artifact currently
-served. It records a 2026-06-30 cutoff, a 2026-07-12 build, 201 scored
-countries, zero failed model smoke checks, and locally cached IMF/World Bank
-source inputs. The snapshot is serving successfully, but `verified` proves
-artifact integrity and recorded checks; it is not evidence of owner approval
-or external model validation.
+served on `master`. It records a 2026-06-30 cutoff, a 2026-07-12 build, 201
+scored countries, and locally cached IMF/World Bank inputs.
+
+A separate `2026-11-21` candidate was built from full official IMF SDMX and
+World Bank API retrievals. Its manifest is `verified`, all three model checks
+passed, all serving-artifact smoke tests passed, and the candidate still
+scores 201 countries. The classifier artifact is preserved byte-for-byte.
+The candidate is in draft PR #31 and explicitly records
+`human_promotion_approved: false`; it is not the live master snapshot until
+the owner reviews and merges that PR. `verified` proves artifact integrity
+and recorded checks, not owner approval or external model validation.
 
 The serving artifact persists its feature values and PCA loading maps. The
 separate inference-pipeline artifact contains the fitted imputation values,
