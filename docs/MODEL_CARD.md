@@ -6,7 +6,7 @@
 |---|---|
 | Serving snapshot | `2026-11-21`, generated `2026-11-21T05:01:50Z` |
 | Countries scored | 201 |
-| Manifest status | `approved` after explicit owner authorization on 2026-11-21 |
+| Manifest status | `verified`; deployed under conditional authorization, pending owner review of 29 risk-tier changes |
 | Source mode | `official_api_sdmx_worldbank` |
 | Governance policy | Approved by `@MMJGGR` on 2026-07-10 |
 | Crisis-validation status | `invalid_superseded`; legacy summary metrics and confusion matrix are withheld in the app |
