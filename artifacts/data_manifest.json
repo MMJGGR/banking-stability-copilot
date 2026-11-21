@@ -128,7 +128,7 @@
   },
   "schema_version": 1,
   "snapshot_id": "2026-11-21",
-  "snapshot_status": "verified",
+  "snapshot_status": "approved",
   "source_mode": "official_api_sdmx_worldbank",
   "sources": {
     "FSIBSIS": {
@@ -178,5 +178,16 @@
   "validation": {
     "model_checks_failed": 0,
     "model_checks_passed": 3
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "@MMJGGR",
+    "approved_at": "2026-11-21T05:06:22Z",
+    "authorization": "The user explicitly authorized updating the live Streamlit site with new datasets provided validation reported no errors.",
+    "scope": "Promote the 2026-11-21 official IMF SDMX and World Bank API snapshot to live Streamlit serving.",
+    "validation_run": "44868588091",
+    "promotion_pull_request": 32,
+    "release_commit": "293c80db59e163bb8f6eb9c4c887be1b35184467",
+    "limitation": "This approval is for the data snapshot promotion; it is not external model validation or classifier recertification."
   }
 }
