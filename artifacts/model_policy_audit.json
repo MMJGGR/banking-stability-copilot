@@ -1,8 +1,8 @@
 {
   "baseline": {
-    "absolute_coverage_score_correlation": 0.39569066369071093,
+    "absolute_coverage_score_correlation": 0.37638409023454883,
     "countries": 201,
-    "coverage_score_correlation": -0.39569066369071093,
+    "coverage_score_correlation": -0.37638409023454883,
     "risk_floor_count": 18
   },
   "crisis_labels": {
@@ -16,9 +16,9 @@
     "no_confidence_regression": {
       "countries": 201,
       "countries_moving_at_least_one_point": 2,
-      "maximum_absolute_score_change": 1.4000000000000004,
-      "mean_absolute_score_change": 0.13631840796019898,
-      "rank_correlation": 0.9966393581404394
+      "maximum_absolute_score_change": 1.3000000000000007,
+      "mean_absolute_score_change": 0.13333333333333333,
+      "rank_correlation": 0.9967780277149011
     },
     "no_gdp_orientation": {
       "countries": 201,
@@ -30,16 +30,16 @@
     "no_gdp_pca_input": {
       "countries": 201,
       "countries_moving_at_least_one_point": 1,
-      "maximum_absolute_score_change": 2.0,
-      "mean_absolute_score_change": 0.13233830845771144,
-      "rank_correlation": 0.994844949801158
+      "maximum_absolute_score_change": 1.5,
+      "mean_absolute_score_change": 0.11144278606965168,
+      "rank_correlation": 0.9965226136590304
     },
     "no_risk_floors": {
       "countries": 201,
       "countries_moving_at_least_one_point": 12,
       "maximum_absolute_score_change": 3.2,
-      "mean_absolute_score_change": 0.1507462686567164,
-      "rank_correlation": 0.9693284018745341
+      "mean_absolute_score_change": 0.16019900497512435,
+      "rank_correlation": 0.9680242595954232
     }
   },
   "schema_version": 1
