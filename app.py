@@ -4178,12 +4178,13 @@ if primary_view == "Country":
 
     st.markdown(f"# {selected_country_name}")
     snapshot_label = str(data_manifest.get("snapshot_id") or "Unversioned")
-    integrity_verified = (
-        str(data_manifest.get("snapshot_status", "")).lower() == "verified"
-    )
+    snapshot_status = str(data_manifest.get("snapshot_status", "")).lower()
+    integrity_verified = snapshot_status in {"verified", "approved"}
     lifecycle_text = (
-        "Artifact integrity verified; model approval not recorded."
-        if integrity_verified
+        "Owner-approved snapshot; artifact integrity verified."
+        if snapshot_status == "approved"
+        else "Artifact integrity verified; model approval not recorded."
+        if snapshot_status == "verified"
         else "Artifact integrity status is not verified; interpret cautiously."
     )
     st.caption(f"Snapshot {snapshot_label} · Served score · {lifecycle_text}")
