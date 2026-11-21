@@ -3,11 +3,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from src.data_loader import parse_period_label
+
+
+_PERIOD_PATTERNS = [
+    re.compile(r"^(?:19|20)\\d{2}$", re.I),
+    re.compile(r"^(?:19|20)\\d{2}[-_]?Q[1-4]$", re.I),
+    re.compile(r"^Q[1-4]\\s*(?:19|20)\\d{2}$", re.I),
+    re.compile(r"^(?:19|20)\\d{2}[-_]?M?(?:0[1-9]|1[0-2])$", re.I),
+    re.compile(r"^M(?:0[1-9]|1[0-2])\\s*(?:19|20)\\d{2}$", re.I),
+]
+
+
+def _is_period_column(value):
+    return any(pattern.fullmatch(str(value).strip()) for pattern in _PERIOD_PATTERNS)
 
 
 def _normalise(df: pd.DataFrame, keys: list[str], value_col: str, metadata: list[str]):
@@ -29,7 +42,7 @@ def _imf(path: Path):
 def _fsibsis(path: Path):
     df = pd.read_parquet(path)
     id_cols = ["country_code", "SECTOR", "INDICATOR"]
-    period_cols = [c for c in df.columns if pd.notna(parse_period_label(c))]
+    period_cols = [c for c in df.columns if _is_period_column(c)]
     if not period_cols:
         raise ValueError(f"No parseable FSIBSIS period columns in {path}; columns={list(df.columns)}")
     long = df.melt(id_vars=id_cols, value_vars=period_cols, var_name="period", value_name="value")
@@ -50,8 +63,6 @@ def _wgi(path: Path):
 
 
 def compare(old, new, keys, metadata, value_col="value"):
-    # Convert Arrow-backed key columns to pandas strings before the join; this
-    # also handles columns that are entirely empty in one vintage.
     for frame in (old, new):
         for key in keys:
             if frame[key].dtype == "object" or str(frame[key].dtype).startswith("string"):
