@@ -128,7 +128,7 @@
   },
   "schema_version": 1,
   "snapshot_id": "2026-11-21",
-  "snapshot_status": "approved",
+  "snapshot_status": "verified",
   "source_mode": "official_api_sdmx_worldbank",
   "sources": {
     "FSIBSIS": {
@@ -180,7 +180,7 @@
     "model_checks_passed": 3
   },
   "approval": {
-    "status": "approved",
+    "status": "pending_owner_review",
     "approved_by": "@MMJGGR",
     "approved_at": "2026-11-21T05:06:22Z",
     "authorization": "The user explicitly authorized updating the live Streamlit site with new datasets provided validation reported no errors.",
@@ -188,6 +188,30 @@
     "validation_run": "44868588091",
     "promotion_pull_request": 32,
     "release_commit": "293c80db59e163bb8f6eb9c4c887be1b35184467",
-    "limitation": "This approval is for the data snapshot promotion; it is not external model validation or classifier recertification."
+    "limitation": "This approval is for the data snapshot promotion; it is not external model validation or classifier recertification.",
+    "review_trigger": "The direct comparison against the previous live 2026-09-15 production snapshot found 29 risk-tier changes, above the governance review threshold of 15.",
+    "production_comparison": {
+      "baseline_snapshot": "2026-09-15",
+      "baseline_risk_model_sha256": "46e88409782f0e879c26e64b73a058ea4867d2cc22185df2adbe1ba5aa6da060",
+      "candidate_snapshot": "2026-11-21",
+      "countries_compared": 201,
+      "mean_absolute_score_change": 0.2851532524040816,
+      "median_absolute_score_change": 0.2,
+      "maximum_absolute_score_change": 2,
+      "countries_with_any_score_change": 148,
+      "countries_moving_at_least_1_point": 11,
+      "countries_moving_at_least_3_points": 0,
+      "spearman_rank_correlation": 0.9783462345463895,
+      "risk_tier_changes": 29,
+      "governance_thresholds": {
+        "mean_absolute_score_change_review_if_above": 0.5,
+        "countries_moving_at_least_1_point_review_if_above": 20,
+        "spearman_review_if_below": 0.9,
+        "any_country_moving_at_least_3_points_requires_review": true,
+        "risk_tier_changes_review_if_above": 15
+      },
+      "outcome": "Owner review required: 29 risk-tier changes exceed the governance threshold of 15. Other numerical thresholds are within policy limits."
+    },
+    "note": "The live snapshot has been deployed under the user's conditional authorization, but is not represented as governance-approved pending owner review of the tier movements."
   }
 }
