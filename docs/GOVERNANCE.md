@@ -88,11 +88,13 @@ Rules:
 - A merged PR replacing the active artifacts must reference the snapshot ID,
   its validation results, and (for model changes) the comparison report.
 
-Current-state disclosure: the serving 2026-06-30 manifest is `verified`, but
-the repository contains no recorded transition of that artifact to
-`approved`. It is a controlled legacy serving exception, not evidence that
-owner approval or external validation occurred. The next artifact-changing
-promotion must close that lifecycle gap rather than carrying it forward.
+Current-state disclosure: the serving 2026-11-21 manifest is `approved`
+following explicit owner authorization to promote the official-source data
+snapshot after repository validation passed. The approval record is
+`docs/releases/2026-11-21/approval.json`. This records authorization to
+promote the snapshot; it does not certify the legacy crisis classifier or
+constitute external model validation. Future candidate snapshots remain
+`verified` until separately authorized by the owner.
 
 ## 5. Artifact portability policy (backlog item 36)
 
