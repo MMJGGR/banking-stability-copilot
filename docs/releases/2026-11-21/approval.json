@@ -1,0 +1,38 @@
+{
+  "status": "approved_for_user_authorized_promotion_subject_to_repository_checks",
+  "user_authorization": "The user explicitly authorized updating the live Streamlit site with new datasets provided validation reports no errors.",
+  "review_type": "Assistant validation under explicit user delegation; not separate external model validation or classifier recertification.",
+  "validation_run": "44868588091",
+  "promotion_run": "44868927479",
+  "promotion_pull_request": 32,
+  "release_commit": "293c80db59e163bb8f6eb9c4c887be1b35184467",
+  "candidate_artifact_id": 14693440223,
+  "candidate_zip_sha256": "95d063bdd91ff4c7c0ca457f191890b0abff586e3a68980abd25c58924f02fb4",
+  "baseline_candidate": "2026-11-12",
+  "model_comparison_vs_baseline_candidate": {
+    "countries_scored": 201,
+    "risk_score_mean_absolute_change": 0.00348,
+    "risk_score_maximum_absolute_change": 0.1,
+    "countries_with_score_change": 7,
+    "risk_tier_changes": 0,
+    "spearman_rank_correlation": 0.9999645159426296,
+    "note": "Comparison is against the 2026-11-12 candidate, not the prior 2026-09-15 live model."
+  },
+  "validation_controls": [
+    "Python unit tests passed",
+    "Dependency consistency check passed",
+    "Classifier SHA-256 and byte count matched the approved baseline; classifier preserved unchanged",
+    "Three model checks passed; zero failed",
+    "All manifest artifact checksums verified",
+    "Serving smoke tests passed: 201 countries, scores in [1,10], country display fallback works, raw/imputed sidecar coherent",
+    "Post-merge quality checks passed",
+    "Post-merge live endpoint reachability check passed; app was login-gated and returned HTTP 303 to Streamlit authentication"
+  ],
+  "retained_limitations": [
+    "The source observation dates did not advance in this refresh: FSIC and FSIBSIS latest observation 2026-09-30, MFS 2026-10-31, WEO and WGI 2025-12-31.",
+    "The direct score comparison against the previous 2026-09-15 live model was not completed.",
+    "The live reachability check confirms the endpoint responds but cannot independently verify the authenticated Streamlit UI loaded the new snapshot.",
+    "No external validation of the legacy crisis classifier is implied."
+  ],
+  "created_at": "2026-11-21T05:06:22Z"
+}
