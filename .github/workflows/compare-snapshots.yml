@@ -3,7 +3,7 @@ name: Compare refreshed snapshot with prior candidate
 on:
   push:
     branches:
-      - refresh/2026-11-21-data-candidate
+      - "refresh/**"
 
 permissions:
   actions: read
