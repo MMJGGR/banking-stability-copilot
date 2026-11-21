@@ -4,10 +4,10 @@
 
 | Field | Current position |
 |---|---|
-| Serving snapshot | `2026-06-30`, generated `2026-07-12` |
+| Serving snapshot | `2026-11-21`, generated `2026-11-21T05:01:50Z` |
 | Countries scored | 201 |
-| Manifest status | `verified` and actively served; no recorded transition to the governance lifecycle state `approved` |
-| Source mode | `local_cached_sources` |
+| Manifest status | `approved` after explicit owner authorization on 2026-11-21 |
+| Source mode | `official_api_sdmx_worldbank` |
 | Governance policy | Approved by `@MMJGGR` on 2026-07-10 |
 | Crisis-validation status | `invalid_superseded`; legacy summary metrics and confusion matrix are withheld in the app |
 | Archived checkpoints | `artifacts/snapshots/2025-12-31`, `artifacts/snapshots/2026-06-30`, `artifacts/snapshots/2026-06-30-official-api` |
