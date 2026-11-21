@@ -4,11 +4,11 @@
 
 | Source | Role | Current serving-manifest position |
 |---|---|---|
-| IMF WEO | Macroeconomic and fiscal indicators | Local normalized cache; 208 countries, 145 indicators, latest included observation 2025-12-31 |
-| IMF FSIC | Core banking soundness indicators | Local normalized cache; 155 countries, 398 indicators, latest included observation 2026-05-31 |
-| IMF MFS | Monetary and banking balance sheets | Local normalized cache; 180 countries, 91 indicators, latest included observation 2026-05-31 |
-| IMF FSIBSIS | Detailed banking balance-sheet and income-statement data | Local normalized cache; 141 countries, 289 observed indicator labels, latest included observation 2026-05-31 |
-| World Bank WGI | Structural governance indicators | Local normalized cache; 207 countries, six measures, latest included observation 2024-12-31 |
+| IMF WEO | Macroeconomic and fiscal indicators | Official SDMX cache; 208 countries, 145 indicators, latest included observation 2025-12-31 |
+| IMF FSIC | Core banking soundness indicators | Official SDMX cache; 157 countries, 398 indicators, latest included observation 2026-09-30 |
+| IMF MFS | Monetary and banking balance sheets | Official SDMX cache; 181 countries, 91 indicators, latest included observation 2026-10-31 |
+| IMF FSIBSIS | Detailed banking balance-sheet and income-statement data | Official SDMX cache; 143 countries, 289 observed indicator labels, latest included observation 2026-09-30 |
+| World Bank WGI | Structural governance indicators | World Bank API cache; 207 countries, six measures, latest included observation 2025-12-31 |
 | IMF WP/26/94 crisis episodes | Governed label reference for research/retraining | Exact Appendix I, Table A1 artifact: 161 systemic and three explicitly borderline episodes; not the label build used by the served legacy classifier |
 
 The generated `artifacts/data_manifest.json` is the authoritative machine-
@@ -16,19 +16,18 @@ readable record of the current serving inputs and checksums.
 
 Current active serving snapshot:
 
-- Snapshot cutoff: `2026-06-30`
-- Manifest status: `verified` (actively served; no recorded `approved` lifecycle transition)
-- Source mode: `local_cached_sources`
-- Generated: `2026-07-12T14:39:35.619879+00:00`
-- Archived official API checkpoint bundle: `artifacts/snapshots/2026-06-30-official-api`
-- Previous local cached-source checkpoint bundle: `artifacts/snapshots/2026-06-30`
-- YE2025 checkpoint bundle: `artifacts/snapshots/2025-12-31`
+- Snapshot cutoff: `2026-11-21`
+- Manifest status: `approved` following explicit owner authorization
+- Source mode: `official_api_sdmx_worldbank`
+- Generated: `2026-11-21T05:01:50.109317+00:00`
+- IMF dataflow versions: FSIC 13.0.1, MFS_DC 8.0.0, FSIBSIS 18.0.0, WEO 9.0.0
+- Approval and validation record: `docs/releases/2026-11-21/approval.json`
 
-Freshness note: the `2026-06-30` model is a mid-2026 cutoff snapshot. Its
-locally cached IMF banking and monetary inputs include May 2026 observations
-where available. The active manifest does not record source dataflow versions,
-so those versions must not be inferred from the archived official-API bundle.
-WEO projections are excluded from scoring.
+Freshness note: this is a 2026-11-21 cutoff snapshot. Latest included
+observations vary by source: FSIC and FSIBSIS through 2026-09-30, MFS through
+2026-10-31, and WEO/WGI through 2025-12-31. This refresh incorporates
+additional FSIC/MFS records and revisions; WEO and WGI row counts are unchanged
+from the prior November candidate. WEO projections are excluded from scoring.
 
 The governed crisis-label source is Laeven and Valencia (2026), *Systemic
 Banking Crises Database: 1970-2025*, IMF Working Paper WP/26/94, Appendix I,
