@@ -9,14 +9,13 @@
 # Methodology
 ## Banking System Stability Model
 
-> **Current release status:** The committed serving artifact is an official
-> API-sourced `2026-06-30` snapshot with a verified manifest and recorded
-> source/model checksums. It is serving-ready but still requires formal
-> governance approval before being represented as a promoted production model.
-> The remediation work introduced explicit cutoffs, observation statuses,
-> grouped validation, artifact checksums, and candidate-release controls. See
-> `BANKING_COPILOT_COMPREHENSIVE_REMEDIATION_AND_IMPLEMENTATION_PLAN.md`,
-> `docs/MODEL_CARD.md`, and `docs/DATA_CARD.md`.
+> **Current release status:** `master` continues to serve the verified
+> `2026-06-30` snapshot. A full official IMF SDMX / World Bank API candidate
+> dated `2026-11-21` has passed the repository test suite, three model checks,
+> manifest/checksum validation, and serving-artifact smoke tests. It is staged
+> in [draft PR #31](https://github.com/MMJGGR/banking-stability-copilot/pull/31)
+> and is not live until owner review and merge. The candidate preserves the
+> existing crisis classifier. See `docs/MODEL_CARD.md` and `docs/DATA_CARD.md`.
 
 ### Overview
 This package provides everything needed to replicate and validate the Banking Risk Model.
@@ -75,12 +74,12 @@ graph TD
 ### Data Sources
 | Source | Records | Countries | Description |
 |--------|---------|-----------|-------------|
-| FSIC | 1,258,107 | 155 | IMF Financial Soundness Indicators |
-| WEO | 315,345 | 208 | IMF World Economic Outlook |
-| MFS | 4,509,993 | 180 | IMF Monetary & Financial Statistics |
-| FSIBSIS | 11,459 | 141 | IMF Balance Sheet Data |
-| WGI | 5,301 | 207 | World Bank Governance Indicators |
-| **TOTAL** | **6,099,205** | **-** | Active verified `2026-06-30` serving manifest |
+| FSIC | 1,304,720 | 157 | IMF Financial Soundness Indicators |
+| WEO | 314,895 | 208 | IMF October 2026 World Economic Outlook |
+| MFS | 4,636,931 | 181 | IMF Monetary & Financial Statistics (MFS_DC) |
+| FSIBSIS | 11,631 | 143 | IMF Balance Sheet Data |
+| WGI | 5,508 | 207 | World Bank WGI 2026 release |
+| **TOTAL** | **6,273,685** | **-** | Candidate `2026-11-21` verified manifest; awaiting owner promotion |
 
 ### Features Used in Model (33 After Correlation Filtering)
 
