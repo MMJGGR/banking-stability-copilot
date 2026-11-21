@@ -1,0 +1,50 @@
+name: Compare refreshed snapshot with prior candidate
+
+on:
+  push:
+    branches:
+      - refresh/2026-11-21-data-candidate
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out comparison utility
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install parquet comparison dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas pyarrow
+      - name: Download previous candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: banking-copilot-2026-11-12
+          run-id: 43253283775
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: previous
+      - name: Download refreshed candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: banking-copilot-2026-11-21
+          run-id: 44866605575
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: current
+      - name: Compare by country, indicator, and period
+        run: |
+          python -m src.scripts.compare_snapshot_artifacts --old previous --new current --output artifacts/source_diff_2026-11-12_to_2026-11-21.json
+      - name: Upload source-diff report
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-diff-2026-11-12-to-2026-11-21
+          if-no-files-found: error
+          retention-days: 30
+          path: artifacts/source_diff_2026-11-12_to_2026-11-21.json
