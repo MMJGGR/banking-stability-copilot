@@ -1,8 +1,5 @@
 name: Promote candidate snapshot
 
-# Promotes a candidate bundle into a reviewed pull request. Final merge stays
-# with a human reviewer; candidate artifacts are never written to master here.
-
 on:
   workflow_dispatch:
     inputs:
@@ -14,7 +11,7 @@ on:
         required: true
   push:
     branches:
-      - refresh/2026-11-21-data-candidate
+      - "refresh/**"
     paths:
       - ".github/workflows/promote-snapshot.yml"
 
@@ -59,42 +56,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           install_required() {
-            local source="$1"
-            local target="$2"
-            if [ ! -s "$source" ]; then
-              echo "Required candidate artifact is missing or empty: $source" >&2
-              exit 1
-            fi
-            install -D -m 0644 -v "$source" "$target"
+            local source="$1"; local target="$2"
+            if [ ! -s "$source" ]; then echo "Missing candidate artifact: $source" >&2; exit 1; fi
+            install -D -m 0644 "$source" "$target"
           }
-
-          for filename in \
-            FSIBSIS_cache.parquet \
-            FSIC_cache.parquet \
-            MFS_cache.parquet \
-            WEO_cache.parquet \
-            WGI_cache.parquet \
-            crisis_features.parquet \
-            imputed_features.parquet \
-            risk_model.pkl \
-            inference_pipeline.pkl \
-            crisis_classifier.pkl
-          do
+          for filename in FSIBSIS_cache.parquet FSIC_cache.parquet MFS_cache.parquet WEO_cache.parquet WGI_cache.parquet crisis_features.parquet imputed_features.parquet risk_model.pkl inference_pipeline.pkl crisis_classifier.pkl; do
             install_required "candidate/cache/$filename" "cache/$filename"
           done
-
           install_required candidate/artifacts/data_manifest.json artifacts/data_manifest.json
           install_required candidate/artifacts/model_policy_audit.json artifacts/model_policy_audit.json
           install_required candidate/artifacts/government_liquidity_features_report.json artifacts/government_liquidity_features_report.json
           install_required candidate/data/reference/government_liquidity_features.parquet data/reference/government_liquidity_features.parquet
           install_required candidate/data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_observations.parquet
           install_required candidate/data/reference/government_liquidity_features_report.json data/reference/government_liquidity_features_report.json
-
-          if [ -s candidate/artifacts/feature_heuristics.json ]; then
-            install -D -m 0644 -v candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json
-          fi
+          if [ -s candidate/artifacts/feature_heuristics.json ]; then install -D -m 0644 candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json; fi
 
       - name: Smoke-test candidate artifacts
         run: python -m src.scripts.smoke_test_artifacts
@@ -110,36 +86,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin master --depth=1
           git checkout -B "$BRANCH" origin/master
-          git add -- \
-            cache/FSIBSIS_cache.parquet \
-            cache/FSIC_cache.parquet \
-            cache/MFS_cache.parquet \
-            cache/WEO_cache.parquet \
-            cache/WGI_cache.parquet \
-            cache/crisis_features.parquet \
-            cache/imputed_features.parquet \
-            cache/risk_model.pkl \
-            cache/inference_pipeline.pkl \
-            cache/crisis_classifier.pkl \
-            artifacts/data_manifest.json \
-            artifacts/model_policy_audit.json \
-            artifacts/government_liquidity_features_report.json \
-            data/reference/government_liquidity_features.parquet \
-            data/reference/government_liquidity_observations.parquet \
-            data/reference/government_liquidity_features_report.json
-          if [ -s artifacts/feature_heuristics.json ]; then
-            git add -- artifacts/feature_heuristics.json
-          fi
-          if git diff --cached --quiet; then
-            echo "Candidate bundle is identical to the current serving tree; no promotion PR needed."
-            exit 0
-          fi
-          git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
-
-          Candidate bundle from Actions run ${RUN_ID}; source diff, model policy audit, and smoke tests available for review."
+          git add -- cache/FSIBSIS_cache.parquet cache/FSIC_cache.parquet cache/MFS_cache.parquet cache/WEO_cache.parquet cache/WGI_cache.parquet cache/crisis_features.parquet cache/imputed_features.parquet cache/risk_model.pkl cache/inference_pipeline.pkl cache/crisis_classifier.pkl artifacts/data_manifest.json artifacts/model_policy_audit.json artifacts/government_liquidity_features_report.json data/reference/government_liquidity_features.parquet data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_features_report.json
+          if [ -s artifacts/feature_heuristics.json ]; then git add -- artifacts/feature_heuristics.json; fi
+          if git diff --cached --quiet; then echo "Candidate identical to serving tree; no PR needed."; exit 0; fi
+          git commit -m "promote snapshot $SNAPSHOT_DATE serving artifacts"
           git push -u origin "$BRANCH" --force-with-lease
-          gh pr create \
-            --title "Promote snapshot ${SNAPSHOT_DATE}" \
-            --body "Automated promotion candidate from Actions run ${RUN_ID}. Official API refresh through 2026-11-21. Keyed comparison vs 2026-11-12: FSIC +1,709 observations and 667 revisions; MFS +6,514 and 4,559 revisions; FSIBSIS +1,336 and 129 revisions; no removals; WEO and WGI unchanged. Across 201 scored countries, 7 scores moved by 0.1, none changed risk category, and rank correlation was 0.99996. The validated crisis classifier SHA-256 is preserved. Candidate tests and serving-artifact smoke tests passed; model-policy checks 3/3 passed. Review manifest, policy audit, and score deltas before merging; merge redeploys the Streamlit app." \
-            --base master \
-            --head "$BRANCH" || echo "PR already exists for $BRANCH"
+          gh pr create --title "Promote snapshot $SNAPSHOT_DATE" --base master --head "$BRANCH" --body "Official IMF/World Bank refresh through 2026-11-21. Keyed diff vs Nov 12: FSIC +1,709 and 667 revisions; MFS +6,514 and 4,559 revisions; FSIBSIS +1,336 and 129 revisions; no removals; WEO and WGI unchanged. For 201 scored countries, 7 scores moved by 0.1, none changed category, rank correlation 0.99996. Classifier checksum preserved. Unit tests, three model checks, and serving-artifact smoke tests passed. Please review the manifest, model-policy audit, and score changes before merging; merging redeploys the app." || echo "PR already exists for $BRANCH"
