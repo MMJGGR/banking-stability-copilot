@@ -3,12 +3,17 @@ name: Build candidate data snapshot
 on:
   schedule:
     - cron: "17 7 12 * *"
+  push:
+    branches:
+      - refresh/2026-11-21-data-candidate
+    paths:
+      - ".github/workflows/refresh-data.yml"
   workflow_dispatch:
     inputs:
       as_of_date:
         description: Snapshot cutoff in YYYY-MM-DD format
         required: true
-        default: "2026-06-30"
+        default: "2026-11-21"
 
 permissions:
   contents: read
