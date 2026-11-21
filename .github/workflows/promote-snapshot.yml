@@ -1,11 +1,5 @@
 name: Promote candidate snapshot
 
-# Promotes a candidate bundle built by "Build candidate data snapshot" into a
-# reviewed pull request against master. The smoke-test gate re-runs against
-# the downloaded bundle before anything is committed, so a defective
-# candidate (blank names, stale sidecars, out-of-range scores) cannot reach
-# the serving branch. Final merge stays with a human reviewer.
-
 on:
   workflow_dispatch:
     inputs:
@@ -15,17 +9,49 @@ on:
       snapshot_date:
         description: Snapshot cutoff being promoted (YYYY-MM-DD)
         required: true
+  workflow_run:
+    workflows:
+      - Build candidate data snapshot
+    types:
+      - completed
+    branches:
+      - master
 
 permissions:
+  actions: read
   contents: write
   pull-requests: write
 
 jobs:
   promote:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
+      - name: Resolve candidate run and snapshot date
+        id: candidate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          INPUT_SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_RUN_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RUN_ID="$INPUT_RUN_ID"
+            SNAPSHOT_DATE="$INPUT_SNAPSHOT_DATE"
+          else
+            RUN_ID="$WORKFLOW_RUN_ID"
+            SNAPSHOT_DATE="$(date -u -d "$WORKFLOW_RUN_STARTED_AT" +%F)"
+          fi
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$SNAPSHOT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "snapshot_date=$SNAPSHOT_DATE" >> "$GITHUB_OUTPUT"
+
       - name: Check out source with LFS support
         uses: actions/checkout@v4
         with:
@@ -45,8 +71,8 @@ jobs:
       - name: Download candidate bundle
         uses: actions/download-artifact@v4
         with:
-          name: banking-copilot-${{ inputs.snapshot_date }}
-          run-id: ${{ inputs.run_id }}
+          name: banking-copilot-${{ steps.candidate.outputs.snapshot_date }}
+          run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: candidate
 
@@ -80,30 +106,32 @@ jobs:
             install_required "candidate/cache/$filename" "cache/$filename"
           done
 
-          install_required \
-            candidate/artifacts/data_manifest.json \
-            artifacts/data_manifest.json
-          install_required \
-            candidate/artifacts/model_policy_audit.json \
-            artifacts/model_policy_audit.json
-          install_required \
-            candidate/artifacts/government_liquidity_features_report.json \
-            artifacts/government_liquidity_features_report.json
-          install_required \
-            candidate/data/reference/government_liquidity_features.parquet \
-            data/reference/government_liquidity_features.parquet
-          install_required \
-            candidate/data/reference/government_liquidity_observations.parquet \
-            data/reference/government_liquidity_observations.parquet
-          install_required \
-            candidate/data/reference/government_liquidity_features_report.json \
-            data/reference/government_liquidity_features_report.json
+          install_required candidate/artifacts/data_manifest.json artifacts/data_manifest.json
+          install_required candidate/artifacts/model_policy_audit.json artifacts/model_policy_audit.json
+          install_required candidate/artifacts/government_liquidity_features_report.json artifacts/government_liquidity_features_report.json
+          install_required candidate/data/reference/government_liquidity_features.parquet data/reference/government_liquidity_features.parquet
+          install_required candidate/data/reference/government_liquidity_observations.parquet data/reference/government_liquidity_observations.parquet
+          install_required candidate/data/reference/government_liquidity_features_report.json data/reference/government_liquidity_features_report.json
 
           if [ -s candidate/artifacts/feature_heuristics.json ]; then
-            install -D -m 0644 -v \
-              candidate/artifacts/feature_heuristics.json \
-              artifacts/feature_heuristics.json
+            install -D -m 0644 -v candidate/artifacts/feature_heuristics.json artifacts/feature_heuristics.json
           fi
+
+      - name: Verify snapshot identity and provenance
+        env:
+          EXPECTED_DATE: ${{ steps.candidate.outputs.snapshot_date }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path("artifacts/data_manifest.json").read_text())
+          assert manifest.get("snapshot_status") == "verified", manifest.get("snapshot_status")
+          assert manifest.get("as_of_date") == os.environ["EXPECTED_DATE"], manifest.get("as_of_date")
+          assert manifest.get("source_mode") == "official_api_sdmx_worldbank", manifest.get("source_mode")
+          assert manifest.get("validation", {}).get("model_checks_failed") == 0
+          assert manifest.get("classifier_preservation", {}).get("mode") == "preserved"
+          print("Candidate manifest, source provenance, cutoff and classifier preservation verified.")
+          PY
 
       - name: Smoke-test candidate artifacts
         run: python -m src.scripts.smoke_test_artifacts
@@ -111,8 +139,8 @@ jobs:
       - name: Open promotion pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SNAPSHOT_DATE: ${{ inputs.snapshot_date }}
-          RUN_ID: ${{ inputs.run_id }}
+          SNAPSHOT_DATE: ${{ steps.candidate.outputs.snapshot_date }}
+          RUN_ID: ${{ steps.candidate.outputs.run_id }}
         run: |
           set -euo pipefail
           git lfs install --local
@@ -146,10 +174,10 @@ jobs:
           fi
           git commit -m "promote snapshot ${SNAPSHOT_DATE} serving artifacts
 
-          Candidate bundle from Actions run ${RUN_ID}; smoke tests passed."
+          Candidate bundle from Actions run ${RUN_ID}; manifest and smoke tests passed."
           git push -u origin "$BRANCH" --force-with-lease
           gh pr create \
             --title "Promote snapshot ${SNAPSHOT_DATE}" \
-            --body "Automated promotion of the candidate snapshot built by Actions run ${RUN_ID}. Smoke tests passed against the downloaded bundle (country names present, scores in range, raw/imputed sidecar coherent, manifest verified). Review the model-policy audit and score changes before merging; merging redeploys the Streamlit app." \
+            --body "Automated promotion of the official-source candidate snapshot from Actions run ${RUN_ID}. Manifest provenance, cutoff, classifier preservation, artifact checksums, country-name completeness, score bounds, and raw/imputed sidecar coherence were verified. Review score movements and model-policy audit before merging. Merging redeploys the Streamlit app." \
             --base master \
             --head "$BRANCH" || echo "PR already exists for $BRANCH"
