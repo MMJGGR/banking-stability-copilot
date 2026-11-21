@@ -2,66 +2,66 @@
   "artifacts": {
     "artifacts/government_liquidity_features_report.json": {
       "bytes": 3140,
-      "sha256": "90adf55e8d250d26b7d4b45883d9a280c898ce776b73ee8eeb1a2e03b1dddc41"
+      "sha256": "2df71e968a7bdc5e2e6d8af5c02e6a74fee11feefe1739c1ae30e89511e3b185"
     },
     "artifacts/model_policy_audit.json": {
-      "bytes": 1457,
-      "sha256": "d5cce8e5777c1457e048450c46b56149b1da80b0b4f1e608a4f0717a5296c811"
+      "bytes": 1459,
+      "sha256": "27cd6a2018cf319d06975ab470c37901c95518a392babd13286ca4e9c5285e92"
     },
     "cache/FSIBSIS_cache.parquet": {
-      "bytes": 10027399,
-      "sha256": "730b4a56d498c3dcc514a6198e1f6a8bed561ff445ab483e3e3b12d59d6625d0"
+      "bytes": 10216536,
+      "sha256": "33c250d4e1650f3ce3e18939ba2916d6b92166a35f42c3cf647d70d4391b5204"
     },
     "cache/FSIC_cache.parquet": {
-      "bytes": 8209586,
-      "sha256": "ba4dcff8536a06f7627cd45a7291baa4aeb86c4ae666d93dc94d937a56ed9532"
+      "bytes": 8375761,
+      "sha256": "9d0e69ed9ebf8766b35a6bff360465744174fc7edbc236723c41340db7ba6371"
     },
     "cache/MFS_cache.parquet": {
-      "bytes": 24856398,
-      "sha256": "bb2cf2ec1af3e3bccf7c3aa5112b15ca31cb4d5306dbd9f041eb6cdf0bc7e7e8"
+      "bytes": 25300439,
+      "sha256": "e87cb788cfb2742a676b950739051e71ea7f717e31176c0d423d2bd57984fa51"
     },
     "cache/WEO_cache.parquet": {
-      "bytes": 3172484,
-      "sha256": "23f378b8322a194281e4808d16777fa72648927131f0d98849df644870ba810e"
+      "bytes": 3165716,
+      "sha256": "b8d6e13bfa16aba076a657275169153af53c21d8d9be0d90517a8b59ab8ade43"
     },
     "cache/WGI_cache.parquet": {
-      "bytes": 303132,
-      "sha256": "ac65e8cf1b833421a844c7d9dfb204c7dce1fa01d5114db02d2c0e39c69d6ece"
+      "bytes": 315027,
+      "sha256": "60df2f14f264c7ab38a754b7c30fc2f7d8a7f6116dbe30d87683f6669fedb83f"
     },
     "cache/crisis_classifier.pkl": {
       "bytes": 52580,
       "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
     },
     "cache/crisis_features.parquet": {
-      "bytes": 155278,
-      "sha256": "a57a8873df548c982c86e97aad0b9fc71a7c9f42bbbbbf02809fea0cc33f7cd0"
+      "bytes": 157171,
+      "sha256": "92f6e1a52988dbd25c176dc587281ceece5db906215ce3c6134e2a99f3b99980"
     },
     "cache/imputed_features.parquet": {
-      "bytes": 170019,
-      "sha256": "65c5fcc39092d0a787d7488dc1afac0c0c3e17304adff286bfe07927a1825602"
+      "bytes": 171370,
+      "sha256": "03dcd13c9f5880182f5808113531c58e54b779e15b156f6020bf83ab1a0a686d"
     },
     "cache/inference_pipeline.pkl": {
-      "bytes": 170666,
-      "sha256": "eda77072fd58a7264d9fb06e7096491104ae2d224e6ec3bbc63ad47179207325"
+      "bytes": 172499,
+      "sha256": "af2f6625fedc43e86dc184c05bb4f42d15e466d7f554889f8c0a208101c9e879"
     },
     "cache/risk_model.pkl": {
-      "bytes": 206349,
-      "sha256": "46e88409782f0e879c26e64b73a058ea4867d2cc22185df2adbe1ba5aa6da060"
+      "bytes": 208064,
+      "sha256": "42e82ea865cffdec412a1be3065508cd0a88fce7d712b8a04fc7cecf386fa41a"
     },
     "data/reference/government_liquidity_features.parquet": {
-      "bytes": 38055,
-      "sha256": "2f0bf6116b1cb51616e3f42ca796e37e24fbf085f248bfb91ca0b59845798e89"
+      "bytes": 37956,
+      "sha256": "2c4918be300e07c0b500137d97f7514f308e7502c0451273adc9163d98f28493"
     },
     "data/reference/government_liquidity_features_report.json": {
       "bytes": 3140,
-      "sha256": "90adf55e8d250d26b7d4b45883d9a280c898ce776b73ee8eeb1a2e03b1dddc41"
+      "sha256": "2df71e968a7bdc5e2e6d8af5c02e6a74fee11feefe1739c1ae30e89511e3b185"
     },
     "data/reference/government_liquidity_observations.parquet": {
-      "bytes": 361195,
-      "sha256": "a0d683b5700e76525ff574eafcd1e241f66cf48a1840751ec175dd8404f90891"
+      "bytes": 360230,
+      "sha256": "d15026bf9b029bca95d0eedb3214232ab217d10920e99020edf511237fa8417f"
     }
   },
-  "as_of_date": "2026-09-15",
+  "as_of_date": "2026-11-21",
   "classifier_preservation": {
     "human_promotion_approved": false,
     "mode": "preserved",
@@ -72,112 +72,107 @@
       "sha256": "054811a0b12133592bd22de64e2141c6c969d473963170199cff441e8e689aee"
     }
   },
-  "generated_at": "2026-09-15T15:44:03.282490+00:00",
+  "generated_at": "2026-11-21T05:01:50.109317+00:00",
   "model": {
     "countries_trained": 201,
     "cutoff_verified": true,
-    "snapshot_date": "2026-09-15",
-    "training_date": "2026-09-15T15:43:57.440342"
+    "snapshot_date": "2026-11-21",
+    "training_date": "2026-11-21T05:01:42.495401"
   },
   "retrieval": {
     "FSIBSIS": {
-      "bytes": 140043424,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-09-15T142407Z.csv",
+      "bytes": 143003249,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIBSIS_full_2026-11-21T050047Z.csv",
       "remote_version": "IMF.STA:FSIBSIS(18.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-09-15T14:24:23.075167+00:00",
-      "sha256": "5bdbcd39b5f7011ba7aedc8e4eaecdd2370c1f0ec917c67947519e49d536404d",
+      "retrieved_at": "2026-11-21T05:01:00.628391+00:00",
+      "sha256": "37ca2f3289a83b470ff087d2b90fe78e355c322ef38c04d898f310331a4b5965",
       "source": "FSIBSIS"
     },
     "FSIC": {
-      "bytes": 148397632,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-09-15T142203Z.csv",
+      "bytes": 151040476,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_FSIC_full_2026-11-21T045937Z.csv",
       "remote_version": "IMF.STA:FSIC(13.0.1)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-09-15T14:22:25.253997+00:00",
-      "sha256": "1c5d521b883827c47b4046547cfdbb203d9fbf749b3b267c1a7a4753321c4870",
+      "retrieved_at": "2026-11-21T04:59:46.465070+00:00",
+      "sha256": "35b80cc0289d87a65ff51bfb9e5c9ff6f97edb15d5abdf5ffe73a643e96f60ce",
       "source": "FSIC"
     },
     "MFS": {
-      "bytes": 486966685,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-09-15T142246Z.csv",
+      "bytes": 491638398,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_MFS_full_2026-11-21T050007Z.csv",
       "remote_version": "IMF.STA:MFS_DC(8.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-09-15T14:23:53.971813+00:00",
-      "sha256": "0222da30d9650ac331d7afd87e249b73f280e6861566d021904a42faae5238a6",
+      "retrieved_at": "2026-11-21T05:00:31.278405+00:00",
+      "sha256": "3829b2c6e6befae3650ef74a4297f2434a2ff39ff7d0cb8558d20fa237b8a990",
       "source": "MFS"
     },
     "WEO": {
-      "bytes": 36738338,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-09-15T142158Z.csv",
+      "bytes": 36725490,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/sdmx_WEO_full_2026-11-21T045933Z.csv",
       "remote_version": "IMF.RES:WEO(9.0.0)",
       "retrieval_method": "sdmx_api",
-      "retrieved_at": "2026-09-15T14:22:00.906783+00:00",
-      "sha256": "5e884d28cf75a7e73d5f4086106736bf8b34187d6c27465de80600d8853eb52d",
+      "retrieved_at": "2026-11-21T04:59:35.193630+00:00",
+      "sha256": "e0a46b152af5cb2aa17dcaa553f9421e769017fb8f7d2c86d373309352833abe",
       "source": "WEO"
     },
     "WGI": {
-      "bytes": 2060170,
-      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-09-15T142515Z.csv",
+      "bytes": 2141551,
+      "path": "/home/runner/work/banking-stability-copilot/banking-stability-copilot/data/raw/worldbank_WGI_2026-11-21T050108Z.csv",
       "remote_version": null,
       "retrieval_method": "worldbank_api",
-      "retrieved_at": "2026-09-15T14:25:15.507226+00:00",
-      "sha256": "f69df5978649612597245434ecde6331fda0face4c96090b696aaa4d4585f6e4",
+      "retrieved_at": "2026-11-21T05:01:08.981936+00:00",
+      "sha256": "f73fff8c8cb203465af763bf2a359e021e95173d7057a16aecf4d568192e1491",
       "source": "WGI"
     }
   },
   "schema_version": 1,
-  "snapshot_id": "2026-09-15",
+  "snapshot_id": "2026-11-21",
   "snapshot_status": "verified",
-  "source_mode": "verified_candidate_cache_rebuild",
-  "source_reuse": {
-    "note": "Source retrieval dates are original, not the rebuild date. Only the five source caches were reused.",
-    "original_as_of_date": "2026-09-15",
-    "original_generated_at": "2026-09-15T14:25:56.899630+00:00"
-  },
+  "source_mode": "official_api_sdmx_worldbank",
   "sources": {
     "FSIBSIS": {
       "countries": 143,
       "indicator_basis": "unique INDICATOR labels with observations by cutoff",
       "indicators": 289,
-      "latest_observation": "2026-07-31",
-      "latest_period_label": "2026-M07",
-      "rows": 11598
+      "latest_observation": "2026-09-30",
+      "latest_period_label": "2026-M09",
+      "rows": 11631
     },
     "FSIC": {
       "countries": 157,
       "indicators": 398,
-      "latest_observation": "2026-07-31",
+      "latest_observation": "2026-09-30",
       "observation_status_counts": {
-        "unknown": 1282064
+        "unknown": 1304720
       },
-      "rows": 1282064
+      "rows": 1304720
     },
     "MFS": {
       "countries": 181,
       "indicators": 91,
-      "latest_observation": "2026-08-31",
+      "latest_observation": "2026-10-31",
       "observation_status_counts": {
-        "unknown": 4593410
+        "unknown": 4637184
       },
-      "rows": 4593410
+      "rows": 4637184
     },
     "WEO": {
       "countries": 208,
       "indicators": 145,
       "latest_observation": "2025-12-31",
       "observation_status_counts": {
-        "actual": 293008,
-        "unknown": 22337
+        "actual": 292646,
+        "unknown": 22249
       },
-      "rows": 315345
+      "rows": 314895
     },
     "WGI": {
       "countries": 207,
       "indicator_basis": "governance score columns",
       "indicators": 6,
-      "latest_observation": "2024-12-31",
-      "rows": 5301
+      "latest_observation": "2025-12-31",
+      "rows": 5508
     }
   },
   "validation": {
