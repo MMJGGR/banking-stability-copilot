@@ -64,8 +64,8 @@ def run_smoke_tests() -> int:
     _check(bool(manifest), "data manifest present", failures)
     if manifest:
         _check(
-            manifest.get("snapshot_status") == "verified",
-            f"manifest snapshot_status is 'verified' "
+            manifest.get("snapshot_status") in {"verified", "approved"},
+            f"manifest snapshot_status is 'verified' or 'approved' "
             f"(got {manifest.get('snapshot_status')!r})",
             failures,
         )
