@@ -17,7 +17,7 @@ readable record of the current serving inputs and checksums.
 Current active serving snapshot:
 
 - Snapshot cutoff: `2026-11-21`
-- Manifest status: `approved` following explicit owner authorization
+- Manifest status: `verified`; deployed under conditional authorization, pending owner review of 29 risk-tier changes
 - Source mode: `official_api_sdmx_worldbank`
 - Generated: `2026-11-21T05:01:50.109317+00:00`
 - IMF dataflow versions: FSIC 13.0.1, MFS_DC 8.0.0, FSIBSIS 18.0.0, WEO 9.0.0
