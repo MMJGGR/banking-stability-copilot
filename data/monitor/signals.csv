@@ -1,0 +1,977 @@
+country_code,signal,value,period,age_days,flag,rule
+ABW,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ABW,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ABW,reserves_change_3m,0.1613,2026-05-31,120,False,> 15% fall in FX reserves in 3 months
+AFG,fx_depreciation_90d,-0.0072,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AFG,imf_credit_change_3m,-0.0794,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+AGO,deposits_change_3m,0.0164,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+AGO,fx_depreciation_12m,0.001,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+AGO,fx_depreciation_90d,0.002,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AGO,imf_credit_change_3m,-0.0848,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+AGO,npl_change_4q,-0.6336,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+AGO,reserves_change_3m,-0.0162,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+AIA,deposits_change_3m,-0.0015,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+AIA,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+AIA,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AIA,npl_change_4q,-1.3944,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+AIA,reserves_change_3m,0.0059,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+ALA,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ALB,deposits_change_3m,0.0333,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+ALB,fx_depreciation_12m,-0.0502,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ALB,fx_depreciation_90d,-0.0207,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ALB,imf_credit_change_3m,-0.6,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+ALB,npl_change_4q,-0.1497,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ALB,reserves_change_3m,0.0665,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+AND,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+AND,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ARE,deposits_change_3m,0.0059,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+ARE,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ARE,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ARE,npl_change_4q,-0.9665,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ARE,reserves_change_3m,-0.059,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+ARG,deposits_change_3m,0.084,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ARG,fx_depreciation_12m,0.1245,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ARG,fx_depreciation_90d,0.0273,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ARG,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+ARG,npl_change_4q,3.7291,2025-12-31,271,True,NPL ratio up > 3 percentage points in 4 quarters
+ARG,reserves_change_3m,0.0078,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+ARG,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+ARM,deposits_change_3m,0.075,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ARM,fx_depreciation_12m,-0.0472,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ARM,fx_depreciation_90d,-0.0094,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ARM,imf_credit_change_3m,-0.2921,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+ARM,npl_change_4q,0.0356,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+ARM,reserves_change_3m,0.1142,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+ASM,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ATF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ATG,deposits_change_3m,-0.0127,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ATG,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ATG,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ATG,npl_change_4q,-0.659,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ATG,reserves_change_3m,0.0037,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+AUS,deposits_change_3m,0.0207,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+AUS,fx_depreciation_12m,-0.0876,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+AUS,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AUS,npl_change_4q,-0.0531,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+AUS,reserves_change_3m,0.0671,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+AUT,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AUT,npl_change_4q,-0.0383,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+AUT,reserves_change_3m,0.0038,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+AZE,deposits_change_3m,0.0917,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+AZE,fx_depreciation_12m,0.0,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+AZE,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+AZE,npl_change_4q,0.0352,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+AZE,reserves_change_3m,0.1137,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+AZE,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+BDI,deposits_change_3m,-0.0037,2026-02-28,212,False,> 5% nominal fall in bank deposits in 3 months
+BDI,fx_depreciation_12m,0.0177,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+BDI,fx_depreciation_90d,0.012,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BDI,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+BDI,npl_change_4q,0.3932,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+BDI,reserves_change_3m,-0.0868,2024-06-30,820,False,> 15% fall in FX reserves in 3 months
+BEL,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BEL,npl_change_4q,0.1502,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+BEL,reserves_change_3m,0.0019,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+BEN,deposits_change_3m,0.0001,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+BEN,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BEN,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BEN,imf_credit_change_3m,-0.015,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+BES,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BFA,deposits_change_3m,0.0259,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+BFA,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BFA,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BFA,imf_credit_change_3m,0.2077,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+BGD,deposits_change_3m,0.0219,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+BGD,fx_depreciation_12m,0.0112,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BGD,fx_depreciation_90d,-0.0001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BGD,imf_credit_change_3m,-0.0061,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+BGD,npl_change_4q,8.7497,2025-12-31,271,True,NPL ratio up > 3 percentage points in 4 quarters
+BGD,reserves_change_3m,0.0482,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+BGD,unrest_zscore,-0.37,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+BGR,deposits_change_3m,0.0128,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+BGR,fx_depreciation_12m,-0.1163,2025-12-31,271,False,> 20% official depreciation vs USD in 12 months
+BGR,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BGR,npl_change_4q,-0.3505,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+BGR,reserves_change_3m,-0.0153,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+BGR,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+BHR,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BHR,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BHR,reserves_change_3m,0.2951,2026-03-31,181,False,> 15% fall in FX reserves in 3 months
+BHS,deposits_change_3m,0.0321,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+BHS,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BHS,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BHS,reserves_change_3m,0.1277,2026-04-30,151,False,> 15% fall in FX reserves in 3 months
+BIH,deposits_change_3m,0.028,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+BIH,fx_depreciation_12m,-0.0289,2026-05-31,120,False,> 20% official depreciation vs USD in 12 months
+BIH,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BIH,imf_credit_change_3m,-0.1999,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+BIH,npl_change_4q,-0.7186,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+BIH,reserves_change_3m,-0.0155,2025-03-31,546,False,> 15% fall in FX reserves in 3 months
+BLM,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BLR,fx_depreciation_12m,0.0211,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BLR,fx_depreciation_90d,0.0437,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BLR,npl_change_4q,-0.8056,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+BLR,reserves_change_3m,0.0236,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+BLZ,deposits_change_3m,-0.0457,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+BLZ,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BLZ,fx_depreciation_90d,0.0001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BLZ,npl_change_4q,-0.8057,2024-12-31,636,False,NPL ratio up > 3 percentage points in 4 quarters
+BLZ,reserves_change_3m,-0.0306,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+BMU,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BMU,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BOL,deposits_change_3m,0.0946,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+BOL,fx_depreciation_12m,0.0,2026-04-30,151,False,> 20% official depreciation vs USD in 12 months
+BOL,fx_depreciation_90d,0.7673,2026-09-28,0,True,> 10% local-currency depreciation vs USD in 90 days
+BOL,npl_change_4q,-0.3122,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+BOL,reserves_change_3m,2.5994,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+BOL,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+BRA,deposits_change_3m,0.045,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+BRA,fx_depreciation_12m,-0.0451,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BRA,fx_depreciation_90d,-0.0004,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BRA,npl_change_4q,1.1079,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+BRA,reserves_change_3m,0.0065,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+BRB,deposits_change_3m,0.0068,2024-08-31,758,False,> 5% nominal fall in bank deposits in 3 months
+BRB,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BRB,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BRB,imf_credit_change_3m,-0.0219,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+BRB,npl_change_4q,-0.5253,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+BRB,reserves_change_3m,0.1397,2025-06-30,455,False,> 15% fall in FX reserves in 3 months
+BRN,deposits_change_3m,-0.0026,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+BRN,fx_depreciation_12m,-0.0083,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BRN,fx_depreciation_90d,-0.0127,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BRN,npl_change_4q,0.163,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+BRN,reserves_change_3m,0.0719,2026-02-28,212,False,> 15% fall in FX reserves in 3 months
+BTN,deposits_change_3m,0.0334,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+BTN,fx_depreciation_12m,0.0865,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BTN,fx_depreciation_90d,0.0146,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BTN,npl_change_4q,-0.3969,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+BTN,reserves_change_3m,-0.067,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+BVT,fx_depreciation_90d,-0.0438,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BWA,deposits_change_3m,0.0088,2025-12-31,271,False,> 5% nominal fall in bank deposits in 3 months
+BWA,fx_depreciation_12m,-0.0185,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+BWA,fx_depreciation_90d,0.0041,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+BWA,npl_change_4q,0.6056,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+BWA,reserves_change_3m,0.0294,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+CAF,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CAF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CAF,imf_credit_change_3m,-0.0815,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+CAF,reserves_change_3m,0.1247,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+CAN,fx_depreciation_12m,0.009,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CAN,fx_depreciation_90d,-0.0058,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CAN,npl_change_4q,0.0729,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+CAN,reserves_change_3m,0.0032,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+CCK,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CHE,deposits_change_3m,0.0114,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+CHE,fx_depreciation_12m,0.01,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CHE,fx_depreciation_90d,0.025,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CHE,npl_change_4q,-0.1132,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+CHE,reserves_change_3m,0.0352,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+CHL,deposits_change_3m,0.0108,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+CHL,fx_depreciation_12m,-0.0396,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CHL,fx_depreciation_90d,0.0427,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CHL,npl_change_4q,0.0574,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+CHL,reserves_change_3m,0.0245,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+CHN,fx_depreciation_12m,-0.0575,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CHN,fx_depreciation_90d,-0.0116,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CHN,npl_change_4q,-0.0436,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+CHN,reserves_change_3m,0.0217,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+CIV,deposits_change_3m,0.0187,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+CIV,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CIV,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CIV,imf_credit_change_3m,0.1501,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+CMR,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CMR,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CMR,imf_credit_change_3m,-0.047,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+CMR,reserves_change_3m,0.0028,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+CMR,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+COD,deposits_change_3m,0.0486,2024-09-30,728,False,> 5% nominal fall in bank deposits in 3 months
+COD,fx_depreciation_12m,-0.2493,2026-01-31,240,False,> 20% official depreciation vs USD in 12 months
+COD,fx_depreciation_90d,-0.0014,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+COD,imf_credit_change_3m,0.105,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+COD,npl_change_4q,-1.8626,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+COD,reserves_change_3m,0.0743,2024-08-31,758,False,> 15% fall in FX reserves in 3 months
+COG,deposits_change_3m,0.0679,2023-12-31,1002,False,> 5% nominal fall in bank deposits in 3 months
+COG,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+COG,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+COG,imf_credit_change_3m,-0.0093,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+COG,reserves_change_3m,1.0422,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+COK,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+COL,deposits_change_3m,0.0077,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+COL,fx_depreciation_12m,-0.2506,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+COL,fx_depreciation_90d,-0.0409,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+COL,npl_change_4q,-0.5488,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+COL,reserves_change_3m,0.0131,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+COL,unrest_zscore,4.6949,2026-05-31,120,True,Social unrest > 2 s.d. above its own 2-year mean
+COM,deposits_change_3m,0.0751,2025-09-30,363,False,> 5% nominal fall in bank deposits in 3 months
+COM,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+COM,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+COM,imf_credit_change_3m,-0.0114,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+COM,reserves_change_3m,-0.0745,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+CPV,deposits_change_3m,0.0224,2026-04-30,151,False,> 5% nominal fall in bank deposits in 3 months
+CPV,fx_depreciation_12m,0.0044,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+CPV,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CPV,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+CPV,reserves_change_3m,-0.0334,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+CRI,deposits_change_3m,0.0006,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+CRI,fx_depreciation_12m,-0.1115,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CRI,fx_depreciation_90d,-0.0017,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CRI,imf_credit_change_3m,-0.0096,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+CRI,npl_change_4q,-0.0106,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+CRI,reserves_change_3m,0.0052,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+CUB,fx_depreciation_90d,-0.0936,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CUW,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CUW,fx_depreciation_90d,0.0019,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CUW,npl_change_4q,0.0792,2025-03-31,546,False,NPL ratio up > 3 percentage points in 4 quarters
+CWX,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CWX,reserves_change_3m,0.0467,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+CXR,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CYM,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CYM,fx_depreciation_90d,0.0003,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CYM,reserves_change_3m,0.0865,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+CYP,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CYP,npl_change_4q,-1.9454,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+CYP,reserves_change_3m,0.0075,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+CZE,deposits_change_3m,0.0174,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+CZE,fx_depreciation_12m,-0.008,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+CZE,fx_depreciation_90d,0.006,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+CZE,npl_change_4q,-0.1536,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+CZE,reserves_change_3m,0.0076,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+DEU,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DEU,npl_change_4q,0.1424,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+DEU,reserves_change_3m,0.011,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+DJI,deposits_change_3m,0.0486,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+DJI,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+DJI,fx_depreciation_90d,0.0008,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DJI,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+DJI,npl_change_4q,-0.8278,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+DJI,reserves_change_3m,0.2359,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+DMA,deposits_change_3m,0.0075,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+DMA,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+DMA,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DMA,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+DMA,npl_change_4q,-2.5239,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+DMA,reserves_change_3m,-0.0526,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+DNK,deposits_change_3m,-0.0064,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+DNK,fx_depreciation_12m,0.0068,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+DNK,fx_depreciation_90d,0.001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DNK,npl_change_4q,-0.1264,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+DNK,reserves_change_3m,-0.0085,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+DOM,deposits_change_3m,0.0446,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+DOM,fx_depreciation_12m,-0.0421,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+DOM,fx_depreciation_90d,-0.003,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DOM,npl_change_4q,0.4757,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+DOM,reserves_change_3m,-0.0397,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+DZA,deposits_change_3m,0.0638,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+DZA,fx_depreciation_12m,0.0255,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+DZA,fx_depreciation_90d,0.0047,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+DZA,npl_change_4q,-1.0018,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+DZA,reserves_change_3m,-0.0398,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+ECU,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ECU,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ECU,imf_credit_change_3m,-0.0224,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+ECU,npl_change_4q,-0.4446,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+ECU,reserves_change_3m,0.0324,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+EGY,deposits_change_3m,0.0271,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+EGY,fx_depreciation_12m,0.0508,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+EGY,fx_depreciation_90d,0.0518,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+EGY,imf_credit_change_3m,0.0851,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+EGY,reserves_change_3m,0.169,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+ERI,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ERI,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ESH,fx_depreciation_90d,0.0222,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ESP,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ESP,npl_change_4q,-0.054,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ESP,reserves_change_3m,-0.0018,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+EST,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+EST,npl_change_4q,-0.0854,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+EST,reserves_change_3m,-0.0033,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+ETH,fx_depreciation_12m,0.2276,2025-09-30,363,True,> 20% official depreciation vs USD in 12 months
+ETH,fx_depreciation_90d,0.0133,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ETH,imf_credit_change_3m,0.1821,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+ETH,reserves_change_3m,0.1295,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+EZB,reserves_change_3m,0.0613,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+FIN,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FIN,npl_change_4q,-0.1667,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+FIN,reserves_change_3m,0.0169,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+FJI,deposits_change_3m,0.0072,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+FJI,fx_depreciation_12m,-0.0271,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+FJI,fx_depreciation_90d,-0.0048,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FJI,reserves_change_3m,-0.0253,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+FLK,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FRA,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FRA,npl_change_4q,0.075,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+FRA,reserves_change_3m,-0.0044,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+FRO,fx_depreciation_12m,-0.0572,2025-10-31,332,False,> 20% official depreciation vs USD in 12 months
+FRO,fx_depreciation_90d,0.001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FSM,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+FSM,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+FSM,npl_change_4q,1.0383,2024-12-31,636,False,NPL ratio up > 3 percentage points in 4 quarters
+GAB,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GAB,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GAB,imf_credit_change_3m,-0.1064,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GAB,reserves_change_3m,-0.4516,2024-12-31,636,True,> 15% fall in FX reserves in 3 months
+GBR,fx_depreciation_12m,-0.0057,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GBR,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GBR,npl_change_4q,-0.0755,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+GBR,reserves_change_3m,-0.0053,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+GEO,deposits_change_3m,0.0444,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+GEO,fx_depreciation_12m,-0.0305,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GEO,fx_depreciation_90d,-0.0149,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GEO,imf_credit_change_3m,-0.0617,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GEO,npl_change_4q,0.0835,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+GEO,reserves_change_3m,0.1723,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+GEO,unrest_zscore,-0.2952,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+GGY,fx_depreciation_12m,-0.0057,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GGY,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GHA,deposits_change_3m,0.1093,2026-04-30,151,False,> 5% nominal fall in bank deposits in 3 months
+GHA,fx_depreciation_12m,-0.2843,2026-01-31,240,False,> 20% official depreciation vs USD in 12 months
+GHA,fx_depreciation_90d,0.0286,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GHA,imf_credit_change_3m,0.0976,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+GHA,npl_change_4q,-5.3319,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+GHA,reserves_change_3m,-0.2273,2026-07-31,59,True,> 15% fall in FX reserves in 3 months
+GIB,fx_depreciation_12m,-0.0057,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GIB,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GIN,deposits_change_3m,0.1478,2025-12-31,271,False,> 5% nominal fall in bank deposits in 3 months
+GIN,fx_depreciation_90d,0.004,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GIN,imf_credit_change_3m,-0.0721,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GIN,npl_change_4q,-1.4551,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+GIN,reserves_change_3m,0.217,2025-09-30,363,False,> 15% fall in FX reserves in 3 months
+GLP,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GMB,deposits_change_3m,0.0453,2025-11-30,302,False,> 5% nominal fall in bank deposits in 3 months
+GMB,fx_depreciation_12m,0.0436,2025-12-31,271,False,> 20% official depreciation vs USD in 12 months
+GMB,fx_depreciation_90d,0.0013,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GMB,imf_credit_change_3m,0.0891,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+GMB,reserves_change_3m,-0.0039,2025-05-31,485,False,> 15% fall in FX reserves in 3 months
+GNB,deposits_change_3m,0.1461,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+GNB,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GNB,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GNB,imf_credit_change_3m,-0.0294,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GNQ,deposits_change_3m,-0.0382,2023-12-31,1002,False,> 5% nominal fall in bank deposits in 3 months
+GNQ,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GNQ,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GNQ,imf_credit_change_3m,-0.2663,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GNQ,reserves_change_3m,-0.0141,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+GRC,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GRC,npl_change_4q,-0.4109,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+GRC,reserves_change_3m,-0.068,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+GRD,deposits_change_3m,-0.0224,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+GRD,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GRD,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GRD,imf_credit_change_3m,-0.0143,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+GRD,npl_change_4q,1.4579,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+GRD,reserves_change_3m,-0.0235,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+GRL,fx_depreciation_90d,0.001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GTM,deposits_change_3m,0.0209,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+GTM,fx_depreciation_12m,-0.0037,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+GTM,fx_depreciation_90d,0.0016,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GTM,npl_change_4q,-0.1208,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+GTM,reserves_change_3m,0.0075,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+GUF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GUM,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GUY,deposits_change_3m,0.0273,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+GUY,fx_depreciation_12m,0.0,2026-06-30,90,False,> 20% official depreciation vs USD in 12 months
+GUY,fx_depreciation_90d,0.0023,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+GUY,reserves_change_3m,-0.0525,2026-03-31,181,False,> 15% fall in FX reserves in 3 months
+HKG,deposits_change_3m,0.0399,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+HKG,fx_depreciation_12m,0.0055,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+HKG,fx_depreciation_90d,0.0001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HKG,npl_change_4q,-0.0729,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+HKG,reserves_change_3m,0.0014,2024-02-29,942,False,> 15% fall in FX reserves in 3 months
+HMD,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HND,deposits_change_3m,0.0353,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+HND,fx_depreciation_12m,0.032,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+HND,fx_depreciation_90d,0.0035,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HND,imf_credit_change_3m,0.353,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+HND,npl_change_4q,0.0605,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+HND,reserves_change_3m,0.0126,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+HND,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+HRV,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HRV,npl_change_4q,-0.2859,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+HRV,reserves_change_3m,-0.0714,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+HTI,deposits_change_3m,0.039,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+HTI,fx_depreciation_12m,-0.0037,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+HTI,fx_depreciation_90d,0.0029,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HTI,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+HTI,reserves_change_3m,0.0343,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+HUN,deposits_change_3m,0.0023,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+HUN,fx_depreciation_12m,-0.076,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+HUN,fx_depreciation_90d,0.0333,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+HUN,npl_change_4q,-0.0481,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+HUN,reserves_change_3m,0.0509,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+IDN,deposits_change_3m,0.0084,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+IDN,fx_depreciation_12m,0.0824,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+IDN,fx_depreciation_90d,0.0029,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IDN,npl_change_4q,-0.0205,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+IDN,reserves_change_3m,0.0048,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+IDN,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+IMN,fx_depreciation_12m,-0.0057,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+IMN,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IND,deposits_change_3m,0.0404,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+IND,fx_depreciation_12m,0.0865,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+IND,fx_depreciation_90d,0.0146,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IND,npl_change_4q,-0.5026,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+IND,reserves_change_3m,0.022,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+IOT,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IRL,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IRL,npl_change_4q,-0.22,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+IRL,reserves_change_3m,0.0198,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+IRN,fx_depreciation_90d,-0.0011,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IRN,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+IRQ,deposits_change_3m,-0.0371,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+IRQ,fx_depreciation_12m,0.0,2026-05-31,120,False,> 20% official depreciation vs USD in 12 months
+IRQ,fx_depreciation_90d,0.0015,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+IRQ,npl_change_4q,1.8757,2024-12-31,636,False,NPL ratio up > 3 percentage points in 4 quarters
+IRQ,reserves_change_3m,-0.1388,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+ISL,deposits_change_3m,0.0674,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ISL,fx_depreciation_12m,-0.0101,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ISL,fx_depreciation_90d,-0.0478,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ISL,npl_change_4q,-0.2116,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ISL,reserves_change_3m,0.0761,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+ISR,deposits_change_3m,-0.0071,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+ISR,fx_depreciation_12m,-0.1032,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ISR,fx_depreciation_90d,0.0208,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ISR,npl_change_4q,-0.072,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ISR,reserves_change_3m,0.0124,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+ITA,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ITA,npl_change_4q,-0.3073,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+ITA,reserves_change_3m,0.0153,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+JAM,deposits_change_3m,0.0171,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+JAM,fx_depreciation_12m,-0.0125,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+JAM,fx_depreciation_90d,0.0058,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+JAM,imf_credit_change_3m,-0.0052,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+JAM,reserves_change_3m,0.0137,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+JEY,fx_depreciation_12m,-0.0057,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+JEY,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+JOR,deposits_change_3m,0.018,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+JOR,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+JOR,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+JOR,imf_credit_change_3m,0.054,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+JOR,npl_change_4q,-0.4179,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+JOR,reserves_change_3m,0.0801,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+JPN,deposits_change_3m,0.0067,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+JPN,fx_depreciation_12m,0.0896,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+JPN,fx_depreciation_90d,-0.0274,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+JPN,npl_change_4q,-0.1819,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+JPN,reserves_change_3m,-0.0836,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+KAZ,deposits_change_3m,0.0755,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+KAZ,fx_depreciation_12m,-0.1415,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KAZ,fx_depreciation_90d,-0.0867,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KAZ,npl_change_4q,0.5722,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+KAZ,reserves_change_3m,-0.0017,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+KEN,deposits_change_3m,0.0256,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+KEN,fx_depreciation_12m,0.0016,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KEN,fx_depreciation_90d,0.0017,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KEN,imf_credit_change_3m,-0.0096,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+KEN,npl_change_4q,0.1824,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+KEN,reserves_change_3m,0.1689,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+KEN,unrest_zscore,-0.2952,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+KGZ,deposits_change_3m,-0.0482,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+KGZ,fx_depreciation_12m,0.0,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+KGZ,fx_depreciation_90d,-0.0002,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KGZ,imf_credit_change_3m,-0.0657,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+KGZ,npl_change_4q,0.665,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+KGZ,reserves_change_3m,-0.0613,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+KHM,deposits_change_3m,-0.0073,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+KHM,fx_depreciation_12m,0.0096,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KHM,fx_depreciation_90d,0.0123,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KHM,npl_change_4q,1.6185,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+KHM,reserves_change_3m,-0.0865,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+KIR,fx_depreciation_12m,-0.0876,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KIR,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KNA,deposits_change_3m,-0.0079,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+KNA,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KNA,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KNA,npl_change_4q,-1.6864,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+KNA,reserves_change_3m,-0.003,2026-03-31,181,False,> 15% fall in FX reserves in 3 months
+KOR,deposits_change_3m,0.0271,2025-10-31,332,False,> 5% nominal fall in bank deposits in 3 months
+KOR,fx_depreciation_12m,-0.0087,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KOR,fx_depreciation_90d,-0.123,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KOR,reserves_change_3m,0.0004,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+KOR,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+KOS,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KOS,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KOS,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+KOS,npl_change_4q,-0.0386,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+KOS,reserves_change_3m,-0.1623,2025-12-31,271,True,> 15% fall in FX reserves in 3 months
+KWT,deposits_change_3m,0.0031,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+KWT,fx_depreciation_12m,0.0059,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+KWT,fx_depreciation_90d,-0.0034,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+KWT,npl_change_4q,-0.0461,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+KWT,reserves_change_3m,-0.1155,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+LAO,fx_depreciation_12m,0.0966,2026-06-30,90,False,> 20% official depreciation vs USD in 12 months
+LAO,fx_depreciation_90d,-0.0011,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LAO,reserves_change_3m,0.0591,2026-05-31,120,False,> 15% fall in FX reserves in 3 months
+LBN,fx_depreciation_12m,0.0,2026-03-31,181,False,> 20% official depreciation vs USD in 12 months
+LBN,fx_depreciation_90d,-0.0018,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LBN,reserves_change_3m,0.0631,2025-03-31,546,False,> 15% fall in FX reserves in 3 months
+LBR,deposits_change_3m,0.0449,2024-12-31,636,False,> 5% nominal fall in bank deposits in 3 months
+LBR,fx_depreciation_12m,0.0316,2025-08-31,393,False,> 20% official depreciation vs USD in 12 months
+LBR,fx_depreciation_90d,-0.0575,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LBR,imf_credit_change_3m,-0.057,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+LBR,reserves_change_3m,-0.0719,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+LBY,deposits_change_3m,-0.0966,2026-04-30,151,True,> 5% nominal fall in bank deposits in 3 months
+LBY,fx_depreciation_12m,0.1649,2026-04-30,151,False,> 20% official depreciation vs USD in 12 months
+LBY,fx_depreciation_90d,-0.0031,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LBY,reserves_change_3m,-0.0844,2026-04-30,151,False,> 15% fall in FX reserves in 3 months
+LCA,deposits_change_3m,0.0069,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+LCA,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+LCA,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LCA,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+LCA,npl_change_4q,-1.1732,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+LCA,reserves_change_3m,-0.0165,2026-03-31,181,False,> 15% fall in FX reserves in 3 months
+LIE,fx_depreciation_12m,0.01,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+LIE,fx_depreciation_90d,0.025,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LIE,npl_change_4q,-0.145,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+LKA,fx_depreciation_12m,0.112,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+LKA,fx_depreciation_90d,-0.0161,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LKA,imf_credit_change_3m,-0.0221,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+LKA,npl_change_4q,-3.0884,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+LKA,reserves_change_3m,-0.0287,2025-07-31,424,False,> 15% fall in FX reserves in 3 months
+LSO,deposits_change_3m,0.0014,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+LSO,fx_depreciation_12m,-0.0908,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+LSO,fx_depreciation_90d,-0.0062,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LSO,imf_credit_change_3m,-0.111,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+LSO,npl_change_4q,0.0396,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+LSO,reserves_change_3m,0.0665,2025-09-30,363,False,> 15% fall in FX reserves in 3 months
+LTU,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LTU,npl_change_4q,-0.0649,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+LTU,reserves_change_3m,0.0299,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+LUX,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LUX,npl_change_4q,-0.1945,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+LUX,reserves_change_3m,-0.0035,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+LVA,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+LVA,npl_change_4q,0.0946,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+LVA,reserves_change_3m,-0.0137,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+MAC,deposits_change_3m,0.0073,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MAC,fx_depreciation_12m,0.0062,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MAC,fx_depreciation_90d,0.0001,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MAC,npl_change_4q,-1.094,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+MAC,reserves_change_3m,0.0433,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+MAF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MAR,deposits_change_3m,0.0316,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MAR,fx_depreciation_12m,0.0199,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+MAR,fx_depreciation_90d,0.0222,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MAR,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MAR,npl_change_4q,0.0842,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+MAR,reserves_change_3m,0.0633,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+MAR,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MCO,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MDA,deposits_change_3m,0.0379,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MDA,fx_depreciation_12m,0.0389,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MDA,fx_depreciation_90d,0.006,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MDA,imf_credit_change_3m,-0.0095,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MDA,npl_change_4q,0.019,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MDA,reserves_change_3m,0.0485,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MDA,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MDG,deposits_change_3m,0.0223,2025-11-30,302,False,> 5% nominal fall in bank deposits in 3 months
+MDG,fx_depreciation_12m,-0.0249,2025-12-31,271,False,> 20% official depreciation vs USD in 12 months
+MDG,fx_depreciation_90d,0.042,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MDG,imf_credit_change_3m,-0.0496,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MDG,npl_change_4q,0.3871,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+MDG,reserves_change_3m,0.0575,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+MDG,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MDV,deposits_change_3m,0.0146,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MDV,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MDV,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MDV,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MDV,npl_change_4q,-1.7662,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+MDV,reserves_change_3m,-0.0873,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MEX,deposits_change_3m,0.0177,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MEX,fx_depreciation_12m,-0.092,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MEX,fx_depreciation_90d,0.014,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MEX,npl_change_4q,0.191,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MEX,reserves_change_3m,-0.0078,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MEX,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MHL,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MHL,npl_change_4q,-0.3894,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MKD,deposits_change_3m,0.024,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MKD,fx_depreciation_12m,0.0011,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MKD,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MKD,imf_credit_change_3m,-0.0576,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MKD,npl_change_4q,-0.5924,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MKD,reserves_change_3m,-0.0255,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MLI,deposits_change_3m,0.0358,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MLI,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MLI,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MLI,imf_credit_change_3m,-0.0473,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MLT,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MLT,npl_change_4q,-0.4659,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MLT,reserves_change_3m,0.0347,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+MMR,fx_depreciation_90d,-0.0002,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MMR,imf_credit_change_3m,-0.1052,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MNE,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MNE,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MNE,npl_change_4q,-1.0497,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+MNE,reserves_change_3m,0.185,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+MNG,deposits_change_3m,0.0534,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MNG,fx_depreciation_12m,0.0007,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MNG,fx_depreciation_90d,0.0047,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MNG,imf_credit_change_3m,-0.1312,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MNG,npl_change_4q,-0.0727,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+MNG,reserves_change_3m,0.0816,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+MNP,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MOZ,deposits_change_3m,0.0155,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+MOZ,fx_depreciation_12m,0.0,2025-08-31,393,False,> 20% official depreciation vs USD in 12 months
+MOZ,fx_depreciation_90d,-0.0005,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MOZ,npl_change_4q,-1.8501,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MOZ,reserves_change_3m,0.0589,2025-07-31,424,False,> 15% fall in FX reserves in 3 months
+MOZ,unrest_zscore,-0.2952,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MRT,fx_depreciation_90d,0.0088,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MRT,imf_credit_change_3m,0.1974,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+MRT,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+MSR,deposits_change_3m,-0.0143,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MSR,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MSR,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MSR,npl_change_4q,-0.8011,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+MSR,reserves_change_3m,0.0298,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+MTQ,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MUS,deposits_change_3m,0.0071,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MUS,fx_depreciation_12m,0.0332,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MUS,fx_depreciation_90d,0.0062,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MUS,npl_change_4q,-0.2408,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MUS,reserves_change_3m,0.0505,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MWI,deposits_change_3m,0.0581,2025-04-30,516,False,> 5% nominal fall in bank deposits in 3 months
+MWI,fx_depreciation_12m,0.5538,2024-09-30,728,True,> 20% official depreciation vs USD in 12 months
+MWI,fx_depreciation_90d,0.0019,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MWI,imf_credit_change_3m,-0.0403,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+MWI,npl_change_4q,2.6914,2024-09-30,728,False,NPL ratio up > 3 percentage points in 4 quarters
+MYS,deposits_change_3m,0.0121,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+MYS,fx_depreciation_12m,-0.0452,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+MYS,fx_depreciation_90d,0.0029,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+MYS,npl_change_4q,-0.0192,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+MYS,reserves_change_3m,0.0152,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+MYT,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NAM,deposits_change_3m,0.0178,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+NAM,fx_depreciation_12m,-0.0882,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NAM,fx_depreciation_90d,-0.0062,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NAM,npl_change_4q,-1.1902,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+NAM,reserves_change_3m,0.1572,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+NCL,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NCL,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NER,deposits_change_3m,0.027,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+NER,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NER,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NER,imf_credit_change_3m,0.0267,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+NFK,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NGA,deposits_change_3m,0.0791,2024-08-31,758,False,> 5% nominal fall in bank deposits in 3 months
+NGA,fx_depreciation_12m,-0.1291,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NGA,fx_depreciation_90d,-0.037,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NGA,npl_change_4q,5.0634,2026-06-30,90,True,NPL ratio up > 3 percentage points in 4 quarters
+NGA,reserves_change_3m,0.0879,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+NIC,deposits_change_3m,0.024,2025-11-30,302,False,> 5% nominal fall in bank deposits in 3 months
+NIC,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NIC,fx_depreciation_90d,0.0005,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NIC,imf_credit_change_3m,-0.0999,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+NIC,npl_change_4q,0.3013,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+NIC,reserves_change_3m,0.0239,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+NIU,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NLD,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NLD,npl_change_4q,-0.1154,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+NLD,reserves_change_3m,-0.0053,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+NOR,deposits_change_3m,0.0158,2026-02-28,212,False,> 5% nominal fall in bank deposits in 3 months
+NOR,fx_depreciation_12m,-0.0734,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NOR,fx_depreciation_90d,-0.0438,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NOR,npl_change_4q,-0.0118,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+NOR,reserves_change_3m,-0.027,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+NPL,deposits_change_3m,0.0481,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+NPL,fx_depreciation_12m,0.1151,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+NPL,fx_depreciation_90d,0.0146,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NPL,imf_credit_change_3m,0.0833,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+NPL,npl_change_4q,0.3611,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+NPL,reserves_change_3m,0.0809,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+NPL,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+NRU,fx_depreciation_12m,-0.0876,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NRU,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NZL,deposits_change_3m,0.0088,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+NZL,fx_depreciation_12m,-0.0039,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+NZL,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+NZL,reserves_change_3m,-0.1073,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+OMN,deposits_change_3m,0.0041,2025-07-31,424,False,> 5% nominal fall in bank deposits in 3 months
+OMN,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+OMN,fx_depreciation_90d,0.0011,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+OMN,reserves_change_3m,0.0318,2025-03-31,546,False,> 15% fall in FX reserves in 3 months
+PAK,deposits_change_3m,0.0443,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+PAK,fx_depreciation_12m,-0.0155,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PAK,fx_depreciation_90d,-0.0018,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PAK,imf_credit_change_3m,-0.0218,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+PAK,npl_change_4q,-1.1396,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+PAK,reserves_change_3m,0.001,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+PAK,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+PAN,deposits_change_3m,0.0178,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+PAN,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PAN,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PAN,npl_change_4q,0.0384,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+PAN,reserves_change_3m,-0.2803,2026-08-31,28,True,> 15% fall in FX reserves in 3 months
+PAN,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+PCN,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PER,deposits_change_3m,0.0026,2025-08-31,393,False,> 5% nominal fall in bank deposits in 3 months
+PER,fx_depreciation_12m,-0.0524,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PER,fx_depreciation_90d,-0.0039,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PER,npl_change_4q,-0.7494,2025-09-30,363,False,NPL ratio up > 3 percentage points in 4 quarters
+PER,reserves_change_3m,0.0462,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+PHL,deposits_change_3m,0.0078,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+PHL,fx_depreciation_12m,0.082,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PHL,fx_depreciation_90d,0.0187,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PHL,npl_change_4q,-0.0342,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+PHL,reserves_change_3m,0.0152,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+PLW,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PLW,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PNG,deposits_change_3m,0.0127,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+PNG,fx_depreciation_12m,0.0638,2025-12-31,271,False,> 20% official depreciation vs USD in 12 months
+PNG,fx_depreciation_90d,0.0301,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PNG,imf_credit_change_3m,0.1088,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+PNG,reserves_change_3m,-0.0141,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+POL,deposits_change_3m,0.0252,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+POL,fx_depreciation_12m,0.0207,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+POL,fx_depreciation_90d,0.0206,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+POL,npl_change_4q,-0.1906,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+POL,reserves_change_3m,0.0213,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+PRI,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PRK,fx_depreciation_90d,-0.0003,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PRT,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PRT,npl_change_4q,-0.3408,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+PRT,reserves_change_3m,-0.1694,2026-07-31,59,True,> 15% fall in FX reserves in 3 months
+PRY,deposits_change_3m,0.0168,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+PRY,fx_depreciation_12m,-0.1859,2026-03-31,181,False,> 20% official depreciation vs USD in 12 months
+PRY,fx_depreciation_90d,-0.0286,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+PRY,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+PRY,npl_change_4q,0.2993,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+PRY,reserves_change_3m,-0.0271,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+PYF,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+PYF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+QAT,deposits_change_3m,-0.0405,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+QAT,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+QAT,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+QAT,reserves_change_3m,0.1339,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+REU,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ROU,deposits_change_3m,0.0134,2026-04-30,151,False,> 5% nominal fall in bank deposits in 3 months
+ROU,fx_depreciation_12m,0.0436,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ROU,fx_depreciation_90d,0.0068,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ROU,npl_change_4q,0.3483,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+ROU,reserves_change_3m,0.0093,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+RUS,fx_depreciation_12m,-0.0241,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+RUS,fx_depreciation_90d,0.0956,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+RUS,reserves_change_3m,-0.0245,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+RWA,deposits_change_3m,0.0288,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+RWA,fx_depreciation_12m,0.019,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+RWA,fx_depreciation_90d,0.0072,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+RWA,imf_credit_change_3m,0.032,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+RWA,npl_change_4q,0.6238,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+RWA,reserves_change_3m,0.0349,2026-01-31,240,False,> 15% fall in FX reserves in 3 months
+SAU,deposits_change_3m,0.0346,2026-02-28,212,False,> 5% nominal fall in bank deposits in 3 months
+SAU,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SAU,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SAU,npl_change_4q,-0.2075,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+SAU,reserves_change_3m,-0.0126,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+SDN,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SDN,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SEN,deposits_change_3m,0.0247,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+SEN,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SEN,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SEN,imf_credit_change_3m,-0.076,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SGP,fx_depreciation_12m,-0.0083,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SGP,fx_depreciation_90d,-0.0127,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SGP,reserves_change_3m,-0.002,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+SHN,fx_depreciation_90d,-0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SJM,fx_depreciation_90d,-0.0438,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SLB,deposits_change_3m,-0.0212,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+SLB,fx_depreciation_12m,-0.0218,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+SLB,fx_depreciation_90d,-0.0065,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SLB,imf_credit_change_3m,-0.111,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SLB,npl_change_4q,0.0551,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+SLB,reserves_change_3m,0.024,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+SLE,deposits_change_3m,0.1071,2026-04-30,151,False,> 5% nominal fall in bank deposits in 3 months
+SLE,fx_depreciation_12m,0.0083,2025-04-30,516,False,> 20% official depreciation vs USD in 12 months
+SLE,fx_depreciation_90d,0.0048,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SLE,imf_credit_change_3m,0.0031,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SLE,reserves_change_3m,-0.0251,2025-04-30,516,False,> 15% fall in FX reserves in 3 months
+SLV,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SLV,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SLV,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SLV,npl_change_4q,-0.0375,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+SLV,reserves_change_3m,-0.0075,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+SMR,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SMR,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SMR,npl_change_4q,-1.6824,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+SMR,reserves_change_3m,0.0649,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+SOM,deposits_change_3m,0.0121,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+SOM,fx_depreciation_90d,0.0016,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SOM,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SOM,npl_change_4q,-0.1102,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+SPM,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SRB,deposits_change_3m,0.0168,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+SRB,fx_depreciation_12m,0.008,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SRB,fx_depreciation_90d,0.0018,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SRB,imf_credit_change_3m,-0.1153,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SRB,reserves_change_3m,0.0294,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+SSD,deposits_change_3m,0.1723,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+SSD,fx_depreciation_12m,1.883,2025-05-31,485,True,> 20% official depreciation vs USD in 12 months
+SSD,fx_depreciation_90d,0.2198,2026-09-28,0,True,> 10% local-currency depreciation vs USD in 90 days
+SSD,imf_credit_change_3m,-0.0149,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SSD,reserves_change_3m,2.2782,2025-05-31,485,False,> 15% fall in FX reserves in 3 months
+STP,deposits_change_3m,-0.0022,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+STP,fx_depreciation_12m,0.0261,2026-06-30,90,False,> 20% official depreciation vs USD in 12 months
+STP,fx_depreciation_90d,0.0013,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+STP,imf_credit_change_3m,-0.0216,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+STP,npl_change_4q,-5.8281,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+STP,reserves_change_3m,0.1297,2025-08-31,393,False,> 15% fall in FX reserves in 3 months
+SUR,deposits_change_3m,0.0441,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+SUR,fx_depreciation_12m,-0.0186,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SUR,fx_depreciation_90d,0.004,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SUR,imf_credit_change_3m,-0.0075,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SUR,reserves_change_3m,0.0787,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+SVK,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SVK,npl_change_4q,-0.0667,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+SVK,reserves_change_3m,0.0618,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+SVN,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SVN,npl_change_4q,0.6156,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+SVN,reserves_change_3m,0.0126,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+SWE,deposits_change_3m,0.0211,2025-05-31,485,False,> 5% nominal fall in bank deposits in 3 months
+SWE,fx_depreciation_12m,0.0103,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SWE,fx_depreciation_90d,0.0202,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SWE,npl_change_4q,-0.0808,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+SWE,reserves_change_3m,-0.0059,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+SWZ,deposits_change_3m,-0.0098,2026-01-31,240,False,> 5% nominal fall in bank deposits in 3 months
+SWZ,fx_depreciation_12m,-0.0908,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SWZ,fx_depreciation_90d,-0.0062,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SWZ,npl_change_4q,-0.6145,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+SWZ,reserves_change_3m,0.2567,2025-10-31,332,False,> 15% fall in FX reserves in 3 months
+SXM,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SXM,fx_depreciation_90d,0.0019,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SYC,deposits_change_3m,-0.0129,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+SYC,fx_depreciation_12m,-0.0052,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+SYC,fx_depreciation_90d,0.0072,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+SYC,imf_credit_change_3m,-0.0329,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+SYC,npl_change_4q,-1.5096,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+SYC,reserves_change_3m,0.0176,2025-01-31,605,False,> 15% fall in FX reserves in 3 months
+TCA,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TCD,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TCD,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TCD,imf_credit_change_3m,-0.0503,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+TCD,reserves_change_3m,0.6254,2024-12-31,636,False,> 15% fall in FX reserves in 3 months
+TGO,deposits_change_3m,0.0218,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+TGO,fx_depreciation_12m,0.0053,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TGO,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TGO,imf_credit_change_3m,0.2398,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+TGO,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+THA,deposits_change_3m,-0.0008,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+THA,fx_depreciation_12m,0.0258,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+THA,fx_depreciation_90d,0.009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+THA,npl_change_4q,-0.0062,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+THA,reserves_change_3m,-0.0144,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+TJK,deposits_change_3m,0.0814,2024-09-30,728,False,> 5% nominal fall in bank deposits in 3 months
+TJK,fx_depreciation_12m,-0.0639,2026-06-30,90,False,> 20% official depreciation vs USD in 12 months
+TJK,fx_depreciation_90d,-0.0017,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TJK,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+TJK,reserves_change_3m,0.0777,2025-12-31,271,False,> 15% fall in FX reserves in 3 months
+TKL,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TKM,fx_depreciation_90d,-0.0007,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TLS,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TLS,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TLS,npl_change_4q,0.0634,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+TLS,reserves_change_3m,0.327,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+TON,deposits_change_3m,0.0317,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+TON,fx_depreciation_12m,0.0091,2026-06-30,90,False,> 20% official depreciation vs USD in 12 months
+TON,fx_depreciation_90d,0.0003,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TON,imf_credit_change_3m,-0.0499,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+TON,npl_change_4q,-0.2892,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+TON,reserves_change_3m,0.069,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+TTO,deposits_change_3m,-0.0228,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+TTO,fx_depreciation_12m,0.0007,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TTO,fx_depreciation_90d,0.0011,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TTO,npl_change_4q,0.1555,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+TTO,reserves_change_3m,0.0714,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+TUN,deposits_change_3m,0.0287,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+TUN,fx_depreciation_12m,-0.0059,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+TUN,fx_depreciation_90d,-0.0115,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TUN,imf_credit_change_3m,-0.1321,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+TUN,reserves_change_3m,0.0523,2025-10-31,332,False,> 15% fall in FX reserves in 3 months
+TUR,deposits_change_3m,0.0316,2026-03-31,181,False,> 5% nominal fall in bank deposits in 3 months
+TUR,fx_depreciation_12m,0.1741,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TUR,fx_depreciation_90d,0.05,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TUR,npl_change_4q,0.656,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+TUR,reserves_change_3m,0.3074,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+TUR,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+TUV,fx_depreciation_12m,-0.0876,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+TUV,fx_depreciation_90d,-0.0224,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TWN,fx_depreciation_12m,-0.041,2025-12-31,271,False,> 20% official depreciation vs USD in 12 months
+TWN,fx_depreciation_90d,-0.0029,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TWN,reserves_change_3m,-0.0033,2026-04-30,151,False,> 15% fall in FX reserves in 3 months
+TZA,deposits_change_3m,0.0611,2025-12-31,271,False,> 5% nominal fall in bank deposits in 3 months
+TZA,fx_depreciation_12m,0.0414,2025-04-30,516,False,> 20% official depreciation vs USD in 12 months
+TZA,fx_depreciation_90d,0.0075,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+TZA,imf_credit_change_3m,0.2445,2026-08-31,28,True,New IMF money: credit outstanding up > 5% in 3 months
+TZA,npl_change_4q,-0.58,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+TZA,unrest_zscore,-0.2952,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+UGA,deposits_change_3m,0.0352,2026-05-31,120,False,> 5% nominal fall in bank deposits in 3 months
+UGA,fx_depreciation_12m,0.0391,2026-05-31,120,False,> 20% official depreciation vs USD in 12 months
+UGA,fx_depreciation_90d,0.0686,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+UGA,imf_credit_change_3m,-0.0376,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+UGA,npl_change_4q,-1.1729,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+UGA,reserves_change_3m,0.2657,2025-11-30,302,False,> 15% fall in FX reserves in 3 months
+UGA,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+UKR,deposits_change_3m,0.028,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+UKR,fx_depreciation_12m,0.0797,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+UKR,fx_depreciation_90d,-0.0012,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+UKR,imf_credit_change_3m,0.0178,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+UKR,npl_change_4q,-14.5594,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+UKR,reserves_change_3m,0.0658,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+UMI,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+URY,deposits_change_3m,-0.0058,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+URY,fx_depreciation_12m,0.0062,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+URY,fx_depreciation_90d,-0.0026,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+URY,npl_change_4q,-0.0091,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+URY,reserves_change_3m,0.0173,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+USA,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+USA,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+USA,npl_change_4q,0.006,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+USA,reserves_change_3m,-0.0009,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+UZB,deposits_change_3m,0.0645,2026-08-31,28,False,> 5% nominal fall in bank deposits in 3 months
+UZB,fx_depreciation_12m,-0.0603,2026-05-31,120,False,> 20% official depreciation vs USD in 12 months
+UZB,fx_depreciation_90d,-0.0252,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+UZB,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+UZB,npl_change_4q,-0.2387,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+UZB,reserves_change_3m,-0.1154,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+VAT,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VCT,deposits_change_3m,0.0471,2026-02-28,212,False,> 5% nominal fall in bank deposits in 3 months
+VCT,fx_depreciation_12m,0.0,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+VCT,fx_depreciation_90d,-0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VCT,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+VCT,npl_change_4q,-0.6149,2026-06-30,90,False,NPL ratio up > 3 percentage points in 4 quarters
+VCT,reserves_change_3m,-0.0402,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+VEN,fx_depreciation_90d,0.3736,2026-09-28,0,True,> 10% local-currency depreciation vs USD in 90 days
+VEN,unrest_zscore,-0.2041,2026-05-31,120,False,Social unrest > 2 s.d. above its own 2-year mean
+VGB,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VIR,fx_depreciation_90d,0.0,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VNM,fx_depreciation_12m,0.0039,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+VNM,fx_depreciation_90d,-0.0141,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VNM,npl_change_4q,-0.6399,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+VNM,reserves_change_3m,0.003,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+VUT,deposits_change_3m,0.0232,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+VUT,fx_depreciation_12m,-0.0059,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+VUT,fx_depreciation_90d,-0.0122,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+VUT,reserves_change_3m,0.0026,2026-07-31,59,False,> 15% fall in FX reserves in 3 months
+WBG,reserves_change_3m,-0.0664,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+WLF,fx_depreciation_90d,0.0009,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+WSM,deposits_change_3m,0.0109,2026-06-30,90,False,> 5% nominal fall in bank deposits in 3 months
+WSM,fx_depreciation_12m,-0.0231,2026-07-31,59,False,> 20% official depreciation vs USD in 12 months
+WSM,fx_depreciation_90d,-0.0043,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+WSM,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+WSM,npl_change_4q,1.2746,2026-03-31,181,False,NPL ratio up > 3 percentage points in 4 quarters
+WSM,reserves_change_3m,0.014,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
+YEM,fx_depreciation_90d,-0.0084,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ZAF,deposits_change_3m,0.0094,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ZAF,fx_depreciation_12m,-0.0908,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ZAF,fx_depreciation_90d,-0.0062,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ZAF,npl_change_4q,-0.2081,2025-06-30,455,False,NPL ratio up > 3 percentage points in 4 quarters
+ZAF,reserves_change_3m,-0.0067,2026-08-31,28,False,> 15% fall in FX reserves in 3 months
+ZMB,deposits_change_3m,0.0356,2026-07-31,59,False,> 5% nominal fall in bank deposits in 3 months
+ZMB,fx_depreciation_12m,-0.1933,2026-08-31,28,False,> 20% official depreciation vs USD in 12 months
+ZMB,fx_depreciation_90d,0.0733,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ZMB,imf_credit_change_3m,0.0001,2026-08-31,28,False,New IMF money: credit outstanding up > 5% in 3 months
+ZMB,npl_change_4q,-1.2919,2025-12-31,271,False,NPL ratio up > 3 percentage points in 4 quarters
+ZMB,reserves_change_3m,0.0305,2025-03-31,546,False,> 15% fall in FX reserves in 3 months
+ZWE,deposits_change_3m,0.1734,2026-04-30,151,False,> 5% nominal fall in bank deposits in 3 months
+ZWE,fx_depreciation_12m,0.0,2027-03-31,0,False,> 20% official depreciation vs USD in 12 months
+ZWE,fx_depreciation_90d,-0.0076,2026-09-28,0,False,> 10% local-currency depreciation vs USD in 90 days
+ZWE,reserves_change_3m,0.2705,2026-06-30,90,False,> 15% fall in FX reserves in 3 months
