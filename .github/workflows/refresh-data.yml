@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - ".github/workflows/refresh-data.yml"
+  # Official-source candidate refresh runs on the 12th and on controlled workflow maintenance.
   schedule:
     - cron: "17 7 12 * *"
   workflow_dispatch:
