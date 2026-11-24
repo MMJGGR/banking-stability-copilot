@@ -1,0 +1,73 @@
+name: Forecasting research foundation
+on:
+  pull_request:
+    paths:
+      - 'src/forecasting/**'
+      - 'src/scripts/*forecasting*.py'
+      - 'tests/test_forecasting*.py'
+      - 'docs/prd/broad-feature*.md'
+      - 'docs/research/forecasting*.md'
+      - '.github/workflows/forecasting*.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: forecasting-research-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install reproducible research-test dependencies
+        run: |
+          python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scipy==1.14.1' 'scikit-learn==1.5.2' 'pyarrow==19.0.1' 'pytest==8.3.5'
+          python -m pip check
+      - name: Verify research-only change scope
+        run: |
+          python - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path, PurePosixPath
+          baseline='5957ca779dafa21f2e098c819bfb060f43243206'
+          changes=subprocess.check_output(['git','diff','--name-only',baseline,'HEAD'],text=True).splitlines()
+          exact={'src/scripts/audit_forecasting_sources.py','src/scripts/build_forecasting_research_panel.py'}
+          patterns=('src/forecasting/*.py','tests/test_forecasting*.py','docs/prd/broad-feature*.md','docs/research/forecasting*.md','.github/workflows/forecasting*.yml')
+          assert all(p in exact or any(PurePosixPath(p).match(pattern) for pattern in patterns) for p in changes),changes
+          root=Path('research-evidence');root.mkdir()
+          report={'baseline':baseline,'checked_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'changed_paths':changes,'production_paths_unchanged':True,'file_sha256':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in changes if Path(p).is_file()}}
+          (root/'scope-and-code.json').write_text(json.dumps(report,indent=2)+'\n')
+          for p in Path('docs/prd').glob('broad-feature*.md'):
+              (root/p.name).write_text(p.read_text())
+          (root/'implementation-status.md').write_text(Path('docs/research/forecasting-implementation.md').read_text())
+          PY
+      - name: Run adversarial foundation, M2 and discovery tests
+        run: |
+          set -o pipefail
+          python -m compileall -q src/forecasting src/scripts/audit_forecasting_sources.py src/scripts/build_forecasting_research_panel.py tests/test_forecasting*.py
+          python -m pytest tests/test_forecasting*.py -q --junitxml=research-evidence/tests.xml | tee research-evidence/tests.txt
+      - name: Hydrate only the committed raw source caches
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="cache/FSIC_cache.parquet,cache/FSIBSIS_cache.parquet,cache/MFS_cache.parquet,cache/WEO_cache.parquet,cache/WGI_cache.parquet" --exclude=""
+      - name: Inventory every core source without evaluating targets
+        run: |
+          set -o pipefail
+          python -m src.scripts.audit_forecasting_sources --snapshot . --output research-evidence/inventory | tee research-evidence/inventory.log
+          git diff --exit-code -- app.py train_model.py cache artifacts data src/pillar_pipeline.py src/feature_engineering.py src/crisis_classifier.py src/crisis_panel.py src/crisis_hazard.py
+      - name: Preserve evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: broad-feature-forecasting-foundation-${{ github.run_id }}
+          path: research-evidence/
+          retention-days: 90
+          if-no-files-found: error
